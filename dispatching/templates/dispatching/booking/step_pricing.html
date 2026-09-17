@@ -213,6 +213,29 @@
               {% if form.additional_charges.errors %}<div class="rw-field-error">{{ form.additional_charges.errors.0 }}</div>{% endif %}
             </div>
           </div>
+
+          {% if afterhours_legs %}
+          {# The one question only the person setting the price can answer. A
+             quoted total can carry the $20 without it ever reaching Additional
+             Charges — recording the answer here is what stops the trip card
+             asking a dispatcher about it days later. #}
+          <div class="rw-field" id="rw-afterhours-ask" style="margin-top:1rem;">
+            <span class="rw-label">
+              After-hours fee — {% if afterhours_legs|length == 1 %}leg {{ afterhours_legs.0 }} picks{% else %}legs
+              {{ afterhours_legs|join:", " }} pick{% endif %} up between 10 PM and 6 AM
+            </span>
+            <div class="rw-radio-row">
+              {% for radio in form.afterhours_fee_included %}
+                <label class="rw-radio">{{ radio.tag }} <span>{{ radio.choice_label }}</span></label>
+              {% endfor %}
+            </div>
+            <div class="rw-help">
+              Answer once here and nobody gets asked again. Leave it blank and we'll
+              work it out from Additional Charges.
+            </div>
+            {% if form.afterhours_fee_included.errors %}<div class="rw-field-error">{{ form.afterhours_fee_included.errors.0 }}</div>{% endif %}
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -365,11 +388,18 @@
               var out = [];
               var total = recalc();
               if (total <= 0) out.push({tone:'crit', text:'No price has been set.'});
-              if (afterHoursLegs && num(base.value) > 0 && num(extra.value) < afterHoursFee) {
+              // Only nag while the after-hours question is still unanswered —
+              // a dispatcher who said "it's in my price" has already told us,
+              // and repeating the warning is what taught people to ignore it.
+              var ahAnswered = !!document.querySelector(
+                  '#rw-afterhours-ask input[type=radio]:checked'
+              );
+              if (afterHoursLegs && num(base.value) > 0
+                  && num(extra.value) < afterHoursFee && !ahAnswered) {
                   out.push({
                       tone:'warn',
-                      text:'After-hours pickup — the $' + afterHoursFee.toFixed(2) +
-                           ' fee for the 10 PM–6 AM pickup is not in this price yet.'
+                      text:'After-hours pickup — say whether the $' + afterHoursFee.toFixed(2) +
+                           ' fee for the 10 PM–6 AM pickup is in this price.'
                   });
               }
               if (unpriced && suggested !== null && num(base.value) === num(suggested)) {

@@ -5703,30 +5703,8 @@ def refresh_flight_data(request):
         # If the controlling flight came back not_found, surface a flight-verification task.
         # (Same behavior as before — only fired for the controlling flight, not secondaries.)
         if any_not_found and not all_flight_data:
-            from ops.models import OperationalTask
-            ctl_ident = (leg.flight_information.get_flight_ident() if leg.flight_information else "") or ""
-            existing_task = OperationalTask.objects.filter(
-                leg=leg,
-                task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                status__in=list(OperationalTask.OPEN_STATUSES),
-            ).first()
-            if not existing_task:
-                pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
-                pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
-                from datetime import timedelta as _td
-                OperationalTask.objects.create(
-                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                    priority=OperationalTask.Priority.HIGH,
-                    title=f"⚠️ Flight not found: {ctl_ident}",
-                    description=(
-                        f"Flight {ctl_ident} does not exist. "
-                        f"Please verify and correct the flight number.\n"
-                        f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
-                    ),
-                    leg=leg,
-                    reservation=leg.reservation,
-                    due_at=timezone.now() + _td(hours=4),
-                )
+            from ops.tasks import flag_flight_not_found
+            if flag_flight_not_found(leg):
                 logger.info(f"Created flight verification task for leg {leg.id}")
 
         if not all_flight_data:
@@ -6325,6 +6303,37 @@ def charge_afterhours_fee(request, leg_id):
     return JsonResponse({"success": False, "error": err}, status=status)
 
 
+def settle_afterhours_fee_view(request, leg_id):
+    """Record an after-hours fee as already collected, without charging. JSON.
+
+    The counterpart to charging: the $20 often reaches us on a bundled balance
+    payment, in cash, or inside a manually quoted price. Without this a
+    dispatcher's only options were to charge it a second time or close the task
+    — and closing wrote nothing, so the next flight refresh raised it again.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    leg = get_object_or_404(Leg.objects.select_related("reservation"), id=leg_id)
+    note = (request.POST.get("note") or "").strip()
+
+    from ops.tasks import settle_afterhours_fee
+
+    try:
+        closed = settle_afterhours_fee(leg, settled_by=request.user, note=note)
+    except Exception as exc:
+        logger.error(f"Settling after-hours fee on leg {leg_id} failed: {exc}", exc_info=True)
+        return JsonResponse({"success": False, "error": str(exc)}, status=400)
+
+    return JsonResponse({
+        "success": True,
+        "message": "Marked as already collected — this won't be raised again.",
+        "tasks_closed": closed,
+    })
+
+
 def _charge_afterhours_fee_for_leg(leg, user):
     """Charge the flat after-hours fee for one leg to the card on file, mark the
     leg, roll the fee into the reservation totals, note it, email the customer,
@@ -6814,31 +6823,11 @@ def _refresh_single_flight(leg):
                 flight.last_updated = timezone.now()
                 flight.save()
 
-                # Create a flight verification task if one doesn't already exist
-                from ops.models import OperationalTask
-                existing_task = OperationalTask.objects.filter(
-                    leg=leg,
-                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                    status__in=list(OperationalTask.OPEN_STATUSES),
-                ).first()
-                if not existing_task:
-                    flight_ident = flight.get_flight_ident() or "Unknown"
-                    pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
-                    pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
-                    from datetime import timedelta as _td
-                    OperationalTask.objects.create(
-                        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                        priority=OperationalTask.Priority.HIGH,
-                        title=f"⚠️ Flight not found: {flight_ident}",
-                        description=(
-                            f"Flight {flight_ident} does not exist. "
-                            f"Please verify and correct the flight number.\n"
-                            f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
-                        ),
-                        leg=leg,
-                        reservation=leg.reservation,
-                        due_at=timezone.now() + _td(hours=4),
-                    )
+                # Raise the "can't find this flight" task — deduped and
+                # cooled down by flag_flight_not_found, which is what stops the
+                # refresh/auto-close loop recreating it every half hour.
+                from ops.tasks import flag_flight_not_found
+                flag_flight_not_found(leg)
 
             return {
                 "leg_id": leg.id,
@@ -8493,6 +8482,9 @@ def dispatcher_booking_pricing(request):
                     'gratuity_amount': str(gratuity_amount),
                     'total_price': str(total_price),
                     'private_notes': form.cleaned_data.get('private_notes', ''),
+                    'afterhours_fee_included': form.cleaned_data.get(
+                        'afterhours_fee_included', ''
+                    ),
                 }
                 
                 booking_data['pricing_data'] = pricing_data
@@ -9023,15 +9015,22 @@ def create_dispatcher_reservation(booking_data):
                 gratuity_note = f"${gratuity_per_leg:.2f} Gratuity Included"
                 private_notes = f"{private_notes}\n{gratuity_note}".strip() if private_notes else gratuity_note
 
-            # Mark the after-hours fee as collected only when the additional
-            # charges on this booking actually cover it. The marker is what
-            # stops a later flight-delay pass from asking for the same $20
-            # twice — and leaving it unset when nobody charged the fee is what
-            # lets that pass still catch it.
-            from reservations.utils import AFTERHOURS_FEE_AMOUNT, afterhours_fee_owed
-            leg_afterhours = afterhours_fee_owed(pickup_time)
-            if leg_afterhours and additional_charges < afterhours_total:
-                leg_afterhours = Decimal('0.00')
+            # The marker is what stops a later flight-delay pass asking for the
+            # same $20 twice. The dispatcher's answer on the pricing screen
+            # decides it, because a manually quoted price can carry the fee
+            # without it ever reaching additional_charges; the charges are only
+            # the fallback when nobody was asked. See afterhours_marker_at_booking.
+            from reservations.utils import (
+                AFTERHOURS_FEE_AMOUNT, afterhours_marker_at_booking,
+            )
+            _answer = pricing_data.get('afterhours_fee_included') or ''
+            leg_afterhours = afterhours_marker_at_booking(
+                pickup_time,
+                fee_included=(True if _answer == 'yes'
+                              else False if _answer == 'no' else None),
+                additional_charges=additional_charges,
+                afterhours_total=afterhours_total,
+            )
 
             leg = Leg.objects.create(
                 reservation=reservation,
@@ -9422,13 +9421,61 @@ def add_leg_to_reservation(request):
             leg.save()
             _sync_legacy_flight_information(leg)
 
+        # A leg picked up between 10 PM and 6 AM carries the $20 after-hours fee,
+        # and it has to land in BOTH places or the trip ends up wrong one way or
+        # the other: the charge is what actually bills the guest, and the marker
+        # is what stops a later flight-delay pass asking for the same $20 again.
+        # Adding a leg set neither, so late legs were driven without the fee ever
+        # reaching a bill — 23 of them, while 6 more sat on the board asking for
+        # money nobody had been charged.
+        #
+        # The marker itself is decided by afterhours_marker_at_booking, the one
+        # place that answers "what marker should a new leg get" — the booking and
+        # flag paths already go through it, and a second definition here is the
+        # exact drift that produced the problem. fee_included=True because this
+        # path BILLS the fee a few lines below: unlike the pricing screen there is
+        # no quoted price to infer from, so the answer isn't unknown, it's yes.
+        from reservations.utils import (
+            AFTERHOURS_FEE_AMOUNT,
+            adjust_reservation_for_stop_fee_delta,
+            afterhours_marker_at_booking,
+            is_afterhours_time,
+        )
+        late_leg_count = sum(
+            1 for existing in reservation.legs.all()
+            if is_afterhours_time(existing.pickup_time)
+        )
+        afterhours_owed = afterhours_marker_at_booking(
+            leg.pickup_time,
+            fee_included=True,
+            additional_charges=reservation.additional_charges,
+            afterhours_total=AFTERHOURS_FEE_AMOUNT * late_leg_count,
+        )
+        if afterhours_owed:
+            # Bill first, mark second, both inside one transaction. The order is
+            # load-bearing even with the atomic block: a marker written before the
+            # charge lands asserts money that isn't on the bill, and that failure
+            # is SILENT — the marker suppresses both the board flag and the task,
+            # so nothing ever surfaces it. Billed-but-unmarked fails the other way:
+            # the leg reports owed, someone gets one task, one click settles it.
+            # Visible and recoverable beats invisible and permanent.
+            with transaction.atomic():
+                adjust_reservation_for_stop_fee_delta(reservation, afterhours_owed)
+                leg.afterhours_fee = afterhours_owed
+                leg.save(update_fields=["afterhours_fee"])
+
         # Recalculate revenue_share for all legs now that there is one more leg
         reservation.recalculate_leg_revenue_shares()
-        
-        logger.info(f"Added new leg {leg.id} to reservation {reservation.id}")
-        
+
+        logger.info(
+            f"Added new leg {leg.id} to reservation {reservation.id}"
+            + (f" with ${afterhours_owed} after-hours fee" if afterhours_owed else "")
+        )
+
         return JsonResponse({
             "success": True,
+            "afterhours_fee_added": str(afterhours_owed or Decimal("0.00")),
+            "reservation_total_price": str(reservation.total_price),
             "leg": {
                 "id": leg.id,
                 "pickup_date": leg.pickup_date.isoformat(),

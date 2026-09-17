@@ -1483,6 +1483,15 @@ def _auto_close_resolved_tasks():
 
         for task in flight_tasks:
             try:
+                # A task raised because the flight could not be found must not be
+                # closed by "no mismatch" — there are no arrival times to compare
+                # precisely BECAUSE the flight is missing, so the check reads as
+                # resolved and the loop starts over. Only a found flight clears it.
+                if (task.metadata or {}).get("reason") == FLIGHT_NOT_FOUND:
+                    if not task.leg.flight_information_id or not (
+                        task.leg.flight_information.best_arrival_local()
+                    ):
+                        continue
                 if not task.leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
                     close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
                     closed += 1
@@ -2105,6 +2114,91 @@ def _detect_afterhours_after_refresh(leg, flight):
     flag_afterhours_fee(leg, arrival.time())
 
 
+#: Marks a flight-verification task raised because the tracker could not find
+#: the flight at all. Such a task can never resolve on its own — a wrong flight
+#: number stays wrong until a human corrects it — so `_auto_close_resolved_tasks`
+#: skips it. Without that, the missing arrival times read as "no mismatch" and
+#: the task closed itself half an hour after every refresh raised it again.
+FLIGHT_NOT_FOUND = "flight_not_found"
+
+
+def flag_flight_not_found(leg):
+    """Raise the "we can't find this flight" task for a leg, at most once.
+
+    Both refresh paths used a bare ``OperationalTask.objects.create`` here,
+    which skipped ``create_task``'s dedup and two-hour cooldown — one leg
+    collected 36 tasks for a single wrong flight number. Returns the task, or
+    None when one is already open (or recently closed).
+    """
+    from .models import OperationalTask
+    from .services import create_task
+
+    flight = leg.flight_information if leg.flight_information_id else None
+    if flight is None:
+        return None
+
+    ident = flight.get_flight_ident() or "Unknown"
+    pickup_date = leg.pickup_date.strftime("%m/%d/%Y") if leg.pickup_date else "N/A"
+    pickup_time = (
+        leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "N/A"
+    )
+
+    return create_task(
+        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+        title=f"⚠️ Flight not found: {ident}",
+        priority=OperationalTask.Priority.HIGH,
+        description=(
+            f"Flight {ident} does not exist. "
+            f"Please verify and correct the flight number.\n"
+            f"Pickup: {pickup_date} at {pickup_time}."
+        ),
+        leg=leg,
+        reservation=leg.reservation if leg.reservation_id else None,
+        due_at=timezone.now() + timedelta(hours=4),
+        metadata={"reason": FLIGHT_NOT_FOUND, "flight_ident": ident},
+    )
+
+
+def settle_afterhours_fee(leg, *, settled_by=None, note=""):
+    """Record that this leg's after-hours fee is collected, without charging.
+
+    The $20 reaches us in ways the booking never itemises — on a bundled balance
+    payment, in cash, or folded into a manually quoted price. Before this,
+    a dispatcher's only options were to charge it again or close the task, and
+    closing wrote nothing: `close_task` sets a status, so the next flight refresh
+    raised the same task again. Leg 23272 collected three that way.
+
+    Writing the marker is what makes the answer stick, so nobody is asked twice.
+    """
+    from decimal import Decimal
+    from reservations.utils import AFTERHOURS_FEE_AMOUNT
+    from .models import OperationalTask
+    from .services import close_task
+
+    reason = note.strip() or "After-hours fee already collected"
+    stamp = f"${AFTERHOURS_FEE_AMOUNT:.2f} After-Hours Fee settled — {reason}"
+
+    leg.afterhours_fee = AFTERHOURS_FEE_AMOUNT
+    leg.private_notes = (
+        f"{leg.private_notes}\n{stamp}" if leg.private_notes else stamp
+    )
+    leg.save(update_fields=["afterhours_fee", "private_notes"])
+
+    closed = 0
+    for task in OperationalTask.objects.filter(
+        leg=leg,
+        task_type=OperationalTask.TaskType.AFTERHOURS_FEE,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+    ):
+        close_task(task, resolved_by=settled_by, resolution_notes=reason)
+        closed += 1
+
+    logger.info(
+        f"After-hours fee settled on leg {leg.id} ({reason}); closed {closed} task(s)"
+    )
+    return closed
+
+
 def flag_afterhours_fee(leg, effective_time):
     """Raise (or clear) an after-hours-fee ops task for a leg based on whether
     `effective_time` (the real pickup/arrival time-of-day) falls in the
@@ -2124,7 +2218,11 @@ def flag_afterhours_fee(leg, effective_time):
     owed = afterhours_fee_owed(effective_time)
     applied = leg.afterhours_fee or Decimal("0.00")
 
-    if owed and applied < owed:
+    # `applied` is only one of the two ways the fee can already be collected —
+    # see Leg.afterhours_fee_outstanding. Asking a dispatcher to charge a fee the
+    # booking already carries is what produced 49 tasks against 16 trips that had
+    # provably paid, so the booking's own charges get a say before we raise one.
+    if owed and applied < owed and not leg.booking_carries_afterhours_fee():
         reservation = leg.reservation
         when = effective_time.strftime("%I:%M %p").lstrip("0")
         day = leg.pickup_date.strftime("%b %d") if leg.pickup_date else ""

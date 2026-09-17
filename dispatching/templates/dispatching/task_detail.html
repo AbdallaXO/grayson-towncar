@@ -2137,6 +2137,16 @@ body {
                   </div>
                 </button>
               {% endif %}
+              {% if not ah_already_applied %}
+              <button id="settleAfterhoursBtn" class="conflict-act-btn act-dispatch"
+                      data-settle-url="{% url 'settle_afterhours_fee' leg_id=ah_leg.id %}">
+                <i class="bi bi-check2-circle"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Already collected — don't ask again</span>
+                  <span class="act-hint">Use when the $20 was taken on the balance, in cash, or was in the quoted price</span>
+                </div>
+              </button>
+              {% endif %}
               {% if ah_reservation %}
               <a href="{% url 'reservation_details' id=ah_reservation.uuid %}" class="conflict-act-btn act-dispatch" target="_blank">
                 <i class="bi bi-box-arrow-up-right"></i>
@@ -3228,6 +3238,52 @@ document.getElementById('chargeAfterhoursBtn')?.addEventListener('click', functi
       this.style.opacity = '';
       if (label) label.textContent = origLabel;
       alert(data.error || 'Could not charge the after-hours fee');
+    }
+  })
+  .catch(err => {
+    this.style.pointerEvents = '';
+    this.style.opacity = '';
+    if (label) label.textContent = origLabel;
+    alert('Error: ' + err);
+  });
+});
+
+/* Mark an after-hours fee as already collected — records it on the leg so the
+   next flight refresh does not raise the same task again. */
+document.getElementById('settleAfterhoursBtn')?.addEventListener('click', function() {
+  const note = prompt(
+    'How was the $20 collected? (e.g. "on the balance payment", "in cash", "in the quoted price")',
+    ''
+  );
+  if (note === null) return;
+
+  const url = this.dataset.settleUrl;
+  const label = this.querySelector('.act-label');
+  const origLabel = label ? label.textContent : '';
+  this.style.pointerEvents = 'none';
+  this.style.opacity = '.6';
+  if (label) label.textContent = 'Saving...';
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': CSRF,
+    },
+    body: new URLSearchParams({note: note}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (label) label.textContent = 'Marked as collected';
+      const icon = this.querySelector('i');
+      if (icon) icon.className = 'bi bi-check-circle-fill';
+      setTimeout(() => location.reload(), 800);
+    } else {
+      this.style.pointerEvents = '';
+      this.style.opacity = '';
+      if (label) label.textContent = origLabel;
+      alert(data.error || 'Could not mark the fee as collected');
     }
   })
   .catch(err => {
