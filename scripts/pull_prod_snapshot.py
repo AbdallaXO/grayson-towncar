@@ -16,6 +16,11 @@ psycopg2 (already installed) and writes a real Django-shaped SQLite file:
      move the new one into place.
 
 USAGE
+    # Simplest: DATABASE_PUBLIC_URL is read straight out of .env
+    python scripts/pull_prod_snapshot.py --dry-run
+    python scripts/pull_prod_snapshot.py
+
+    # Or point it somewhere else for one run; the shell always wins over .env
     # Bash / git-bash
     PROD_DATABASE_URL='postgresql://...' python scripts/pull_prod_snapshot.py --dry-run
     PROD_DATABASE_URL='postgresql://...' python scripts/pull_prod_snapshot.py
@@ -93,7 +98,22 @@ def log(msg: str) -> None:
 
 
 def resolve_source_url() -> str:
-    url = os.environ.get("PROD_DATABASE_URL") or os.environ.get("DATABASE_URL") or ""
+    # .env is where this repo already keeps the Railway credentials (settings.py
+    # load_dotenv()s it), and Railway names the variable DATABASE_PUBLIC_URL — so
+    # read both, or a URL sitting right there in .env reads as "no URL at all".
+    # Real environment variables win; .env only fills what the shell left unset.
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        pass
+    else:
+        load_dotenv(REPO / ".env", override=False)
+    url = (
+        os.environ.get("PROD_DATABASE_URL")
+        or os.environ.get("DATABASE_PUBLIC_URL")
+        or os.environ.get("DATABASE_URL")
+        or ""
+    )
     # Paste damage. A trailing space inside the quotes makes Postgres look for a
     # database named "railway " and fail with a message that blames the database
     # rather than the whitespace; surrounding quotes survive some shells too.
@@ -101,7 +121,7 @@ def resolve_source_url() -> str:
     if not url:
         sys.exit(
             "No source URL.\n"
-            "  Set PROD_DATABASE_URL to the Railway Postgres DATABASE_PUBLIC_URL.\n"
+            "  Put DATABASE_PUBLIC_URL in .env, or set PROD_DATABASE_URL in the shell.\n"
             "  Railway dashboard -> Postgres service -> Variables -> DATABASE_PUBLIC_URL."
         )
     if ".railway.internal" in url:
