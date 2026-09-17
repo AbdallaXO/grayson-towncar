@@ -215,10 +215,15 @@
           </div>
 
           {% if afterhours_legs %}
-          {# The one question only the person setting the price can answer. A
-             quoted total can carry the $20 without it ever reaching Additional
-             Charges — recording the answer here is what stops the trip card
-             asking a dispatcher about it days later. #}
+          {% comment %}
+            The one question only the person setting the price can answer. A
+            quoted total can carry the $20 without it ever reaching Additional
+            Charges — recording the answer here is what stops the trip card
+            asking a dispatcher about it days later.
+
+            Comment tag, not the hash form: hash comments are single-line only, so
+            this one was rendering onto the pricing screen as visible text.
+          {% endcomment %}
           <div class="rw-field" id="rw-afterhours-ask" style="margin-top:1rem;">
             <span class="rw-label">
               After-hours fee — {% if afterhours_legs|length == 1 %}leg {{ afterhours_legs.0 }} picks{% else %}legs
