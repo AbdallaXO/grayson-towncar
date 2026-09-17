@@ -1,0 +1,86 @@
+{
+  "slug": "fleet-manager-guide",
+  "captured_at": "2026-09-17T03:11:38",
+  "commit": "315bffa735674f4e370cc89600e0597a60efac74",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "depends_on": {
+    "dispatching/templates/dispatching/dispatcher_navbar.html": "4950040df77bc22af78dc7e2c0936e4c1815dc59",
+    "dispatching/templates/dispatching/fleet_desk.html": "bd29aaffbb76f5314e1cee00b4fb9d51814ac03e",
+    "dispatching/templates/dispatching/fleet_day.html": "fbc9045290619aa0039ad9a383839100209c746b",
+    "dispatching/templates/dispatching/fleet_inspections.html": "a086530dd0746c250c54b189b93532bf38c386af",
+    "dispatching/templates/dispatching/fleet_list.html": "9bf1aa5f238ede7269678eedd241f958ecc486d6",
+    "dispatching/templates/dispatching/fleet_detail.html": "3dfc66c44403c82dd91a3580ee2fbba142fff555",
+    "dispatching/templates/dispatching/includes/_fleet_luxe_css.html": "5f062bd0c55aad8b10f70a2eb1747b69410c4818",
+    "dispatching/fleet_views.py": "c6dca1c935592364ea0e0e7f284cde81317559c5",
+    "dispatching/fleet_day.py": "3cf64863befc5a087b2b2ea9258d3f2e3cbf63c4",
+    "dispatching/fleet_inspection.py": "95ec8c9daaf08fa57604fd2001c8973bdb660b8c"
+  },
+  "shots": [
+    {
+      "name": "01-desk",
+      "caption": "Where you land every morning",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/",
+      "path": "SOPS/images/fleet-manager-guide/01-desk.png",
+      "highlights": []
+    },
+    {
+      "name": "02-desk-full",
+      "caption": "The whole Desk, top to bottom",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/",
+      "path": "SOPS/images/fleet-manager-guide/02-desk-full.png",
+      "highlights": []
+    },
+    {
+      "name": "03-fault-code",
+      "caption": "Tapping a fault code",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/",
+      "path": "SOPS/images/fleet-manager-guide/03-fault-code.png",
+      "highlights": []
+    },
+    {
+      "name": "04-inspections",
+      "caption": "This week's round, and today's handful",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/inspections/",
+      "path": "SOPS/images/fleet-manager-guide/04-inspections.png",
+      "highlights": []
+    },
+    {
+      "name": "05-checklist",
+      "caption": "The walk-around checklist",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/inspections/9/",
+      "path": "SOPS/images/fleet-manager-guide/05-checklist.png",
+      "highlights": []
+    },
+    {
+      "name": "06-the-day",
+      "caption": "What every car is doing, in number order",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/day/",
+      "path": "SOPS/images/fleet-manager-guide/06-the-day.png",
+      "highlights": []
+    },
+    {
+      "name": "07-vehicles",
+      "caption": "All ten units",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/vehicles/",
+      "path": "SOPS/images/fleet-manager-guide/07-vehicles.png",
+      "highlights": []
+    },
+    {
+      "name": "08-vehicle-detail",
+      "caption": "A car's own page",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/9/",
+      "path": "SOPS/images/fleet-manager-guide/08-vehicle-detail.png",
+      "highlights": []
+    },
+    {
+      "name": "09-outlook",
+      "caption": "Booking a car in for shop work",
+      "url": "http://127.0.0.1:8111/dispatching/fleet/outlook/",
+      "path": "SOPS/images/fleet-manager-guide/09-outlook.png",
+      "highlights": []
+    }
+  ]
+}
