@@ -2258,6 +2258,65 @@ def reservation_details(request, id):
     for leg in _res_legs:
         leg.samsara_vehicle = _assign_lookup.get((leg.driver_id, leg.pickup_date))
 
+    # Fee history, pinned per leg as `leg.fee_events`.
+    #
+    # This is deliberately NOT on the leg's notes. Drivers read that field — it
+    # renders on their board, their completed trips and their weekly schedule —
+    # so anything written there about our money is money admin shown to the
+    # chauffeur. This page is staff-only (is_staff is checked at the top), which
+    # is what makes it the right home for it.
+    #
+    # One query for the whole reservation rather than one per leg: the board
+    # renders every leg on the trip and an N+1 here is a page of them.
+    from ops.models import StaffActivity
+
+    _fee_events = {}
+    for act in (
+        StaffActivity.objects.filter(
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED,
+            metadata__reservation_id=reservation.id,
+        )
+        .select_related("user")
+        .order_by("-created_at")
+    ):
+        _leg_id = (act.metadata or {}).get("leg_id")
+        if _leg_id is None:
+            continue
+        _fee_events.setdefault(_leg_id, []).append(
+            {
+                "when": act.created_at,
+                "who": (act.metadata or {}).get("settled_by")
+                or (act.user.get_full_name() or act.user.username if act.user else "system"),
+                "amount": (act.metadata or {}).get("amount", ""),
+                "reason": (act.metadata or {}).get("reason", ""),
+            }
+        )
+    for leg in _res_legs:
+        leg.fee_events = _fee_events.get(leg.id, [])
+
+        # An UNSETTLED fee has to be visible on the trip itself, not only as a
+        # task on the board. Dismissing the dialog is a legitimate choice — think
+        # about it later — but it must leave a mark here, naming who moved the
+        # pickup into the window and left the $20 uncollected. Otherwise the trip
+        # looks finished and the money quietly isn't.
+        leg.fee_outstanding = afterhours_outstanding_for(leg)
+        leg.fee_moved_by = None
+        leg.fee_moved_at = leg.pickup_time_changed_at
+        if leg.fee_outstanding:
+            # The first history row carrying the CURRENT time is the one that set
+            # it — so its author is who moved the pickup.
+            mover = (
+                leg.history.filter(pickup_time=leg.pickup_time)
+                .order_by("history_date")
+                .first()
+            )
+            if mover is not None:
+                if mover.history_user:
+                    leg.fee_moved_by = (
+                        mover.history_user.get_full_name() or mover.history_user.username
+                    )
+                leg.fee_moved_at = mover.history_date or leg.pickup_time_changed_at
+
     context = {
         "reservation": reservation,
         "total_legs": len(reservation.legs.all()),
@@ -2634,6 +2693,13 @@ def modify_reservation(request, id):
                     if reservation.legs.count() >= i
                     else None
                 )
+                # Read the pickup BEFORE the form binds. ModelForm._post_clean
+                # mutates the instance during is_valid(), so after that point the
+                # old time is already gone — the same trap the gratuity note above
+                # documents.
+                _leg_time_before = getattr(leg_instance, "pickup_time", None)
+                _leg_date_before = getattr(leg_instance, "pickup_date", None)
+
                 leg_form = LegForm(
                     request.POST, instance=leg_instance, prefix=leg_prefix
                 )
@@ -2641,6 +2707,24 @@ def modify_reservation(request, id):
                     leg = leg_form.save(commit=False)
                     leg.reservation = updated_reservation
                     leg.save()
+
+                    # This screen can retime a leg into the 10 PM-6 AM window and
+                    # said nothing at all — no dialog and, unlike every other
+                    # path, no task either. The three-answer dialog does not port
+                    # to a plain form POST, so this is the floor, not the finish:
+                    # raise the flag so the $20 is at least visible on the board
+                    # instead of being lost in silence.
+                    if leg.pickup_time and (
+                        leg.pickup_time != _leg_time_before
+                        or leg.pickup_date != _leg_date_before
+                    ):
+                        try:
+                            from ops.tasks import flag_afterhours_fee
+                            flag_afterhours_fee(leg, leg.pickup_time)
+                        except Exception as e:
+                            logger.warning(
+                                f"After-hours flag failed for leg {leg.id}: {e}"
+                            )
                 else:
                     # Surface the specific failure instead of silently dropping the edit.
                     for field, errs in leg_form.errors.items():
@@ -5976,6 +6060,13 @@ def match_leg_time_to_flight(request):
                 status=409,
             )
 
+        # ── After-hours fee ────────────────────────────────────────────────
+        # Measured BEFORE the move so the dialog can be raised after it, but
+        # never at the cost of blocking the move itself: the retime is what the
+        # dispatcher came to do, and a pickup lost to a dialog is worse than a
+        # fee decided a minute later.
+        afterhours_outstanding = afterhours_outstanding_for(leg, at_time=new_time)
+
         # Only a deliberate "move_date" confirmation is allowed to change the
         # calendar day — never a bare match.
         _apply_matched_pickup(
@@ -5985,8 +6076,19 @@ def match_leg_time_to_flight(request):
             new_date=flight_date if confirmed == "move_date" else None,
         )
 
+        # The move is saved. Now hand the caller what it needs to ask the $20
+        # question. Cancelling the dialog costs nothing but a task, because the
+        # backstop flag below still runs.
+        afterhours_prompt = (
+            afterhours_prompt_payload(leg, afterhours_outstanding)
+            if afterhours_outstanding
+            else None
+        )
+
         # After-hours fee: the matched pickup time may now fall in the 10 PM-6 AM
         # window (flight delayed). Flag it for the dispatcher to review + charge.
+        # Still runs when nothing was outstanding, so a move OUT of the window
+        # closes any flag that is standing.
         try:
             from ops.tasks import flag_afterhours_fee
             flag_afterhours_fee(leg, new_time)
@@ -6114,6 +6216,9 @@ def match_leg_time_to_flight(request):
             "pickup_time": new_time.strftime("%H:%M"),
             "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else "",
             "day_moved": day_moved,
+            # Present when this match left an after-hours fee undecided. The
+            # caller raises the dialog and posts the answer to afterhours_decision.
+            "afterhours_prompt": afterhours_prompt,
             "summary": {
                 "old_time": old_time.strftime("%I:%M %p").lstrip("0") if old_time else "",
                 "new_time": new_time.strftime("%I:%M %p").lstrip("0"),
@@ -6303,6 +6408,121 @@ def charge_afterhours_fee(request, leg_id):
     return JsonResponse({"success": False, "error": err}, status=status)
 
 
+def afterhours_outstanding_for(leg, at_time=None):
+    """What the after-hours fee still owes on this leg, as a Decimal.
+
+    `at_time` lets a caller ask about a time it is ABOUT to set. Mirrors
+    Leg.afterhours_fee_outstanding but takes the clock as an argument, because
+    the retime paths need the answer for the new time, not the stored one.
+    """
+    from reservations.utils import afterhours_fee_owed
+
+    when = at_time or leg.pickup_time
+    if not when:
+        return Decimal("0.00")
+    owed = afterhours_fee_owed(when)
+    applied = leg.afterhours_fee or Decimal("0.00")
+    if owed <= applied or leg.booking_carries_afterhours_fee():
+        return Decimal("0.00")
+    return owed - applied
+
+
+def afterhours_prompt_payload(leg, outstanding):
+    """The facts the "this pickup is now after hours" dialog needs."""
+    reservation = leg.reservation
+    customer = getattr(reservation, "customer", None)
+    guest_name = (
+        f"{(getattr(customer, 'first_name', '') or '').title()} "
+        f"{(getattr(customer, 'last_name', '') or '').title()}".strip() or "the guest"
+    )
+    current_total = (reservation.total_price if reservation else None) or Decimal("0.00")
+    return {
+        "leg_id": leg.id,
+        "fee_amount": f"{outstanding:.2f}",
+        "guest_name": guest_name,
+        "pickup_at": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
+        "current_total": f"{current_total:.2f}",
+        "new_total": f"{current_total + outstanding:.2f}",
+        # Proxy for "can we charge without a detour". The real Stripe lookup
+        # happens inside the charge action; asking Stripe here would put a
+        # network call in front of a dialog.
+        "has_card": bool(getattr(customer, "card_last4", "")),
+        "card_last4": getattr(customer, "card_last4", "") or "",
+    }
+
+
+def apply_afterhours_decision(leg, answer, user):
+    """Carry out charge / already-collected / waived. Returns an outcome dict."""
+    outstanding = afterhours_outstanding_for(leg)
+    if not outstanding:
+        return {"action": "noop", "message": "That fee is already settled."}
+
+    if answer == "charge":
+        result = _charge_afterhours_fee_for_leg(leg, user)
+        if result.get("success"):
+            return {
+                "action": "charged",
+                "message": f"${outstanding:.2f} after-hours fee charged and the guest emailed.",
+            }
+        # The retime is already saved and correct; a dead card must not undo it.
+        return {
+            "action": "charge_failed",
+            "message": result.get("error") or "Could not charge the card.",
+        }
+
+    from ops.tasks import settle_afterhours_fee
+
+    who = user.get_full_name() or user.username if user else "system"
+    note = (
+        f"Already collected — confirmed by {who}"
+        if answer == "collected"
+        else f"Waived by {who} — not charging this trip"
+    )
+    settle_afterhours_fee(leg, settled_by=user, note=note)
+    return {
+        "action": answer,
+        "message": (
+            "Marked as already collected — it won't ask again."
+            if answer == "collected"
+            else "Waived — it won't ask again."
+        ),
+    }
+
+
+@login_required
+@require_POST
+def afterhours_decision(request, leg_id):
+    """Answer the after-hours question for a leg that has already been retimed.
+
+    The retime saves first and this answers afterwards, so a dispatcher never
+    loses a pickup change to a dialog they wanted to think about. If they close
+    the dialog instead, the backstop flag has already raised the task, so the
+    $20 is on the board rather than lost.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    leg = get_object_or_404(Leg.objects.select_related("reservation"), id=leg_id)
+    try:
+        answer = (json.loads(request.body or "{}").get("answer") or "").strip()
+    except json.JSONDecodeError:
+        answer = (request.POST.get("answer") or "").strip()
+
+    if answer not in ("charge", "collected", "waive"):
+        return JsonResponse(
+            {"success": False, "error": "Answer must be charge, collected or waive."},
+            status=400,
+        )
+
+    try:
+        outcome = apply_afterhours_decision(leg, answer, request.user)
+    except Exception as exc:
+        logger.exception(f"After-hours decision failed for leg {leg_id}: {exc}")
+        return JsonResponse({"success": False, "error": str(exc)}, status=500)
+
+    return JsonResponse({"success": True, "afterhours": outcome})
+
+
 def settle_afterhours_fee_view(request, leg_id):
     """Record an after-hours fee as already collected, without charging. JSON.
 
@@ -6348,7 +6568,7 @@ def _charge_afterhours_fee_for_leg(leg, user):
         adjust_reservation_for_stop_fee_delta,
     )
     from users.emails import send_afterhours_fee_notice
-    from ops.models import OperationalTask
+    from ops.models import OperationalTask, StaffActivity
     from ops.services import close_task
 
     reservation = leg.reservation
@@ -6428,13 +6648,32 @@ def _charge_afterhours_fee_for_leg(leg, user):
                 "stripe_payment_method_id": payment_method_id,
             },
         )
-        # Mark the leg, note it, and roll the fee into the reservation totals.
+        # Mark the leg and roll the fee into the reservation totals.
+        #
+        # This used to append "$20.00 After-Hours Fee charged" to
+        # leg.private_notes. Drivers read that field — it renders on their board,
+        # their completed trips and their weekly schedule — so the charge note
+        # was showing our fee admin to the chauffeur. Gratuity is the only money
+        # note a driver should see. The trail moves to dispatcher-only places:
+        # _history_user attributes the marker change in the leg timeline, and the
+        # StaffActivity row records who charged and how much.
         delta = amount - (leg.afterhours_fee or Decimal("0.00"))
         leg.afterhours_fee = amount
-        _note = f"${amount:.2f} After-Hours Fee charged"
-        leg.private_notes = f"{leg.private_notes}\n{_note}" if leg.private_notes else _note
-        leg.save(update_fields=["afterhours_fee", "private_notes"])
+        leg._history_user = user
+        leg.save(update_fields=["afterhours_fee"])
         adjust_reservation_for_stop_fee_delta(reservation, delta)
+
+        StaffActivity.objects.create(
+            user=user,
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED,
+            metadata={
+                "leg_id": leg.id,
+                "reservation_id": reservation.id,
+                "amount": str(amount),
+                "reason": "Charged to the card on file and the guest emailed",
+                "settled_by": (user.get_full_name() or user.username) if user else "system",
+            },
+        )
 
     _run_in_background(send_afterhours_fee_notice, reservation, leg, amount, sent_by=user)
 
@@ -7536,6 +7775,14 @@ def update_leg_info(request):
             id=leg_id
         )
 
+        # The inline form posts every field on every save, so update_fields alone
+        # cannot tell a real retime from a dropoff-address edit. Anchor the
+        # before-values here: the after-hours gate below must fire when the pickup
+        # actually MOVES, not every time someone touches the trip, or it becomes
+        # the nag people click through without reading.
+        _orig_pickup_time = leg.pickup_time
+        _orig_pickup_date = leg.pickup_date
+
         # Update leg fields (non-override scalars)
         update_fields = []
         _needs_legflight_sync = False
@@ -7624,6 +7871,18 @@ def update_leg_info(request):
                     leg.cruise_information = None
                     update_fields.append("cruise_information")
 
+        # ── After-hours fee ────────────────────────────────────────────────
+        # Editing a pickup by hand is the commonest way a trip lands in the
+        # 10 PM-6 AM window, and it used to be the quietest: this endpoint never
+        # called flag_afterhours_fee at all. Measure now, save, then ask — the
+        # edit is never held hostage to the dialog.
+        _pickup_moved = (
+            leg.pickup_time != _orig_pickup_time or leg.pickup_date != _orig_pickup_date
+        )
+        afterhours_outstanding = (
+            afterhours_outstanding_for(leg) if _pickup_moved else Decimal("0.00")
+        )
+
         # Save the leg if any fields were updated
         if update_fields:
             # Leg.save() re-anchors these as it runs, so a failed save leaves the
@@ -7662,12 +7921,30 @@ def update_leg_info(request):
         if _needs_legflight_sync:
             _sync_legacy_flight_information(leg)
 
+        afterhours_prompt = (
+            afterhours_prompt_payload(leg, afterhours_outstanding)
+            if afterhours_outstanding
+            else None
+        )
+
+        # Backstop. If the dispatcher closes the dialog, or a client never shows
+        # one — an older page still open, a script — the $20 must not vanish in
+        # silence. Worst case it becomes a task, which is what every other path
+        # already does. Answering the dialog closes that task on its way through.
+        if _pickup_moved and leg.pickup_time:
+            try:
+                from ops.tasks import flag_afterhours_fee
+                flag_afterhours_fee(leg, leg.pickup_time)
+            except Exception as e:
+                logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
+
         # Refresh leg from database to get latest data including driver
         leg.refresh_from_db()
-        
+
         return JsonResponse({
             "success": True,
             "message": "Leg information updated successfully",
+            "afterhours_prompt": afterhours_prompt,
             "leg": {
                 "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else None,
                 "pickup_time": leg.pickup_time.strftime("%H:%M") if leg.pickup_time else None,

@@ -213,6 +213,8 @@ urlpatterns = [
     path("match-all-leg-times-to-flight/", views.match_all_leg_times_to_flight, name="match_all_leg_times_to_flight"),
     path("legs/<int:leg_id>/charge-afterhours-fee/", views.charge_afterhours_fee, name="charge_afterhours_fee"),
     path("legs/<int:leg_id>/settle-afterhours-fee/", views.settle_afterhours_fee_view, name="settle_afterhours_fee"),
+    # Answers the dialog raised AFTER a retime has already saved.
+    path("legs/<int:leg_id>/afterhours-decision/", views.afterhours_decision, name="afterhours_decision"),
     path("charge-all-afterhours-fees/", views.charge_all_afterhours_fees, name="charge_all_afterhours_fees"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path("dismiss-flight-review/", views.dismiss_flight_review, name="dismiss_flight_review"),

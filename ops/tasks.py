@@ -2172,17 +2172,43 @@ def settle_afterhours_fee(leg, *, settled_by=None, note=""):
     """
     from decimal import Decimal
     from reservations.utils import AFTERHOURS_FEE_AMOUNT
-    from .models import OperationalTask
+    from .models import OperationalTask, StaffActivity
     from .services import close_task
 
     reason = note.strip() or "After-hours fee already collected"
-    stamp = f"${AFTERHOURS_FEE_AMOUNT:.2f} After-Hours Fee settled — {reason}"
+    who = None
+    if settled_by is not None:
+        who = settled_by.get_full_name() or settled_by.username
 
+    # NOT leg.private_notes. Despite the name, drivers read that field — it is on
+    # their board, their completed trips and their weekly schedule — so a fee
+    # settlement written there puts our money admin in front of the chauffeur.
+    # The only note a driver should see about money is their gratuity.
+    #
+    # The trail lives in two dispatcher-only places instead: _history_user
+    # attributes the marker change in the leg timeline (afterhours_fee is already
+    # a MONEY_FIELD there), and the StaffActivity row below carries the reason,
+    # which the timeline diff alone cannot express — "waived" and "already
+    # collected" both look like 0 -> 20.
     leg.afterhours_fee = AFTERHOURS_FEE_AMOUNT
-    leg.private_notes = (
-        f"{leg.private_notes}\n{stamp}" if leg.private_notes else stamp
-    )
-    leg.save(update_fields=["afterhours_fee", "private_notes"])
+    leg._history_user = settled_by
+    leg.save(update_fields=["afterhours_fee"])
+
+    # StaffActivity.user is not nullable, and settle can run without a user — an
+    # automated reconcile, or a caller that just passes a note. Those still get
+    # the marker and the history row; only the staff-activity line needs a person.
+    if settled_by is not None:
+        StaffActivity.objects.create(
+            user=settled_by,
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED,
+            metadata={
+                "leg_id": leg.id,
+                "reservation_id": leg.reservation_id,
+                "amount": str(AFTERHOURS_FEE_AMOUNT),
+                "reason": reason,
+                "settled_by": who,
+            },
+        )
 
     closed = 0
     for task in OperationalTask.objects.filter(

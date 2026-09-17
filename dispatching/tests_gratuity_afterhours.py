@@ -382,11 +382,22 @@ class ChargeAllAfterhoursTests(_BillingFixtureMixin, TestCase):
         for leg in (self.owed1, self.owed2):
             leg.refresh_from_db()
             self.assertEqual(leg.afterhours_fee, AFTERHOURS_FEE_AMOUNT)
-            self.assertIn("After-Hours Fee charged", leg.private_notes or "")
+            # The charge note deliberately does NOT go on private_notes —
+            # drivers read that field. The marker is the leg-level record; the
+            # who/how-much lives in StaffActivity.
+            self.assertNotIn("After-Hours Fee charged", leg.private_notes or "")
         # The already-charged leg is untouched (no double-charge).
         self.charged.refresh_from_db()
         self.assertEqual(self.charged.afterhours_fee, AFTERHOURS_FEE_AMOUNT)
         self.assertNotIn("After-Hours Fee charged", self.charged.private_notes or "")
+        from ops.models import StaffActivity
+        self.assertEqual(
+            StaffActivity.objects.filter(
+                action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED
+            ).count(),
+            2,
+            "each charged leg records who charged it, off the driver's screen",
+        )
 
 
 class PortalGratuityChargeTests(_BillingFixtureMixin, TestCase):

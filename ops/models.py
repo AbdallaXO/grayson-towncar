@@ -330,6 +330,11 @@ class StaffActivity(models.Model):
         TASK_ASSIGNED = "task_assigned", "Task Assigned"
         COMM_LOGGED = "comm_logged", "Communication Logged"
         FLIGHT_MATCHED = "flight_matched", "Flight Time Matched"
+        # Charged / already-collected / waived. Lives here rather than on the
+        # leg's notes because drivers read those and this is our money, not
+        # theirs — and because the marker change alone cannot say WHICH of the
+        # three answers a dispatcher gave.
+        AFTERHOURS_SETTLED = "afterhours_settled", "After-Hours Fee Settled"
         # ── Dispatch Shift System ──
         SHIFT_OPENED = "shift_opened", "Shift Checklist Opened"
         SHIFT_ROW_CONFIRMED = "shift_row_confirmed", "Checklist Row Confirmed"

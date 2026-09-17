@@ -21,6 +21,9 @@ dispatcher needs to decide.
     if (window.matchFlightTime) return;   // include guard — safe to add twice
 
     var MATCH_URL = "{% url 'match_leg_time_to_flight' %}";
+    // Reversed with leg 0 as a placeholder so the leg id can be swapped in at
+    // call time — the dialog can be raised for any leg on the page.
+    var DECISION_URL = "{% url 'afterhours_decision' 0 %}";
     var CSRF = "{{ csrf_token }}";
 
     function esc(s) {
@@ -83,6 +86,114 @@ dispatcher needs to decide.
         });
     }
 
+    // The $20 question, asked at the save instead of filed as a task.
+    // Every button here is an answer that sticks; there is no "OK" that leaves
+    // the money undecided, because that is precisely what produced six tasks on
+    // one trip and a guest who was never told.
+    function askAfterHours(d) {
+        return new Promise(function (resolve) {
+            var card = d.has_card
+                ? 'Card on file &middot;&middot;&middot;&middot;' + esc(d.card_last4)
+                : 'No card on file';
+            var wrap = document.createElement('div');
+            wrap.className = 'fm-wrongday-backdrop';
+            wrap.innerHTML =
+                '<div class="fm-wrongday" role="dialog" aria-modal="true" aria-labelledby="fm-ah-title">' +
+                  '<div class="fm-wd-head">' +
+                    '<span class="fm-wd-icon">&#9788;</span>' +
+                    '<h3 id="fm-ah-title">This pickup is now after hours</h3>' +
+                  '</div>' +
+                  '<dl class="fm-wd-facts">' +
+                    '<dt>Pickup moves to</dt><dd>' + esc(d.pickup_at) + '</dd>' +
+                    '<dt>After-hours fee</dt><dd>$' + esc(d.fee_amount) + '</dd>' +
+                    '<dt>Trip total</dt>' +
+                    '<dd>$' + esc(d.current_total) + ' &rarr; $' + esc(d.new_total) + '</dd>' +
+                  '</dl>' +
+                  '<p class="fm-wd-warn">' + esc(d.guest_name) + ' has not been charged the ' +
+                      '$' + esc(d.fee_amount) + ' late-night fee. Decide it now &mdash; once you leave ' +
+                      'this screen the trip goes out at the old price.</p>' +
+                  '<div class="fm-wd-actions">' +
+                    (d.has_card
+                      ? '<button type="button" class="fm-wd-btn fm-wd-primary" data-choice="charge">' +
+                          '<span class="fm-wd-btn-main">Charge $' + esc(d.fee_amount) + ' now</span>' +
+                          '<span class="fm-wd-btn-sub">' + card + ' &middot; emails the guest the new total</span>' +
+                        '</button>'
+                      : '<button type="button" class="fm-wd-btn fm-wd-primary" data-choice="charge" disabled>' +
+                          '<span class="fm-wd-btn-main">Charge $' + esc(d.fee_amount) + ' now</span>' +
+                          '<span class="fm-wd-btn-sub">' + card + ' &mdash; take payment another way, then mark it collected</span>' +
+                        '</button>') +
+                    '<button type="button" class="fm-wd-btn fm-wd-neutral" data-choice="collected">' +
+                      '<span class="fm-wd-btn-main">Already collected</span>' +
+                      '<span class="fm-wd-btn-sub">It came in on the balance, in cash, or inside the quoted price</span>' +
+                    '</button>' +
+                    '<button type="button" class="fm-wd-btn fm-wd-neutral" data-choice="waive">' +
+                      '<span class="fm-wd-btn-main">Waive it</span>' +
+                      '<span class="fm-wd-btn-sub">Not charging this trip &middot; recorded against your name</span>' +
+                    '</button>' +
+                    '<button type="button" class="fm-wd-btn fm-wd-cancel" data-choice="">Cancel, leave the pickup alone</button>' +
+                  '</div>' +
+                '</div>';
+
+            function close(choice) {
+                document.removeEventListener('keydown', onKey);
+                if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+                resolve(choice || null);
+            }
+            function onKey(e) { if (e.key === 'Escape') close(null); }
+
+            wrap.addEventListener('click', function (e) {
+                if (e.target === wrap) return close(null);          // backdrop
+                var btn = e.target.closest('[data-choice]');
+                if (btn && !btn.disabled) close(btn.dataset.choice);
+            });
+            document.addEventListener('keydown', onKey);
+            document.body.appendChild(wrap);
+            var first = wrap.querySelector('[data-choice]:not([disabled])');
+            if (first) first.focus();
+        });
+    }
+
+    // Exposed because the fee question is not specific to flight matching: editing
+    // a pickup by hand raises exactly the same $20, and a second copy of this
+    // dialog is a second place for the wording and the options to drift apart.
+    // Callers hand it the 409 payload and get back "charge" | "collected" |
+    // "waive" | null (cancelled).
+    window.askAfterHoursFee = askAfterHours;
+
+    // Call this with any save response. If that save left an after-hours fee
+    // undecided it raises the dialog and posts the answer; otherwise it does
+    // nothing. The retime is already saved either way, so closing the dialog
+    // costs a task, not the pickup change.
+    window.resolveAfterHoursPrompt = function (data) {
+        var p = data && data.afterhours_prompt;
+        if (!p) return Promise.resolve(data);
+        return askAfterHours(p).then(function (answer) {
+            if (!answer) return data;   // dismissed — the backstop task stands
+            return fetch(DECISION_URL.replace('/0/', '/' + p.leg_id + '/'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ answer: answer })
+            }).then(function (r) { return r.json(); })
+              .then(function (res) {
+                  data.afterhours = res && res.afterhours;
+                  if (!res || !res.success) {
+                      data.afterhours = {
+                          action: 'error',
+                          message: (res && res.error) || 'The fee decision did not save.'
+                      };
+                  }
+                  return data;
+              })
+              .catch(function () {
+                  data.afterhours = {
+                      action: 'error',
+                      message: 'The fee decision did not save — it is on the board as a task.'
+                  };
+                  return data;
+              });
+        });
+    };
+
     function post(legId, choice) {
         var body = { leg_id: legId };
         if (choice) body.confirm = choice;
@@ -94,14 +205,17 @@ dispatcher needs to decide.
     }
 
     window.matchFlightTime = function (legId) {
+        // The wrong-day question still blocks, because it decides which DAY the
+        // trip runs and getting it wrong strands a guest. The money question does
+        // not: it is asked after the move has saved.
         return post(legId, null).then(function (data) {
             if (data && data.needs_confirmation === 'wrong_day') {
-                return askWrongDay(data).then(function (choice) {
-                    if (!choice) return { cancelled: true };
-                    return post(legId, choice);
+                return askWrongDay(data).then(function (c) {
+                    if (!c) return { cancelled: true };
+                    return post(legId, c).then(window.resolveAfterHoursPrompt);
                 });
             }
-            return data;
+            return window.resolveAfterHoursPrompt(data);
         });
     };
 })();
@@ -148,6 +262,13 @@ dispatcher needs to decide.
 .fm-wd-primary:hover { background: #10552f; }
 .fm-wd-risky { background: #fff; border-color: #d6a2a2; color: #7d2323; }
 .fm-wd-risky:hover { background: #fdf1f1; }
+/* "Already collected" and "Waive" are both legitimate answers, not lesser ones —
+   they read as equals to each other and quieter than the charge, so the eye goes
+   to the money first without the other two looking like mistakes. */
+.fm-wd-neutral { background: #fff; border-color: #ccd3dc; color: #24303f; }
+.fm-wd-neutral:hover { background: #f4f6f9; border-color: #aab5c2; }
+.fm-wd-btn[disabled] { cursor: not-allowed; opacity: .55; }
+.fm-wd-btn[disabled]:hover { background: #14683c; }
 .fm-wd-cancel {
     background: transparent; border-color: transparent; color: #56606d;
     text-align: center; padding: .4rem;

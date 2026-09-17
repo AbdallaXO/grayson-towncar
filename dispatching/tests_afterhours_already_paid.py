@@ -473,14 +473,40 @@ class SettlingTheFeeStopsItComingBack(_Fixture, TestCase):
         leg.refresh_from_db()
         self.assertEqual(leg.afterhours_fee, Decimal("0.00"))
 
-    def test_settling_records_who_and_why_on_the_leg(self):
-        """A money field changing needs an audit trail someone can read back."""
+    def test_settling_records_who_and_why_where_only_staff_can_see_it(self):
+        """A money field changing needs an audit trail someone can read back.
+
+        It used to be appended to leg.private_notes — but drivers read that
+        field on their board, their completed trips and their weekly schedule,
+        so the trail was also showing our fee admin to the chauffeur. The trail
+        now lives in StaffActivity plus the attributed history row, both
+        dispatcher-only. Gratuity stays the one money note a driver sees.
+        """
+        from django.contrib.auth.models import User
+        from ops.models import StaffActivity
         from ops.tasks import settle_afterhours_fee
 
         res = self._res(additional=Decimal("0.00"))
         leg = self._leg(res)
+        leg.private_notes = "$40.00 Gratuity Included"
+        leg.save(update_fields=["private_notes"])
+        staff = User.objects.create_user("iris", password="pw", is_staff=True,
+                                         first_name="Iris", last_name="Costa")
 
-        settle_afterhours_fee(leg, note="Collected on the balance payment")
+        settle_afterhours_fee(
+            leg, settled_by=staff, note="Collected on the balance payment"
+        )
+
+        act = StaffActivity.objects.get(
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED
+        )
+        self.assertEqual(act.user, staff)
+        self.assertEqual(act.metadata["settled_by"], "Iris Costa")
+        self.assertIn("Collected on the balance payment", act.metadata["reason"])
+        self.assertEqual(act.metadata["leg_id"], leg.id)
 
         leg.refresh_from_db()
-        self.assertIn("Collected on the balance payment", leg.private_notes)
+        self.assertEqual(leg.history.first().history_user, staff)
+        # Nothing about the fee reached the driver's screen; the tip still did.
+        self.assertIn("Gratuity", leg.private_notes)
+        self.assertNotIn("Collected on the balance payment", leg.private_notes)
