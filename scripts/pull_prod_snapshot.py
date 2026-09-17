@@ -368,8 +368,17 @@ def main() -> int:
 
     try:
         import psycopg2
+        import psycopg2.extras
     except ImportError:
         sys.exit("psycopg2 is not installed:  python -m pip install psycopg2-binary")
+
+    # Without this, psycopg2 hands back a uuid column as a plain STRING and
+    # adapt()'s `uuid.UUID -> .hex` branch never fires — so the dashed Postgres
+    # rendering lands in SQLite, where Django stores UUIDField as 32-char hex with
+    # no dashes. Nothing errors; every reservation detail page just 404s locally,
+    # because the URL's uuid normalises to a form no row holds. Registering the
+    # typecaster is what makes that branch reachable.
+    psycopg2.extras.register_uuid()
 
     log("connecting to production (read-only) ...")
     pg = psycopg2.connect(url, connect_timeout=20,
