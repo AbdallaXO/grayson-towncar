@@ -421,15 +421,26 @@ class PrePickupNudgeEngine:
 
     def _has_booked_sibling(self, lead) -> bool:
         """
-        True if a DIFFERENT lead sharing this person's phone OR email has already
-        booked (converted). This is the duplicate-lead safety net: it does NOT
-        rely on the duplicate twins being merged or converted together — a single
-        converted lead anywhere on the same phone/email suppresses the nudge. Only
-        ever suppresses a send, so it cannot cause an erroneous text. Mirrors the
-        phone_already_nudged sibling guard.
+        True if this person has already booked the trip we are about to nudge
+        about. Only ever suppresses a send, so it cannot cause an erroneous text.
+
+        Two tests, because a converted Lead is weaker evidence than a Reservation:
+
+        1. A Reservation on this lead's own pickup date whose customer matches by
+           email or phone. This is the authoritative one — conversion marks only a
+           single lead per booking, so round-trip twins, leads created after the
+           booking, and bookings under a spouse's email leave every Lead row
+           looking unconverted while the person is a paying customer.
+        2. The original sibling test: any DIFFERENT lead on the same phone/email
+           marked converted. Kept because it still catches bookings whose customer
+           record shares neither identifier with the lead.
         """
         from django.db.models import Q
+        from reservations.lead_matching import already_booked_reservation
         from reservations.models import Lead
+
+        if already_booked_reservation(lead) is not None:
+            return True
 
         ident = Q()
         if lead.normalized_phone:

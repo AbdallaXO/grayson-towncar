@@ -549,6 +549,7 @@ def process_follow_up_batch():
 
     Cap: 100 tasks per batch. Priority ordering: URGENT leads first.
     """
+    from reservations.lead_matching import already_booked_reservation
     from reservations.models import Lead
     from .models import FollowUpTask, FollowUpSequence, LeadActivity
     from .services import GoHighLevelService
@@ -626,7 +627,25 @@ def process_follow_up_batch():
             cancelled += 1
             continue
 
-        # 4. Safety net: check GHL conversation for inbound replies.
+        # 4. This person has already booked the trip we are about to ask about.
+        #    Check 2 only catches it when THIS lead was the one conversion marked,
+        #    and it usually isn't — round-trip twins, leads created after the
+        #    booking, and bookings made under a spouse's email all sail past it.
+        #    Suppress the message only; repairing the lead→reservation link is
+        #    lead_matching.recheck_lead_conversions' job, and doing it here would
+        #    silently rewrite conversion attribution from inside the send loop.
+        booked = already_booked_reservation(lead)
+        if booked is not None:
+            _cancel_task(task, "already_booked", now)
+            cancel_lead_sequence(lead.id, reason="already_booked")
+            cancelled += 1
+            logger.warning(
+                f"Lead #{lead.id} has already booked Reservation #{booked.id} for "
+                f"{lead.pickup_date} — cancelling follow-up sequence"
+            )
+            continue
+
+        # 5. Safety net: check GHL conversation for inbound replies.
         #    Catches replies even when the webhook fails to fire.
         if lead.ghl_contact_id and not lead.has_replied:
             try:
@@ -636,8 +655,10 @@ def process_follow_up_batch():
                     lead.needs_human_follow_up = True
                     lead.save(update_fields=["has_replied", "needs_human_follow_up"])
                     _cancel_task(task, "replied", now)
-                    # Cancel remaining pending tasks for this lead
-                    from .tasks import cancel_lead_sequence
+                    # Cancel remaining pending tasks for this lead.
+                    # cancel_lead_sequence lives in this module — importing it
+                    # here as well made it a function-local name, so any earlier
+                    # call in the same function raised UnboundLocalError.
                     cancel_lead_sequence(lead.id, reason="replied")
                     cancelled += 1
                     logger.warning(
