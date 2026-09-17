@@ -467,9 +467,15 @@ class TravelAgent(models.Model):
                     # Link the agent payout to the agency payout
                     agency_payout.agent_payouts.add(agent_payout)
 
-                    # Update agency's total paid commission
-                    self.agency.total_paid_commission += commission_total
-                    self.agency.save(update_fields=["total_paid_commission"])
+                    # NOT `+= commission_total`. Creating the payout above fires
+                    # users.signals.handle_agency_payout_changes, which reads
+                    # `instance.agency` — the very object held here — and has
+                    # already added the amount to it. Adding again on top counted
+                    # every agency payout twice: 22 of 50 agencies ended up
+                    # showing exactly 2x the money that actually left the bank.
+                    # Syncing from the payout rows is also self-healing, so an
+                    # agency that already drifted corrects on its next payout.
+                    self.agency.sync_paid_commission()
 
                 # Double-check that total_paid_commission matches payouts
                 self.sync_paid_commission()
@@ -805,9 +811,12 @@ class Agency(models.Model):
                 # Link all agent payouts to this agency payout
                 agency_payout.agent_payouts.set(processed_payouts)
 
-                # Update agency's total paid commission
-                self.total_paid_commission += total_amount
-                self.save(update_fields=["total_paid_commission"])
+                # NOT `+= total_amount` — see the matching note in
+                # TravelAgent.process_commission_payment. The post_save receiver
+                # on AgencyCommissionPayout has already added this amount to this
+                # same object; adding it again is what doubled the figure staff
+                # read on the Affiliate Explorer and the agency detail page.
+                self.sync_paid_commission()
 
                 return agency_payout, total_amount
 

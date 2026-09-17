@@ -298,11 +298,12 @@ def handle_agency_payout_changes(sender, instance, created, **kwargs):
         else:
             return  # No adjustment needed
 
-        current_agency_paid = (
-            agency.total_paid_commission
-            if agency.total_paid_commission is not None
-            else Decimal("0")
-        )
+        # Decimal(str(...)) rather than the raw attribute: the field declares
+        # default=0.00, a float, and Django does not coerce defaults — so an
+        # Agency that has not been round-tripped through the DB still holds a
+        # float here and `float + Decimal` raises TypeError, taking the first
+        # payout for a brand-new agency down with it.
+        current_agency_paid = Decimal(str(agency.total_paid_commission or "0"))
         new_agency_paid = max(Decimal("0"), current_agency_paid + adjustment)
 
         if new_agency_paid != current_agency_paid + adjustment:
