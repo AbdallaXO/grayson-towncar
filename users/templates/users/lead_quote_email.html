@@ -78,71 +78,62 @@
                           </td>
                         </tr>
 
-                        {% if lead.pickup_location %}
+                        {% if trip.pickup_location %}
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
-                              <strong>From:</strong> {{ lead.pickup_location }}
+                              <strong>From:</strong> {{ trip.pickup_location }}
                             </p>
                           </td>
                         </tr>
                         {% endif %}
 
-                        {% if lead.dropoff_location %}
+                        {% if trip.dropoff_location %}
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
-                              <strong>To:</strong> {{ lead.dropoff_location }}
+                              <strong>To:</strong> {{ trip.dropoff_location }}
                             </p>
                           </td>
                         </tr>
                         {% endif %}
 
-                        {% if lead.pickup_date %}
+                        {% if trip.pickup_date %}
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
-                              <strong>Date:</strong> {{ lead.pickup_date|date:"l, F d, Y" }}
+                              <strong>Date:</strong> {{ trip.pickup_date|date:"l, F d, Y" }}
                             </p>
                           </td>
                         </tr>
                         {% endif %}
 
-                        {% if lead.trip_type %}
+                        {% if trip.trip_type_display %}
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
-                              <strong>Trip Type:</strong> {{ lead.get_trip_type_display }}
+                              <strong>Trip Type:</strong> {{ trip.trip_type_display }}
                             </p>
                           </td>
                         </tr>
                         {% endif %}
 
-                        {% if lead.vehicle %}
+                        {% if trip.vehicle %}
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
-                              <strong>Vehicle:</strong> {{ lead.vehicle.get_vehicle_type_display }}
+                              <strong>Vehicle:</strong> {{ trip.vehicle.get_vehicle_type_display }}
                             </p>
                           </td>
                         </tr>
                         {% endif %}
 
-                        {% if quote and quote.estimated_price %}
+                        {% if trip.price %}
                         <tr><td height="8"></td></tr>
                         <tr>
                           <td>
                             <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:22px; line-height:26px; color:#C89B3C; font-weight:700;">
-                              Estimated Price: ${{ quote.estimated_price|floatformat:2 }}
-                            </p>
-                          </td>
-                        </tr>
-                        {% elif lead.estimated_price %}
-                        <tr><td height="8"></td></tr>
-                        <tr>
-                          <td>
-                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:22px; line-height:26px; color:#C89B3C; font-weight:700;">
-                              Estimated Price: ${{ lead.estimated_price|floatformat:2 }}
+                              Estimated Price: ${{ trip.price|floatformat:2 }}
                             </p>
                           </td>
                         </tr>

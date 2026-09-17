@@ -923,6 +923,52 @@ def resolve_booking_url(lead, quote=None):
     return GENERIC_BOOKING_URL
 
 
+def build_lead_quote_context(lead, booking_url=None):
+    """
+    Template context for the lead quote email.
+
+    Separate from the send so it can be rendered and asserted on directly —
+    ``send_lead_quote_email`` hands off to a background thread, which makes
+    ``mail.outbox`` unreliable to test against.
+    """
+    quote = lead.quotes.filter(is_current=True).select_related("vehicle").first()
+
+    if not booking_url:
+        booking_url = resolve_booking_url(lead, quote=quote)
+
+    # The price comes from the quote, so every other trip detail must too —
+    # otherwise a returning guest gets the new quote's price under the old
+    # lead's vehicle. Fall back to the lead field by field, because a quote
+    # may legitimately carry a blank route or no vehicle at all.
+    def _pick(field):
+        return getattr(quote, field, None) or getattr(lead, field, None)
+
+    trip_source = quote if (quote and quote.trip_type) else lead
+
+    pickup_location = _pick("pickup_location")
+    dropoff_location = _pick("dropoff_location")
+
+    return {
+        "lead": lead,
+        "quote": quote,
+        "subject": (
+            f"Your Grayson Towncar Quote — {pickup_location or 'Orlando'} "
+            f"to {dropoff_location or 'your destination'}"
+        ),
+        "trip": {
+            "pickup_location": pickup_location,
+            "dropoff_location": dropoff_location,
+            "pickup_date": _pick("pickup_date"),
+            "trip_type_display": (
+                trip_source.get_trip_type_display() if trip_source.trip_type else ""
+            ),
+            "vehicle": _pick("vehicle"),
+            "price": _pick("estimated_price"),
+        },
+        "booking_url": booking_url or GENERIC_BOOKING_URL,
+    }
+
+
 def send_lead_quote_email(lead, booking_url=None):
     """
     Send a quote email to a lead. Used as fallback when SMS fails
@@ -946,20 +992,9 @@ def send_lead_quote_email(lead, booking_url=None):
         return False
 
     try:
-        # Get the latest quote for this lead
-        quote = lead.quotes.filter(is_current=True).select_related("vehicle").first()
+        context = build_lead_quote_context(lead, booking_url=booking_url)
 
-        # Build a direct booking URL from the quote's route + vehicle
-        if not booking_url:
-            booking_url = resolve_booking_url(lead, quote=quote)
-
-        context = {
-            "lead": lead,
-            "quote": quote,
-            "booking_url": booking_url or GENERIC_BOOKING_URL,
-        }
-
-        subject = f"Your Grayson Towncar Quote — {lead.pickup_location or 'Orlando'} to {lead.dropoff_location or 'your destination'}"
+        subject = context["subject"]
         from_email = "reservations@graysontowncar.com"
         to = [lead.email]
         html_content = render_to_string("users/lead_quote_email.html", context)
