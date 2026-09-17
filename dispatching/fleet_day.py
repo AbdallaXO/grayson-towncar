@@ -71,6 +71,35 @@ WINDOW_PAD_MINUTES = 30
 # overstates it. A departure carries a flight too but leaves on a fixed time.
 FLIGHT_PAD_MINUTES = 60
 
+# ── Bringing a car in to be looked at ───────────────────────────────────────
+#
+# Not the same question as the three numbers above, which are about a SHOP
+# VISIT: a service, at an outside garage, and the driving a service costs. No
+# mechanical work happens at HQ at all. This is the fleet manager himself
+# walking round a car in the yard, and it is a much cheaper thing to fit in.
+#
+# Measuring one with the other's ruler is what left a clear 105-minute hole at
+# half past one in the afternoon unmarked while a three-hour hole at eight in
+# the evening was highlighted — on the screen belonging to the man who does the
+# walking and goes home at four.
+#
+# The founder's own worked example, which these two numbers are set to clear:
+# #008 runs Disney → MCO at 8:00, clears MCO by 8:30, is at HQ by 8:45, is
+# walked by 9:20, and makes a 9:40 arrival. Seventy minutes of dead time, and
+# comfortable.
+INSPECTION_MINUTES = 20        # the walk-around itself
+
+# Getting the car to HQ and back out to where it is next needed. HQ is about
+# twelve minutes from MCO, and MCO is where most of this fleet's dead time
+# sits, so thirty minutes covers the round trip with a little slack. It is a
+# fleet-wide average and the honest weakness of this estimate: nothing here
+# knows where a given car actually is when its gap opens, and one dropping at a
+# Disney resort is further out than one clearing a terminal.
+HQ_TRIP_MINUTES = 30
+
+# What a hole has to be, then, before a car can be inspected inside it.
+WALK_MINUTES = INSPECTION_MINUTES + HQ_TRIP_MINUTES
+
 # Below this share of the day's legs carrying a chauffeur, "no trips on this
 # car" means "dispatch has not got to it yet", not "this car is free".
 CONFIDENT_COVERAGE = 0.90
@@ -92,6 +121,8 @@ def load_car_day(day):
     line is the same one the rest of the subsystem draws — this function
     touches the DB, everything below it takes objects.
     """
+    from django.utils import timezone
+
     from dispatching import scheduler
     from drivers.models import DriverVehicleAssignment
     from reservations.models import Leg
@@ -155,6 +186,10 @@ def load_car_day(day):
         "holders": holders,
         "drivers_by_id": drivers_by_id,
         "schedules": schedules,
+        # Naive local, to compare against the naive datetimes every slot and gap
+        # is built from. The page draws a "now" line from this; it is loaded
+        # rather than read inside the builder so a test can fix the clock.
+        "now": timezone.localtime().replace(tzinfo=None),
     }
 
 
@@ -250,7 +285,47 @@ def _place(start, end, axis_start, axis_end):
     return round(left, 4), round(max(width, 0.6), 4)
 
 
-def gaps_between(entries, day):
+def reachable_window(gap, day, shift):
+    """The part of one hole in a car's day that a person on ``shift`` can use.
+
+    Returns ``{"minutes", "span", "from_label", "to_label"}`` or ``None``. This is
+    the one place the clipping is done, so the strip's gold marks and the
+    inspection round's suggestions can never disagree about which holes are real.
+
+    A hole is only reachable if it is long enough AFTER being cut to the working
+    day. Fifteen minutes of a three-hour gap falling before four o'clock is
+    fifteen minutes; calling it three hours is the same lie in a larger size.
+    """
+    # The car changing hands is the one gap where it may be in motion rather
+    # than parked, so it is never offered however long it looks.
+    if gap.get("handoff"):
+        return None
+    needed = WALK_MINUTES + (FLIGHT_PAD_MINUTES if gap.get("flight_dependent") else 0)
+
+    start, end = gap.get("start"), gap.get("end")
+    if start is None or end is None:
+        # Nothing to place this hole by. Every gap this module builds carries
+        # both datetimes; one that does not came from a caller describing a
+        # window in the abstract, and taking it at its word is the only honest
+        # move left — inventing a position to clip against would be worse.
+        minutes = gap.get("minutes") or 0
+        if minutes < needed:
+            return None
+        return {"minutes": minutes, "span": _span(minutes),
+                "from_label": gap.get("from_label", ""),
+                "to_label": gap.get("to_label", "")}
+
+    start = max(start, datetime.combine(day, shift[0]))
+    end = min(end, datetime.combine(day, shift[1]))
+    minutes = int((end - start).total_seconds() // 60)
+    # Clipping does not make the flight drift any cheaper.
+    if minutes < needed:
+        return None
+    return {"minutes": minutes, "span": _span(minutes),
+            "from_label": _fmt(start), "to_label": _fmt(end)}
+
+
+def gaps_between(entries, day, shift):
     """The holes in one car's day, with the honest caveats attached.
 
     ``entries`` is the unit's merged, time-ordered list of (driver_id, slot).
@@ -258,9 +333,12 @@ def gaps_between(entries, day):
     a gap across two chauffeurs is a handoff, and the car may well be changing
     hands rather than sitting. Both are reported, labelled differently.
 
-    ``usable`` means "long enough for shop work after padding both ends for
-    flight drift" — it is the only judgement this module makes, and it is about
-    the WINDOW, never about the trip.
+    Each hole carries TWO judgements, and they answer different questions.
+    ``usable`` is "long enough for shop work after padding both ends for flight
+    drift" — could a service be booked into it. ``reachable`` is "could the
+    person reading this page walk over to the car during it", which is clipped to
+    their working hours and costs no travel. Both are about the WINDOW, never
+    about the trip.
     """
     out = []
     for (prev_driver, prev_slot), (next_driver, next_slot) in zip(entries, entries[1:]):
@@ -289,12 +367,17 @@ def gaps_between(entries, day):
             "needed": needed,
             "usable": (not handoff) and minutes >= needed,
         })
+    for gap in out:
+        gap["reachable"] = reachable_window(gap, day, shift)
     return out
 
 
 def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_end,
-            confident=True):
+            confident=True, shift=None):
     """One car's day. Pure — every argument is already loaded."""
+    from users.models import DEFAULT_SHIFT
+
+    shift = shift or DEFAULT_SHIFT
     downtime = unit.downtime_on(day)
     names = [str(drivers_by_id[d]) for d in holder_ids if d in drivers_by_id]
 
@@ -341,7 +424,7 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             "show_label": width >= 8.0,
         })
 
-    gaps = gaps_between(entries, day)
+    gaps = gaps_between(entries, day, shift)
     for gap in gaps:
         gap["left"], gap["width"] = _place(gap["start"], gap["end"], axis_start, axis_end)
 
@@ -357,6 +440,7 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
 
     longest = max(gaps, key=lambda g: g["minutes"]) if gaps else None
     usable = [g for g in gaps if g["usable"]]
+    reachable = [g for g in gaps if g["reachable"]]
 
     # ── The sentence. Four states that must never collapse into each other. ──
     if downtime is not None:
@@ -389,6 +473,7 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
         "trips": len(jobs),
         "gaps": gaps,
         "usable_windows": usable,
+        "reachable_windows": reachable,
         "longest_gap": longest,
         "overlap": overlap,
         "downtime": downtime,
@@ -399,8 +484,16 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
     }
 
 
-def build_day(loaded):
-    """The whole page, from one ``load_car_day`` payload."""
+def build_day(loaded, shift=None):
+    """The whole page, from one ``load_car_day`` payload.
+
+    ``shift`` is the working day of whoever is reading — it decides which holes
+    the strip marks in gold. Defaults to the standard day so a caller with no
+    user in hand still gets sensible hours rather than a fleet-wide midnight.
+    """
+    from users.models import DEFAULT_SHIFT
+
+    shift = shift or DEFAULT_SHIFT
     day = loaded["day"]
     units, legs = loaded["units"], loaded["legs"]
     holders = loaded["holders"]
@@ -418,18 +511,33 @@ def build_day(loaded):
 
     rows = [
         car_row(unit, day, holders.get(unit.id, []), drivers_by_id, sched,
-                axis_start, axis_end, confident=confident)
+                axis_start, axis_end, confident=confident, shift=shift)
         for unit in units
     ]
 
-    order = {"working": 0, "open": 1, "unknown": 2, "down": 3}
-    rows.sort(key=lambda r: (order.get(r["state"], 9), -r["trips"],
-                             _natural(r["number"])))
+    # Unit number, always — #001, #002, #003, the order the cars are numbered,
+    # parked and talked about, and the order the dispatch board uses. Sorting by
+    # state instead (busiest first, shop last) meant a car moved rows from one
+    # morning to the next, so "where is #7" was a scan of the whole board every
+    # time instead of a glance at a fixed position. State is a thing you SEE on
+    # the row — it should never be a thing you have to search for it by.
+    rows.sort(key=lambda r: _natural(r["number"]))
+
+    # Where "now" falls across the axis, as a percentage, or None when this is
+    # not today — a now-line on tomorrow's board would be a lie drawn in gold.
+    now = loaded.get("now")
+    now_pct = None
+    if now is not None and axis_start <= now <= axis_end:
+        span = (axis_end - axis_start).total_seconds()
+        if span > 0:
+            now_pct = round((now - axis_start).total_seconds() / span * 100, 4)
 
     on_a_car = sum(r["trips"] for r in rows)
     return {
         "day": day,
         "rows": rows,
+        "now_pct": now_pct,
+        "now_label": _fmt(now) if now_pct is not None else "",
         "built": built,
         "confident": confident,
         "assigned": assigned,
@@ -446,6 +554,8 @@ def build_day(loaded):
         "open_units": sum(1 for r in rows if r["state"] == "open"),
         "down": sum(1 for r in rows if r["state"] == "down"),
         "headline": _headline(built, confident, ratio, total, day),
+        "shift_start": shift[0],
+        "shift_end": shift[1],
     }
 
 

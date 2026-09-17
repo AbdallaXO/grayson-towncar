@@ -4,7 +4,11 @@
   page head so the tabs sit beside the title. Expects `fleet_page` in
   ("desk", "day", "vehicles", "inspections", "outlook",
   "report").
+
+  Hidden from the fleet role, who carries these same links in the dark top bar.
+  See `_fleet_pills.html` for why.
 {% endcomment %}
+{% if not fleet_nav %}
 <div class="tap-tab-row fleet-tabs">
   <a href="{% url 'fleet_desk' %}" class="tap-tab {% if fleet_page == 'desk' %}active{% endif %}">
     <i class="bi bi-clipboard2-pulse"></i> Desk</a>
@@ -19,3 +23,4 @@
   <a href="{% url 'fleet_report' %}" class="tap-tab {% if fleet_page == 'report' %}active{% endif %}">
     <i class="bi bi-bar-chart-steps"></i> Report</a>
 </div>
+{% endif %}

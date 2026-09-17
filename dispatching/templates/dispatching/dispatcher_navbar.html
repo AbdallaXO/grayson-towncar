@@ -2,7 +2,18 @@
 {% if request.user.is_staff or request.user.is_superuser %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top" style="z-index: 1030;">
   <div class="container bg-navbar-dark">
+    {% comment %}
+      The wordmark names the room you are standing in, so it cannot say
+      "Dispatching" to the one member of staff who has no dispatch board. It was
+      also the only link on his bar that left the fleet pages — one click on what
+      looks like a logo and he was on the dispatch dashboard wondering what he
+      had broken.
+    {% endcomment %}
+    {% if fleet_nav %}
+    <a class="navbar-brand" href="{% url 'fleet_desk' %}"><span class="fw-bold text-white" style="font-size: 1.2rem;">Fleet</span></a>
+    {% else %}
     <a class="navbar-brand" href="{% url 'dashboard' %}"><span class="fw-bold text-white" style="font-size: 1.2rem;">Dispatching</span></a>
+    {% endif %}
     <button class="navbar-toggler"
             type="button"
             data-bs-toggle="collapse"

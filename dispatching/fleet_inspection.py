@@ -14,13 +14,32 @@ longest hole in their day, then the ones nobody has looked at longest. It is a
 SUGGESTION — the manager can open any car still due — and an already-inspected
 car is never offered again that week.
 
+THE ROUND IS WALKED BY A PERSON ON A SHIFT
+────────────────────────────────────────────────────────────────────────────
+A window is only a window if the manager is at work when it opens. The day's
+holes are computed fleet-wide by ``fleet_day`` and run to midnight — the board
+happily reports a car free 7:04 PM – 11:04 PM — but the round is walked at HQ,
+in person, by someone whose day ends at four. Offering that car today is
+offering something they cannot do.
+
+So every window is CLIPPED to the walker's working hours before it counts, and
+what is left is re-tested against what an inspection actually costs — twenty
+minutes of walking round the car, plus getting it to HQ and back out. No
+mechanical work happens at HQ, so none of the shop's figures apply. A car whose only hole falls after the shift therefore has no window at
+all here, says so in those words, and drops behind every car that does — the
+suggestion is filled with cars that can actually be walked, and one that cannot
+is only offered when there is nothing better, never with a time on it.
+
+Hours come from the walker's own profile (``users.shift_for``), not a constant:
+a second fleet hand on an evening shift wants the evening windows.
+
 Nothing here takes a car off the road. An inspection that finds something files
 a ``VehicleIssue``, which carries the severity; only the downtime ledger ever
 removes a unit from the pool.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 # ════════════════════════════════════════════════════════════════════════════
 # THE CHECKLIST — edit this list, nothing else.
@@ -87,6 +106,10 @@ CHECKLIST = [
 # five working days is four a day; five leaves room to fall a day behind and
 # still finish the week.
 DAILY_TARGET = 5
+
+# How long a car has to be standing still before it can be walked. Defined in
+# ``fleet_day`` because the strip marks its gold windows with the same number —
+# see the comment there for why it is NOT the shop figure.
 
 STATE_OK = "ok"
 STATE_FLAG = "flag"
@@ -215,13 +238,20 @@ def week_summary(day, units):
     }
 
 
-def build_week(loaded, day_rows=None, last_seen=None):
+def build_week(loaded, day_rows=None, last_seen=None, shift=None):
     """The inspection board for one week. Pure.
 
     ``day_rows`` is ``fleet_day.build_day(...)["rows"]`` for today, used only to
     order the suggestion by what is actually standing still. Without it the
     round still works — it simply cannot prefer the idle cars.
+
+    ``shift`` is the walker's (start, end) working hours; every window is clipped
+    to it before it counts. Defaults to the standard day so a caller that has no
+    user in hand still gets sensible hours rather than a fleet-wide midnight.
     """
+    from users.models import DEFAULT_SHIFT
+
+    shift = shift or DEFAULT_SHIFT
     day, start = loaded["day"], loaded["week_start"]
     by_vehicle = {row.vehicle_id: row for row in loaded["done"]}
     last_seen = last_seen or {}
@@ -241,6 +271,14 @@ def build_week(loaded, day_rows=None, last_seen=None):
         else:
             state = "due"
 
+        window = walkable_window(today_row, day, shift)
+        # Out on the road for every hour the walker is here. Positively KNOWN to
+        # be out — an unbuilt board says nothing about a car, and reading that
+        # silence as "unreachable" would empty the round on exactly the mornings
+        # Day Setup has not run yet.
+        off_shift = (today_row is not None
+                     and today_row["state"] == "working"
+                     and window is None)
         tile = {
             "unit": unit,
             "number": unit.vehicle_number,
@@ -248,9 +286,11 @@ def build_week(loaded, day_rows=None, last_seen=None):
             "state": state,
             "inspection": inspection,
             "downtime": downtime,
-            "today": _today_note(today_row),
+            "today": _today_note(today_row, window, shift),
             "idle_today": bool(today_row and today_row["state"] in ("open", "down")),
-            "window_minutes": _window_minutes(today_row),
+            "off_shift": off_shift,
+            "walkable_now": not off_shift,
+            "window_minutes": _window_minutes(window),
             "last_seen": last_seen.get(unit.id),
             "href": f"/dispatching/fleet/inspections/{unit.id}/",
         }
@@ -258,14 +298,26 @@ def build_week(loaded, day_rows=None, last_seen=None):
         if state == "due":
             due.append(tile)
 
-    # The order the suggestion offers: standing still first, then the biggest
-    # hole in the day, then longest since anyone looked, then unit number.
+    # The order the suggestion offers. Reachability comes first and everything
+    # else is a tie-break inside it: a car the walker cannot get to today is not
+    # a better suggestion than one they can, however long it has gone unseen.
+    # Standing still, then the biggest reachable hole, then longest since anyone
+    # looked, then unit number.
     due.sort(key=lambda t: (
+        not t["walkable_now"],
+        t["off_shift"],
         not t["idle_today"],
         -(t["window_minutes"] or 0),
         t["last_seen"] or _NEVER,
         _natural(t["number"]),
     ))
+
+    # Offer the day's handful, but never pad it with cars that cannot be walked
+    # just to reach the target. A short honest list beats five tiles where two
+    # are out on the road all day. One unreachable car is only offered when
+    # nothing else is left, and its tile says so instead of naming a time.
+    reachable = [t for t in due if t["walkable_now"]]
+    suggested = (reachable or due[:1])[:DAILY_TARGET]
 
     counted = [t for t in tiles if t["state"] != "shop"]
     done_count = sum(1 for t in counted if t["state"] in ("done", "found"))
@@ -281,7 +333,13 @@ def build_week(loaded, day_rows=None, last_seen=None):
         "week_start": start,
         "week_end": start + timedelta(days=6),
         "tiles": tiles,
-        "suggested": due[:DAILY_TARGET],
+        "suggested": suggested,
+        # True when the round has nothing walkable left today and the tile shown
+        # is a fallback. The page says so rather than letting it read as advice.
+        "suggestion_is_fallback": not reachable and bool(suggested),
+        "off_shift_count": sum(1 for t in due if t["off_shift"]),
+        "shift_start": shift[0],
+        "shift_end": shift[1],
         "due_count": remaining,
         "done_count": done_count,
         "found_count": found_count,
@@ -319,23 +377,81 @@ def _headline(done, total, found):
     return line
 
 
-def _today_note(row):
+def _fmt_time(value):
+    """'7:30 AM'. The app-wide clock format, on a time or a datetime alike."""
+    from business.datefmt import time12
+    return time12(value)
+
+
+def walkable_window(row, day, shift):
+    """The best window on this car TODAY that the walker can actually reach.
+
+    Takes one ``fleet_day`` car-row and the walker's (start, end) hours, and
+    returns ``{"minutes", "span", "from_label", "to_label"}`` for the longest
+    hole once clipped to those hours — or ``None`` when nothing survives.
+
+    The clipping itself is ``fleet_day.reachable_window``, deliberately not a
+    copy of it: the strip's gold marks and this suggestion have to be the same
+    judgement, or the manager reads a free afternoon on one screen and "no gap"
+    on the other for the same car on the same day.
+    """
+    from dispatching.fleet_day import WALK_MINUTES, reachable_window
+
+    if row is None:
+        return None
+    shift_start, shift_end = shift
+
+    # A car with nobody on it is free for the whole shift, and there are no gap
+    # rows to clip because there are no trips to sit between.
+    if row["state"] == "open":
+        day_start = datetime.combine(day, shift_start)
+        day_end = datetime.combine(day, shift_end)
+        minutes = int((day_end - day_start).total_seconds() // 60)
+        if minutes < WALK_MINUTES:
+            return None
+        return {"minutes": minutes, "span": "",
+                "from_label": _fmt_time(day_start),
+                "to_label": _fmt_time(day_end)}
+
+    # Every hole in the day, not only the ones long enough for the shop.
+    holes = row.get("gaps")
+    if holes is None:
+        holes = row.get("usable_windows") or []
+    best = None
+    for hole in holes:
+        candidate = hole.get("reachable") if "reachable" in hole else None
+        if candidate is None:
+            candidate = reachable_window(hole, day, shift)
+        if candidate is None:
+            continue
+        if best is None or candidate["minutes"] > best["minutes"]:
+            best = candidate
+    return best
+
+
+def _today_note(row, window, shift):
+    """The one line the tile says about this car's day.
+
+    ``window`` is ``walkable_window``'s answer. When there is none and the car
+    is out working, the line names the hour the walker leaves rather than the
+    hour the car frees up: the fact that matters is that there is no way to get
+    to this car today, not when someone else could.
+    """
     if row is None:
         return ""
     if row["state"] == "down":
         return row["note"]
-    if row["state"] == "open":
-        return "Sitting still today"
     if row["state"] == "unknown":
         return "Day not built yet"
-    longest = row.get("longest_gap")
-    if longest and longest.get("usable"):
-        return f"Free {longest['from_label']} – {longest['to_label']}"
-    return f"{row['trips']} trip{'s' if row['trips'] != 1 else ''} today"
+    if row["state"] == "open":
+        return "Sitting still today"
+    if window is not None:
+        return f"Free {window['from_label']} – {window['to_label']}"
+    return f"No gap before {_fmt_time(shift[1])}"
 
 
-def _window_minutes(row):
-    """How much genuinely walkable time this car has today.
+def _window_minutes(window):
+    """How much genuinely walkable time this car has today, in the walker's hours.
 
     Deliberately the longest USABLE window, not the longest hole: a three-hour
     gap that opens behind an airport arrival is not three hours you can hold a
@@ -343,12 +459,7 @@ def _window_minutes(row):
     above one that has a real one — which is exactly what the tile then fails to
     show, because the label names usable windows only.
     """
-    if row is None:
-        return 0
-    if row["state"] == "open":
-        return 24 * 60
-    usable = row.get("usable_windows") or []
-    return max((w["minutes"] for w in usable), default=0)
+    return window["minutes"] if window else 0
 
 
 def _type_label(unit):

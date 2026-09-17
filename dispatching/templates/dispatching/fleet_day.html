@@ -6,6 +6,9 @@
   how much of the day dispatch has actually built — everything below it is only
   as true as that number, and a car with an empty strip on a half-built day is
   NOT a free car.
+
+  Rows are in unit-number order, always. See fleet_day.build_day for why: a row
+  that moves between mornings is a row you have to hunt for.
 {% endcomment %}
 
 {% block title %}Fleet · The day{% endblock %}
@@ -14,7 +17,14 @@
 {% include "dispatching/_travel_admin_css.html" %}
 {% include "dispatching/includes/_fleet_luxe_css.html" %}
 <style>
-  /* ── The day strip ────────────────────────────────────────────────── */
+  /* ── The day strip ────────────────────────────────────────────────────
+     Widths live here as variables because three separate things have to agree
+     on where the track starts: the axis padding, the row label, and the
+     absolute `left` of every hour tick. They disagreed once and the labels sat
+     a full half-hour off the blocks they named. */
+  .fd { --fd-label: 208px; --fd-gutter: 20px; --fd-bar: 26px; }
+  @media (max-width: 900px) { .fd { --fd-label: 140px; --fd-gutter: 12px; } }
+
   .fd-note { margin-top: 20px; padding: 14px 18px; border-radius: 0.7rem; font-size: 0.86rem;
              border: 1px solid var(--fl-hair); background: var(--fl-cream); color: var(--fl-ink); }
   .fd-note.warn { background: var(--fl-caution-tint); border-color: #E6D9AC; color: var(--fl-caution); font-weight: 500; }
@@ -28,66 +38,167 @@
   .fd-day:hover { border-color: var(--fl-gold); }
   .fd-day.active { background: var(--fl-ink); color: #fff; border-color: var(--fl-ink); }
   .fd-day.active:hover { color: #fff; }
-  .fd-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.72rem; color: var(--fl-muted); }
-  .fd-legend .sw { width: 22px; height: 9px; border-radius: 2px; display: inline-block;
+
+  /* The day's shape in three numbers. It used to sit in small print under
+     nineteen rows of board — the one place you reach only by scrolling past
+     everything it summarises. */
+  .fd-tally { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .fd-tally .t { display: flex; align-items: baseline; gap: 7px; }
+  .fd-tally .t .n { font-size: 1.25rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+  .fd-tally .t .lab { font-size: 0.72rem; color: var(--fl-muted); font-weight: 500; }
+  .fd-tally .t .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .fd-tally .working .dot { background: var(--fl-good); }
+  .fd-tally .still   .dot { background: var(--fl-gold); }
+  .fd-tally .shop    .dot { background: var(--fl-critical); }
+  .fd-tally .shop .n { color: var(--fl-critical); }
+  .fd-nownote { font-size: 0.7rem; font-weight: 600; color: var(--fl-caution);
+                padding-left: 18px; border-left: 1px solid var(--fl-hair);
+                font-variant-numeric: tabular-nums; }
+
+  .fd-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.7rem; color: var(--fl-muted); }
+  .fd-legend .sw { width: 20px; height: 9px; border-radius: 2px; display: inline-block;
                    vertical-align: middle; margin-right: 6px; }
 
-  .fd-board { margin-top: 18px; border: 1px solid var(--fl-hair); border-radius: 1rem; overflow: hidden; background: #fff; }
+  /* No overflow:hidden on the board — it would make the sticky axis below a
+     sticky nothing. Corners are rounded on the first and last children instead. */
+  .fd-board { margin-top: 16px; border: 1px solid var(--fl-hair); border-radius: 1rem;
+              background: #fff; position: relative; }
+
   /* Hour rules behind every row. With these you read WHEN a block sits from the
      grid rather than from a label inside it — which is what lets a 20-minute
      transfer be a small quiet mark instead of a clipped word. */
   .fd-track::before { content: ''; position: absolute; inset: -10px 0 -10px 0; pointer-events: none;
     background: repeating-linear-gradient(to right,
       var(--fl-hair-softest) 0 1px, transparent 1px var(--fd-hour, 8.333%)); }
-  .fd-axis { display: flex; padding: 9px 0 9px 176px; border-bottom: 1px solid var(--fl-hair);
-             background: var(--fl-cream); position: relative; height: 32px; }
-  .fd-tick { position: absolute; font-size: 0.64rem; font-weight: 600; color: var(--fl-muted-light);
-             letter-spacing: 0.04em; transform: translateX(-50%); top: 9px; }
 
-  .fd-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--fl-hair-softest); min-height: 58px; }
-  .fd-row:last-child { border-bottom: 0; }
+  /* The axis follows you down. Nineteen rows is more than one screen, and an
+     hour scale you have scrolled off the top is an hour scale you are guessing
+     at. 52px clears the sticky top bar. */
+  .fd-axis { display: flex; padding: 9px 0 9px var(--fd-label); border-bottom: 1px solid var(--fl-hair);
+             background: var(--fl-cream); position: sticky; top: 52px; z-index: 4;
+             height: 34px; border-radius: 1rem 1rem 0 0; }
+  .fd-tick { position: absolute; font-size: 0.64rem; font-weight: 600; color: var(--fl-muted-light);
+             letter-spacing: 0.04em; transform: translateX(-50%); top: 10px; }
+
+  .fd-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--fl-hair-softest);
+            min-height: 58px; position: relative; transition: background 0.12s ease; }
+  .fd-row:last-child { border-bottom: 0; border-radius: 0 0 1rem 1rem; }
   .fd-row:hover { background: #FCFBF8; }
   .fd-row.is-down { background: var(--fl-critical-tint); }
+  .fd-row.is-down:hover { background: #F6E4E0; }
   .fd-row.is-unknown { background: #FCFCFB; }
 
-  .fd-label { flex: 0 0 176px; padding: 10px 14px; border-right: 1px solid var(--fl-hair-soft); min-width: 0; }
-  .fd-unit { font-weight: 700; font-size: 0.92rem; letter-spacing: -0.01em; }
-  .fd-unit .vt { font-weight: 500; color: var(--fl-muted-light); font-size: 0.72rem; margin-left: 5px; }
-  .fd-who { font-size: 0.72rem; color: var(--fl-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fd-who .share { color: var(--fl-settled); font-weight: 600; }
+  /* State as a rule down the left edge. With rows in fixed number order the
+     shop car no longer sinks to the bottom, so its state has to be visible
+     where the eye already is — beside the number, not inferred from position. */
+  .fd-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+                    background: var(--fl-good); }
+  .fd-row.is-open::before    { background: var(--fl-gold); }
+  .fd-row.is-down::before    { background: var(--fl-critical); }
+  .fd-row.is-unknown::before { background: var(--fl-hair); }
 
-  .fd-track { flex: 1 1 auto; position: relative; margin: 10px 16px 10px 0; min-width: 0; }
-  .fd-job { position: absolute; top: 3px; height: 24px; border-radius: 3px; overflow: hidden;
+  .fd-label { flex: 0 0 var(--fd-label); padding: 10px 14px 10px 17px;
+              border-right: 1px solid var(--fl-hair-soft); min-width: 0; }
+  .fd-unit { display: flex; align-items: baseline; gap: 7px; }
+  .fd-unit a { font-weight: 700; font-size: 1rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .fd-unit .vt { font-weight: 500; color: var(--fl-muted-light); font-size: 0.7rem;
+                 text-transform: uppercase; letter-spacing: 0.06em; }
+  .fd-who { font-size: 0.72rem; color: var(--fl-muted); margin-top: 4px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap; }
+  .fd-who .share { color: var(--fl-settled); font-weight: 600; }
+  .fd-fact { font-size: 0.67rem; color: var(--fl-muted-light); margin-top: 3px;
+             font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .fd-track { flex: 1 1 auto; position: relative; margin: 10px var(--fd-gutter) 10px 0; min-width: 0; }
+
+  /* ── Blocks ─────────────────────────────────────────────────────────────
+     Deeper fills and a darker left edge than the first pass: at 24px tall in a
+     tint three shades off white, a row of trips read as a row of smudges. The
+     left edge is what makes a run of back-to-back blocks countable. */
+  .fd-job { position: absolute; top: 2px; height: var(--fd-bar); border-radius: 4px; overflow: hidden;
             background: var(--fl-good-tint-strong); border: 1px solid var(--fl-good-border);
-            font-size: 0.66rem; line-height: 22px; padding: 0 6px; white-space: nowrap;
-            color: var(--fl-good-deep); font-weight: 600; transition: var(--fl-t); z-index: 2;
+            border-left: 3px solid var(--fl-good); box-shadow: none;
+            font-size: 0.66rem; line-height: 22px; padding: 0 5px; white-space: nowrap;
+            color: var(--fl-good-deep); font-weight: 600; z-index: 2; cursor: default;
+            transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
             text-overflow: clip; }
-  .fd-job:hover { border-color: var(--fl-gold); z-index: 6; }
-  .fd-job.arrival { background: #E7EEF6; border-color: #C9D8E8; color: var(--fl-settled); }
-  .fd-job.sanford { background: #E3F1F3; border-color: #BFDDE2; color: #1F5A63; }
+  .fd-job:hover { border-color: var(--fl-gold); border-left-color: var(--fl-gold);
+                  box-shadow: 0 2px 10px rgba(13,17,23,0.16); transform: translateY(-1px); z-index: 6; }
+  .fd-job.arrival { background: #DCE7F4; border-color: #BACDE3; border-left-color: var(--fl-settled); color: #1B3A5C; }
+  .fd-job.sanford { background: #D8EDF0; border-color: #B2D6DD; border-left-color: #1F5A63; color: #164851; }
+
   /* Plain gaps are drawn by NOT drawing anything. The dashed connectors that
      used to run between every pair of trips tripled the marks on the row and
      said nothing — the space between two blocks is already the gap. */
   .fd-gap { display: none; }                      /* an ordinary hole draws nothing */
-  .fd-gap.usable { display: block; position: absolute; top: 3px; height: 24px; z-index: 1;
-                   border: 1px solid var(--fl-gold); border-radius: 3px;
+  .fd-gap.usable { display: block; position: absolute; top: 2px; height: var(--fd-bar); z-index: 1;
+                   border: 1px solid var(--fl-gold); border-radius: 4px; cursor: default;
+                   font-size: 0.62rem; line-height: 24px; color: var(--fl-caution); font-weight: 700;
+                   text-align: center; overflow: hidden; white-space: nowrap;
                    background: repeating-linear-gradient(45deg,
-                     rgba(201,162,39,0.13) 0 6px, rgba(201,162,39,0.05) 6px 12px); }
-  .fd-gap-label { position: absolute; top: 33px; font-size: 0.6rem; color: var(--fl-caution);
-                  white-space: nowrap; font-weight: 700; letter-spacing: 0.02em; }
-  .fd-fact { font-size: 0.68rem; color: var(--fl-muted-light); margin-top: 2px;
-             font-variant-numeric: tabular-nums; }
-  .fd-empty { position: absolute; top: 6px; left: 0; font-size: 0.74rem; color: var(--fl-muted); font-style: italic; }
-  .fd-flag { display: inline-block; margin-left: 6px; font-size: 0.6rem; font-weight: 700;
-             color: var(--fl-critical); letter-spacing: 0.05em; }
+                     rgba(201,162,39,0.16) 0 6px, rgba(201,162,39,0.06) 6px 12px);
+                   transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+  .fd-gap.usable:hover { box-shadow: 0 2px 10px rgba(201,162,39,0.3); z-index: 5; }
+  /* The label goes INSIDE the window when it fits and underneath when it does
+     not. Which of those is true cannot be decided here: it depends on the width
+     of the phone AND on the length of the words, and "3h 58m free" needs more
+     room than "3h 5m free" in the very same gap. Both are rendered; the script
+     at the foot of the page measures and shows one. Slung underneath for EVERY
+     window, as it was at first, it hung into the next car's row — so a wide gap
+     on #6 read as a note about #7. */
+  .fd-gap.narrow { font-size: 0; }
+  .fd-gap-label { display: none; position: absolute; top: 30px; font-size: 0.6rem;
+                  color: var(--fl-caution); white-space: nowrap; font-weight: 700;
+                  letter-spacing: 0.02em; }
+  .fd-gap-label.show { display: block; }
+
+  .fd-empty { position: absolute; top: 5px; left: 0; font-size: 0.74rem; color: var(--fl-muted); font-style: italic; }
+
+  /* ── Now ────────────────────────────────────────────────────────────────
+     Only ever drawn on today. Sits above the blocks so it is never buried, and
+     ignores the mouse so it can't steal a hover from the trip underneath it. */
+  .fd-nowwrap { position: absolute; inset: 34px 0 0 0; pointer-events: none; z-index: 3; }
+  .fd-nowline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fl-gold); opacity: 0.5; }
+  /* A caret at the head of the line instead of a time chip. The chip had to
+     live somewhere, and every somewhere was on top of a trip block or under the
+     sticky axis; the clock reading moved up beside the day's counts, where it
+     is read once rather than squinted at. */
+  .fd-nowline::before { content: ''; position: absolute; top: -5px; left: -4px;
+                        border-left: 4px solid transparent; border-right: 4px solid transparent;
+                        border-top: 5px solid var(--fl-gold); }
 
   .fd-foot { margin-top: 14px; font-size: 0.76rem; color: var(--fl-muted); }
+
+  /* ── The hover card ─────────────────────────────────────────────────────
+     Replaces `title=""`. A native tooltip waits about a second before it
+     appears, which on a board you read by sweeping across it means the answer
+     always arrives after you have moved on. This one is instant: no delay, and
+     a fade short enough to feel like the block itself opened. */
+  .fd-pop { position: fixed; z-index: 9999; background: #fff; border: 1px solid var(--fl-hair);
+            border-radius: 10px; box-shadow: 0 12px 34px rgba(13,17,23,0.18);
+            padding: 0; min-width: 232px; max-width: 320px; overflow: hidden;
+            pointer-events: none; opacity: 0; transform: translateY(3px);
+            transition: opacity 0.11s ease, transform 0.11s ease;
+            font-family: var(--fl-sans); font-size: 0.75rem; }
+  .fd-pop.on { opacity: 1; transform: translateY(0); }
+  .fd-pop-head { padding: 7px 11px; font-weight: 700; font-size: 0.7rem;
+                 letter-spacing: 0.05em; text-transform: uppercase; color: #fff; background: var(--fl-good); }
+  .fd-pop-head.arrival { background: var(--fl-settled); }
+  .fd-pop-head.sanford { background: #1F5A63; }
+  .fd-pop-head.window  { background: var(--fl-gold); color: #1a1d21; }
+  .fd-pop-when { padding: 9px 11px 7px; font-size: 0.86rem; font-weight: 700;
+                 font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--fl-hair-softest); }
+  .fd-pop-when .dur { font-weight: 500; color: var(--fl-muted); font-size: 0.72rem; margin-left: 5px; }
+  .fd-pop-body { padding: 7px 11px 9px; }
+  .fd-pop-row { display: flex; gap: 10px; padding: 2.5px 0; }
+  .fd-pop-row + .fd-pop-row { border-top: 1px solid rgba(0,0,0,0.035); }
+  .fd-pop-row .k { color: var(--fl-muted-light); flex: 0 0 62px; font-size: 0.68rem; }
+  .fd-pop-row .v { flex: 1 1 auto; font-weight: 500; color: var(--fl-ink); word-break: break-word; }
+  .fd-pop-foot { padding: 6px 11px; background: var(--fl-cream); border-top: 1px solid var(--fl-hair-softest);
+                 font-size: 0.68rem; color: var(--fl-muted); line-height: 1.45; }
+
   @media (max-width: 1000px) { .fd-tick.minor { display: none; } }
-  @media (max-width: 800px) {
-    .fd-axis { padding-left: 128px; }
-    .fd-label { flex-basis: 128px; }
-    .fd-tick { left: auto; }
-  }
+  @media (max-width: 800px)  { .fd-tick { left: auto; } }
 </style>
 {% endblock %}
 
@@ -95,7 +206,7 @@
 
 {% block content %}
 {% include 'dispatching/dispatcher_navbar.html' %}
-<div class="fl-page">
+<div class="fl-page fd">
 <div class="fl-inner">
 
   {# ── Header ────────────────────────────────────────────────────────── #}
@@ -115,7 +226,7 @@
     {{ payload.headline }}
   </div>
 
-  {# ── Date + legend ─────────────────────────────────────────────────── #}
+  {# ── Date, the day's shape, legend ─────────────────────────────────── #}
   <div class="fd-controls">
     <div class="fd-days">
       {% for option in day_options %}
@@ -123,24 +234,42 @@
            href="?date={{ option.value }}">{{ option.label }}</a>
       {% endfor %}
     </div>
+    <div class="fd-tally">
+      <span class="t working"><span class="dot"></span><span class="n">{{ payload.working }}</span><span class="lab">working</span></span>
+      <span class="t still"><span class="dot"></span><span class="n">{{ payload.open_units }}</span><span class="lab">sitting still</span></span>
+      <span class="t shop"><span class="dot"></span><span class="n">{{ payload.down }}</span><span class="lab">in the shop</span></span>
+      {% if payload.now_label %}<span class="fd-nownote">now {{ payload.now_label }}</span>{% endif %}
+    </div>
     <div class="fd-legend">
       <span><span class="sw" style="background:#DCEAE2;border:1px solid #CFE2D8;"></span>On a trip</span>
-      <span><span class="sw" style="background:#E7EEF6;border:1px solid #C9D8E8;"></span>Airport arrival</span>
-      <span><span class="sw" style="background:rgba(201,162,39,0.10);border:1px solid #C9A227;"></span>Room for shop work</span>
+      <span><span class="sw" style="background:#DCE7F4;border:1px solid #BACDE3;"></span>Airport arrival</span>
+      <span><span class="sw" style="background:rgba(201,162,39,0.16);border:1px solid #C9A227;"></span>Standing still, in your hours</span>
     </div>
   </div>
 
   {# ── The board ─────────────────────────────────────────────────────── #}
-  <div class="fd-board">
+  <div class="fd-board" id="fdBoard">
     <div class="fd-axis">
       {% for tick in payload.hours %}
         <span class="fd-tick {% if tick.minor %}minor{% endif %}"
-              style="left:calc(176px + (100% - 192px) * {{ tick.pct }} / 100);">{{ tick.label }}</span>
+              style="left:calc(var(--fd-label) + (100% - var(--fd-label) - var(--fd-gutter)) * {{ tick.pct }} / 100);">{{ tick.label }}</span>
       {% endfor %}
     </div>
 
+    {% if payload.now_pct is not None %}
+      {% comment %}
+        The now-line spans the whole board rather than being redrawn per row, so
+        it stays one unbroken edge instead of nineteen little dashes that drift
+        apart by a pixel each. Inset from the top by the axis height.
+      {% endcomment %}
+      <div class="fd-nowwrap">
+        <div class="fd-nowline"
+             style="left:calc(var(--fd-label) + (100% - var(--fd-label) - var(--fd-gutter)) * {{ payload.now_pct }} / 100);"></div>
+      </div>
+    {% endif %}
+
     {% for row in payload.rows %}
-    <div class="fd-row {% if row.state == 'down' %}is-down{% elif row.state == 'unknown' %}is-unknown{% endif %}">
+    <div class="fd-row is-{{ row.state }}">
       <div class="fd-label">
         <div class="fd-unit">
           <a href="{{ row.href }}">#{{ row.number }}</a>
@@ -165,17 +294,40 @@
           <div class="fd-empty">{{ row.note }}</div>
         {% else %}
           {% for gap in row.gaps %}
-            <div class="fd-gap {% if gap.usable %}usable{% endif %}"
+            {% comment %}
+              A hole is marked when the reader could actually get to the car
+              during it — which means inside their working hours, and long
+              enough once cut to them. The mark and its label are the CLIPPED
+              window, never the raw hole: a gap running 2 PM to 6 PM is marked
+              to four o'clock and reads "2h free", because that is all of it
+              anyone reading this page can use.
+
+              Every other hole draws nothing at all. The space between two
+              blocks is already the gap, and an ordinary one has nothing to add.
+            {% endcomment %}
+            <div class="fd-gap {% if gap.reachable %}usable{% endif %}"
                  style="left:{{ gap.left }}%;width:{{ gap.width }}%;"
-                 title="{{ gap.span }} — {{ gap.from_label }} to {{ gap.to_label }}{% if gap.handoff %} (car changes hands){% endif %}{% if gap.flight_dependent %} — starts after an airport arrival, so it moves with the flight{% endif %}"></div>
-            {% if gap.usable %}
-              <span class="fd-gap-label" style="left:{{ gap.left }}%;">{{ gap.span }} free</span>
-            {% endif %}
+                 {% if gap.reachable %}data-pop="window"
+                 data-when="{{ gap.reachable.from_label }} – {{ gap.reachable.to_label }}"
+                 data-span="{{ gap.reachable.span }}"
+                 data-shop="{% if gap.usable %}1{% endif %}"
+                 data-flight="{% if gap.flight_dependent %}1{% endif %}"
+                 data-unit="#{{ row.number }}"{% endif %}>{% if gap.reachable %}{{ gap.reachable.span }} free{% endif %}</div>
+            {% if gap.reachable %}<span class="fd-gap-label" style="left:{{ gap.left }}%;">{{ gap.reachable.span }} free</span>{% endif %}
           {% endfor %}
           {% for job in row.jobs %}
             <div class="fd-job {% if job.trip_type == 'arrival' %}arrival{% endif %} {% if job.is_sanford %}sanford{% endif %}"
                  style="left:{{ job.left }}%;width:{{ job.width }}%;"
-                 title="{{ job.start_label }} – {{ job.end_label }} · {{ job.customer }}&#10;{{ job.pickup }} → {{ job.dropoff }}&#10;{{ job.driver }}{% if job.flight_info %}&#10;{{ job.flight_info }}{% endif %}">{% if job.show_label %}{{ job.short_label }}{% endif %}</div>
+                 data-pop="job"
+                 data-kind="{% if job.is_sanford %}sanford{% elif job.trip_type == 'arrival' %}arrival{% else %}trip{% endif %}"
+                 data-label="{% if job.is_sanford %}Sanford arrival{% elif job.trip_type == 'arrival' %}Airport arrival{% else %}On a trip{% endif %}"
+                 data-when="{{ job.start_label }} – {{ job.end_label }}"
+                 data-customer="{{ job.customer }}"
+                 data-pickup="{{ job.pickup }}"
+                 data-dropoff="{{ job.dropoff }}"
+                 data-driver="{{ job.driver }}"
+                 data-flight="{{ job.flight_info }}"
+                 data-unit="#{{ row.number }}">{% if job.show_label %}{{ job.short_label }}{% endif %}</div>
           {% endfor %}
         {% endif %}
       </div>
@@ -184,20 +336,141 @@
   </div>
 
   <div class="fd-foot">
-    {{ payload.working }} car{{ payload.working|pluralize }} working ·
-    {{ payload.open_units }} sitting still ·
-    {{ payload.down }} in the shop.
     {% if payload.unplaced %}
       {{ payload.unplaced }} trip{{ payload.unplaced|pluralize }} on this date sit on no in-house car —
-      farmed out, or not assigned yet.
+      farmed out, or not assigned yet.<br>
     {% endif %}
-    <br>
+    Gold marks a hole big enough to bring the car into HQ and walk it — the inspection
+    is twenty minutes, the rest is getting it there and back out — and only between
+    {{ payload.shift_start|time:"g:i A" }} and {{ payload.shift_end|time:"g:i A" }}, your
+    hours. Which car is next due is on Inspections. Booking a car in for actual shop work
+    is a different question, a longer window and an outside garage; the Outlook answers
+    that one.
     Trip end times are planning estimates, the same ones the shop-window finder uses.
     An airport arrival's pickup time moves with the flight.
   </div>
 
 </div>
 </div>
+
+{% comment %}
+  The hover card. One listener on the board rather than one per block: a busy
+  Saturday draws well over two hundred of these, and two hundred pairs of
+  listeners is a page that stutters when you sweep across it.
+{% endcomment %}
+<script>
+(function () {
+  var board = document.getElementById('fdBoard');
+  if (!board) return;
+
+  var pop = document.createElement('div');
+  pop.className = 'fd-pop';
+  document.body.appendChild(pop);
+  var current = null;
+
+  function esc(value) {
+    var d = document.createElement('div');
+    d.textContent = value == null ? '' : value;
+    return d.innerHTML;
+  }
+
+  function row(key, value) {
+    if (!value) return '';
+    return '<div class="fd-pop-row"><span class="k">' + key + '</span>' +
+           '<span class="v">' + esc(value) + '</span></div>';
+  }
+
+  function build(el) {
+    var d = el.dataset;
+    if (d.pop === 'window') {
+      var notes = [];
+      notes.push('Enough to bring it into HQ and walk it.');
+      if (d.shop) notes.push('Long enough to book outside shop work into, as well.');
+      if (d.flight) notes.push('Opens after an airport arrival, so it moves with the flight.');
+      return '<div class="fd-pop-head window">Standing still</div>' +
+             '<div class="fd-pop-when">' + esc(d.when) +
+             '<span class="dur">' + esc(d.span) + '</span></div>' +
+             '<div class="fd-pop-body">' + row('Car', d.unit) + '</div>' +
+             (notes.length ? '<div class="fd-pop-foot">' + esc(notes.join(' ')) + '</div>' : '');
+    }
+    var head = d.kind === 'arrival' ? 'arrival' : (d.kind === 'sanford' ? 'sanford' : '');
+    return '<div class="fd-pop-head ' + head + '">' + esc(d.label) + '</div>' +
+           '<div class="fd-pop-when">' + esc(d.when) + '</div>' +
+           '<div class="fd-pop-body">' +
+             row('Guest', d.customer) +
+             row('From', d.pickup) +
+             row('To', d.dropoff) +
+             row('Chauffeur', d.driver) +
+             row('Flight', d.flight) +
+             row('Car', d.unit) +
+           '</div>';
+  }
+
+  // Flip and clamp so the card never leaves the viewport — a card that opens
+  // off the right edge of a wide board is a card you cannot read.
+  function place(x, y) {
+    var m = 8, r = pop.getBoundingClientRect();
+    var left = x + 14, top = y + 14;
+    if (left + r.width > window.innerWidth - m) left = x - r.width - 14;
+    if (top + r.height > window.innerHeight - m) top = y - r.height - 14;
+    pop.style.left = Math.max(m, Math.min(left, window.innerWidth - r.width - m)) + 'px';
+    pop.style.top = Math.max(m, Math.min(top, window.innerHeight - r.height - m)) + 'px';
+  }
+
+  // Inline label, or the one underneath? Measure rather than guess: clear the
+  // "too narrow" flag, read the real overflow, then set it again. Thirty-odd
+  // gaps on a busy day, on load and on a settled resize only.
+  function fitGapLabels() {
+    board.querySelectorAll('.fd-gap.usable').forEach(function (gap) {
+      var below = gap.nextElementSibling;
+      if (!below || !below.classList.contains('fd-gap-label')) return;
+      gap.classList.remove('narrow');
+      var overflows = gap.scrollWidth > gap.clientWidth + 1;
+      gap.classList.toggle('narrow', overflows);
+      below.classList.toggle('show', overflows);
+    });
+  }
+  fitGapLabels();
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitGapLabels, 150);
+  });
+
+  // Webfonts land after first paint and change every measurement above.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitGapLabels);
+
+  board.addEventListener('mouseover', function (e) {
+    var el = e.target.closest('[data-pop]');
+    if (!el || el === current) return;
+    current = el;
+    pop.innerHTML = build(el);
+    place(e.clientX, e.clientY);
+    pop.classList.add('on');
+  });
+
+  board.addEventListener('mousemove', function (e) {
+    if (!current) return;
+    if (!e.target.closest('[data-pop]')) {
+      current = null;
+      pop.classList.remove('on');
+      return;
+    }
+    place(e.clientX, e.clientY);
+  });
+
+  board.addEventListener('mouseleave', function () {
+    current = null;
+    pop.classList.remove('on');
+  });
+  window.addEventListener('scroll', function () {
+    if (!current) return;
+    current = null;
+    pop.classList.remove('on');
+  }, { passive: true });
+})();
+</script>
 {% endblock %}
 
 {% block footer %}{% endblock %}

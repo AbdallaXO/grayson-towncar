@@ -57,6 +57,7 @@ from drivers.models import (
     VehicleDowntime, VehicleFault, VehicleInspection, VehicleInspectionPhoto,
     VehicleIssue, VehicleServiceRecord, VehicleServiceSchedule,
 )
+from users.models import shift_for
 
 logger = logging.getLogger(__name__)
 
@@ -874,13 +875,17 @@ def fleet_inspections(request):
     loaded = fleet_inspection.load_week(day)
     try:
         day_rows = fleet_day_builder.build_day(
-            fleet_day_builder.load_car_day(day))["rows"]
+            fleet_day_builder.load_car_day(day), shift=shift_for(request.user))["rows"]
     except Exception:
         logger.exception("fleet_inspections: day rows unavailable for %s", day)
         day_rows = None
+    # The round is walked on foot by whoever is looking at it, so the windows it
+    # offers are clipped to THEIR hours. A car free only at 7 PM is not a car
+    # this person can inspect before they go home.
     week = fleet_inspection.build_week(
         loaded, day_rows=day_rows,
-        last_seen=fleet_inspection.last_seen_map(loaded["units"]))
+        last_seen=fleet_inspection.last_seen_map(loaded["units"]),
+        shift=shift_for(request.user))
     return render(request, "dispatching/fleet_inspections.html", {
         "fleet_page": "inspections",
         "day": day,
@@ -1035,7 +1040,10 @@ def fleet_day(request):
     """
     today = timezone.localdate()
     day = fleet_day_builder.parse_day(request.GET.get("date"), today)
-    payload = fleet_day_builder.build_day(fleet_day_builder.load_car_day(day))
+    # The gold "you could get to this car" marks are clipped to the reader's own
+    # working hours, the same way the inspection round clips its suggestions.
+    payload = fleet_day_builder.build_day(
+        fleet_day_builder.load_car_day(day), shift=shift_for(request.user))
     return render(request, "dispatching/fleet_day.html", {
         "fleet_page": "day",
         "day": day,

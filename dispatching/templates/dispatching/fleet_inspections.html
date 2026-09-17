@@ -53,6 +53,9 @@
   .fi-section-head h2 { font-family: var(--fl-serif); font-size: 1.2rem; font-weight: 600; }
   .fi-section-head .meta { font-size: 0.76rem; color: var(--fl-muted); }
   .fi-foot { margin-top: 16px; font-size: 0.76rem; color: var(--fl-muted); }
+  /* The "only free after you go home" note. Deliberately quiet: it explains why
+     the list is shorter than the daily target, and is not itself a job to do. */
+  .fi-offshift { display: block; margin-top: 6px; color: var(--fl-muted-light); }
 </style>
 {% endblock %}
 
@@ -95,8 +98,21 @@
   <div class="fi-today">
     <h2>Do these today</h2>
     <div class="sub">
-      Cars standing still come first — a unit out on a run all day cannot be walked.
-      Pick any other car below if it suits you better.
+      {% if week.suggestion_is_fallback %}
+        Nothing on the lot is free between {{ week.shift_start|time:"g:i A" }} and
+        {{ week.shift_end|time:"g:i A" }} today — every car still due is out on the road
+        for the whole of your day. Here is the one that has gone longest unseen, in case
+        you can catch it.
+      {% else %}
+        Cars standing still come first, then whichever has the longest gap you can
+        actually reach. Only cars free between {{ week.shift_start|time:"g:i A" }} and
+        {{ week.shift_end|time:"g:i A" }} are offered. Pick any other car below if it
+        suits you better.
+      {% endif %}
+      {% if week.off_shift_count %}
+        <span class="fi-offshift">{{ week.off_shift_count }} car{{ week.off_shift_count|pluralize }}
+        still due today {{ week.off_shift_count|pluralize:"is,are" }} only free after you go home.</span>
+      {% endif %}
     </div>
     <div class="fi-grid">
       {% for tile in week.suggested %}

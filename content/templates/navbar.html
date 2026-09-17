@@ -49,6 +49,34 @@
               </li>
             </ul>
           </li>
+        {% elif fleet_nav %}
+          {% comment %}
+            The fleet manager's menu on the public site. He reaches these pages
+            any time he lands on the marketing site — a mistyped URL, a 404, the
+            "Main Website" link in his own bar — and until now this branch handed
+            him the full dispatcher menu, Commissions and Pay Rates included,
+            because its only test was `is_staff`. None of that is his job and
+            some of it is other people's pay. He gets his own six pages instead.
+          {% endcomment %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle"
+               href="#"
+               id="fleetDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">Fleet</a>
+            <ul class="dropdown-menu" aria-labelledby="fleetDropdown">
+              <li><a class="dropdown-item" href="{% url 'fleet_desk' %}">Desk</a></li>
+              <li><a class="dropdown-item" href="{% url 'fleet_day' %}">The day</a></li>
+              <li><a class="dropdown-item" href="{% url 'fleet_list' %}">Vehicles</a></li>
+              <li><a class="dropdown-item" href="{% url 'fleet_inspections' %}">Inspections</a></li>
+              <li><a class="dropdown-item" href="{% url 'fleet_outlook' %}">Outlook</a></li>
+              <li><a class="dropdown-item" href="{% url 'fleet_report' %}">Report</a></li>
+              <li><hr class="dropdown-divider" /></li>
+              <li><a class="dropdown-item" href="{% url 'timeclock' %}">Time Clock</a></li>
+              <li><a class="dropdown-item" href="{% url 'logout' %}">Logout</a></li>
+            </ul>
+          </li>
         {% elif request.user.is_staff %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle"
