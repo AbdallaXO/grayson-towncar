@@ -465,10 +465,9 @@
       <div class="tap-sub">
         No service intervals set for this vehicle. Without at least an oil
         interval, the odometer we collect has nothing to feed —
-        <a href="#" onclick="openSchedule(); return false;">add one</a>, or
-        <a href="#" onclick="applyStandardIntervals(); return false;">use the standard set</a>
-        ({% for t, miles, days in standard_intervals %}{{ t }}{% if miles %} {{ miles|intcomma }} mi{% endif %}{% if miles and days %} /{% endif %}{% if days %} {{ days }} d{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %})
-        clocked from today's odometer.
+        <a href="#" onclick="openSchedule(); return false;">add one here</a>, or
+        set them beside every other unit on the
+        <a href="{% url 'fleet_service' %}">Service board</a>.
       </div>
     {% endif %}
   </div>
@@ -987,11 +986,6 @@
     if (!confirm('Delete this ' + label + ' record?')) return;
     post("{% url 'fleet_delete_service' 0 %}".replace('/0/', '/' + id + '/'), {})
       .then(d => d.success ? done('Record deleted') : toast(d.error || 'Could not delete', false));
-  };
-
-  window.applyStandardIntervals = function () {
-    post("{% url 'fleet_apply_standard_intervals' vehicle.pk %}", {})
-      .then(d => d.success ? done('Standard intervals added') : toast(d.error || 'Could not add', false));
   };
 
   // ── Downtime ─────────────────────────────────────────────────────────

@@ -1401,7 +1401,10 @@ from reservations.models import Lead
 from reservations.refund_policy import CANCELLATION_POLICY_SENTENCE
 
 
-class Packet(TestCase):
+class PacketFixture:
+    """Shared setUp only. Not a TestCase — subclassing a TestCase to reuse its
+    fixture silently re-runs every one of its tests in each child."""
+
     def setUp(self):
         self.mco = Location.objects.create(
             name="Orlando International Airport", aliases="MCO"
@@ -1434,6 +1437,8 @@ class Packet(TestCase):
             estimated_price=Decimal("140.00"),
         )
 
+
+class Packet(PacketFixture, TestCase):
     def test_the_packet_carries_the_lead_and_the_inbound_message(self):
         packet = context.build_context_packet(self.lead, "how much for a van?")
         self.assertEqual(packet["lead"]["first_name"], "Vincent")
@@ -1491,7 +1496,7 @@ class Packet(TestCase):
         self.assertEqual(sorted(a), sorted(b))
 
 
-class RequoteWhenTheVehicleChanges(Packet):
+class RequoteWhenTheVehicleChanges(PacketFixture, TestCase):
     def test_a_party_of_nine_is_priced_as_a_van_not_a_towncar(self):
         from ai_assistant.models import AiConversationTurn
         AiConversationTurn.objects.create(

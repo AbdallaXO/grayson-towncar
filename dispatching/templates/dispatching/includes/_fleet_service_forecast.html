@@ -1,0 +1,86 @@
+{% comment %}
+  The Forecast half of the Service tab: what the fleet will need, soonest
+  first, out to the chosen horizon.
+
+  The one rule this template exists to hold: an ESTIMATE and a DEADLINE never
+  look the same. A mileage interval is projected from how hard the car has been
+  worked over the last 30 days, so it carries a "≈" and the rate it rests on. A
+  date interval is a real calendar deadline and says so. Someone will book a
+  shop day off this page; they have to be able to see which kind of number they
+  are booking against.
+
+  And what cannot be projected is COUNTED at the bottom, never dropped. An empty
+  forecast that actually means "we do not know" is the one way this page could
+  do real harm.
+{% endcomment %}
+
+<div class="fl-controls" style="padding-top:22px;">
+  <div class="fl-control">
+    <span class="lab">Looking ahead</span>
+    <div class="fl-seg">
+      {% for option in horizons %}
+      <a class="fl-seg-btn {% if option == horizon_days %}active{% endif %}"
+         href="{% url 'fleet_service' %}?view=forecast&amp;days={{ option }}">{{ option }} days</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="sv-fc">
+  {% regroup items by bucket as buckets %}
+  {% for group in buckets %}
+    <div class="sv-fc-bucket {% if group.grouper == 'Overdue' %}overdue{% endif %}">
+      {{ group.grouper }}
+    </div>
+    {% for item in group.list %}
+    <div class="sv-fc-row {% if item.overdue %}is-overdue{% endif %}">
+      <div class="sv-fc-when">
+        {% if item.overdue %}Now
+        {% else %}{% if item.basis == 'rate' %}&asymp; {% endif %}{{ item.date|date:"M j" }}{% endif %}
+      </div>
+      <div class="sv-fc-what">
+        <span class="u">{{ item.unit }}</span>
+        <a href="{{ item.href }}">{{ item.label }}</a>
+        <span class="m">&middot; {{ item.vehicle.make }} {{ item.vehicle.model }}</span>
+      </div>
+      <div class="sv-fc-basis">
+        {% if item.basis == 'rate' %}
+          at {{ item.per_day|floatformat:0 }} mi/day
+        {% else %}
+          <span class="exact">calendar date</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% empty %}
+    <div class="fl-none" style="padding:26px 0;">
+      Nothing falls due in the next {{ horizon_days }} days
+      {% if unprojectable_total %}that the fleet can see{% endif %}.
+    </div>
+  {% endfor %}
+
+  {% comment %}
+    Always rendered, even at zero: "0 cannot be projected" is a meaningful
+    statement about a forecast, and its absence would be read as the same thing.
+  {% endcomment %}
+  <div class="sv-fc-blind">
+    {% if unprojectable_total %}
+      <strong>{{ unprojectable_total }} interval{{ unprojectable_total|pluralize }}
+      cannot be projected</strong> and {{ unprojectable_total|pluralize:"is,are" }}
+      not counted above &mdash; {{ blind_spots|join:", " }}.
+      Fill the gaps on the <a href="{% url 'fleet_service' %}">grid</a> and they
+      start appearing here.
+    {% else %}
+      <strong>Nothing is invisible:</strong> every active interval on every unit
+      can be projected, so this forecast covers the whole fleet.
+    {% endif %}
+  </div>
+
+  <div class="fl-caption" style="margin-top:20px;">
+    Dates marked &asymp; are estimates from the last 30 days of mileage, not
+    bookings &mdash; a car that starts working harder comes due sooner. Dates
+    without one are calendar deadlines and will not move. Book the shop from the
+    <a href="{% url 'fleet_outlook' %}" style="text-decoration:underline;font-weight:600;">Outlook</a>,
+    which knows which days are quiet.
+  </div>
+</div>

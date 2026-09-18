@@ -95,6 +95,9 @@ urlpatterns = [
     path("fleet/inspections/", fleet_views.fleet_inspections, name="fleet_inspections"),
     path("fleet/inspections/<int:pk>/", fleet_views.fleet_inspect_vehicle,
          name="fleet_inspect_vehicle"),
+    # Every unit's service intervals as one grid, so setting one is not a
+    # visit to a vehicle page.
+    path("fleet/service/", fleet_views.fleet_service, name="fleet_service"),
     path("fleet/outlook/", fleet_views.fleet_outlook, name="fleet_outlook"),
     path("fleet/report/", fleet_views.fleet_report, name="fleet_report"),
     path("fleet/<int:pk>/", fleet_views.fleet_detail, name="fleet_detail"),
@@ -113,11 +116,6 @@ urlpatterns = [
     path("fleet/<int:pk>/issue/", fleet_views.fleet_report_issue, name="fleet_report_issue"),
     path("fleet/issue/<int:pk>/resolve/", fleet_views.fleet_resolve_issue,
          name="fleet_resolve_issue"),
-    # Standard service intervals, per unit or fleet-wide.
-    path("fleet/<int:pk>/standard-intervals/", fleet_views.fleet_apply_standard_intervals,
-         name="fleet_apply_standard_intervals"),
-    path("fleet/standard-intervals/", fleet_views.fleet_apply_standard_intervals_all,
-         name="fleet_apply_standard_intervals_all"),
     # In-page editing so the fleet job never needs the Django admin.
     path("fleet/<int:pk>/details/", fleet_views.fleet_update_details,
          name="fleet_update_details"),
