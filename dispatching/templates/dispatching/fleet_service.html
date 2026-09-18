@@ -1,0 +1,643 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% comment %}
+  Every unit's service intervals as one grid.
+
+  The job this page does that no other page could: show a GAP. A missing oil
+  interval is invisible on a vehicle page — you have to already suspect it and
+  go looking. Here it is an empty square in a column of full ones.
+
+  Editing posts to the same endpoints the vehicle page uses. Logging a service
+  with a vendor and a cost stays there; what happens here is setting the
+  interval and the baseline, which is what makes a due date real.
+
+  TWO LAYOUTS, ONE MARKUP. Wide: a table, because comparing a column down ten
+  units is the whole point. Narrow: the same rows as cards, because a table
+  that needs sideways scrolling on a phone hides the columns entirely — and the
+  columns are the content.
+{% endcomment %}
+
+{% block title %}Fleet service{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
+<style>
+  /* ── The grid ─────────────────────────────────────────────────────────── */
+  .sv-wrap { margin-top: 24px; overflow-x: auto; }
+  /* Fixed: the service columns share what is left equally, so 'Oil change'
+     does not take three times the width of 'Brakes' just because its cells
+     carry a due mileage and a date. */
+  .sv-table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+  .sv-table th, .sv-table td { padding: 0; text-align: left; }
+  .sv-table thead th {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--fl-muted-light); padding: 0 6px 10px; white-space: nowrap;
+    border-bottom: 1px solid var(--fl-ink);
+  }
+  .sv-table thead th.c-unit { padding-left: 0; }
+  .sv-table thead th.c-odo { text-align: right; padding-right: 16px; }
+  .sv-table tbody td { border-bottom: 1px solid var(--fl-hair-softest); padding: 6px 3px; vertical-align: middle; }
+  .sv-table tbody tr:hover td { background: #FCFBF8; }
+
+  /* The unit stays put while the eye travels across a wide fleet. */
+  .sv-unit {
+    position: sticky; left: 0; z-index: 2; background: #fff;
+    font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+    padding-left: 0 !important; padding-right: 14px !important;
+  }
+  .sv-table tbody tr:hover .sv-unit { background: #FCFBF8; }
+  .sv-unit a { color: var(--fl-ink); }
+  .sv-unit a:hover { color: var(--fl-gold); }
+  .sv-unit small { display: block; font-size: 0.64rem; font-weight: 500; color: var(--fl-muted-light); }
+  .sv-odo {
+    font-size: 0.78rem; font-variant-numeric: tabular-nums; color: var(--fl-muted);
+    white-space: nowrap; text-align: right; padding-right: 16px !important;
+  }
+  .sv-odo .est { font-size: 0.58rem; color: var(--fl-muted-light); text-transform: uppercase;
+                 letter-spacing: 0.06em; margin-left: 3px; }
+
+  /* ── A square ─────────────────────────────────────────────────────────
+     Two lines: what the interval is, and where it stands. Colour carries the
+     second line only — an interval that is merely SET is not news. */
+  .sv-cell {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    border: 1px solid var(--fl-hair-soft); background: #fff; border-radius: 7px;
+    padding: 8px 10px; transition: var(--fl-t); font-family: var(--fl-sans);
+  }
+  .sv-cell:hover { border-color: var(--fl-gold); }
+  /* Stays marked while its editor is open — hover alone drops the moment the
+     pointer moves into the popover, and then nothing says which square you
+     are about to change. */
+  .sv-cell.editing { border-color: var(--fl-gold); box-shadow: 0 0 0 2px rgba(201,162,39,0.18); }
+  .sv-cell .ct { display: none; }
+  .sv-cell .iv { display: block; font-size: 0.74rem; font-weight: 600; color: var(--fl-ink);
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sv-cell .dn { display: block; font-size: 0.66rem; font-weight: 500; color: var(--fl-muted);
+                 margin-top: 2px; white-space: nowrap; }
+
+  /* Never set. Dashed, so an empty square reads as a hole and not as a tidy
+     blank — the whole reason this page exists. */
+  .sv-cell.unset { border-style: dashed; border-color: var(--fl-chip-border); background: transparent; }
+  .sv-cell.unset .iv { color: var(--fl-muted-light); font-weight: 500; }
+  .sv-cell.unset:hover { border-style: solid; }
+
+  /* Set, but with nothing to count from, so it can never come due. Quiet, not
+     alarming: it is a gap in the record, not a fault with the car. */
+  .sv-cell.no_baseline { background: var(--fl-cream); border-color: var(--fl-hair-soft); }
+  .sv-cell.no_baseline .dn { color: var(--fl-caution); font-weight: 600; }
+
+  .sv-cell.warn { background: var(--fl-caution-tint); border-color: #E9DCB4; }
+  .sv-cell.warn .dn { color: var(--fl-caution); font-weight: 700; }
+  .sv-cell.critical { background: var(--fl-critical-tint); border-color: var(--fl-critical-border); }
+  .sv-cell.critical .dn { color: var(--fl-critical); font-weight: 700; }
+
+  /* ── Cards, once a table would need sideways scrolling ─────────────────
+     Same rows, same squares, stacked two-up under a unit header. Nothing is
+     hidden and nothing scrolls off to the right. */
+  @media (max-width: 900px) {
+    .sv-wrap { overflow-x: visible; margin-top: 20px; }
+    .sv-table, .sv-table tbody { display: block; width: 100%; }
+    .sv-table thead { display: none; }
+    .sv-table tbody tr {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      padding: 16px 0; border-bottom: 1px solid var(--fl-hair);
+    }
+    .sv-table tbody tr:hover td { background: transparent; }
+    .sv-table tbody td { display: block; border: 0; padding: 0; }
+    .sv-unit { position: static; grid-column: 1; align-self: center;
+               padding-right: 0 !important; background: transparent; }
+    .sv-odo { grid-column: 2; align-self: center; padding-right: 0 !important; font-size: 0.8rem; }
+    .sv-cell { min-height: 100%; padding: 9px 11px; }
+    .sv-cell .ct { display: block; font-size: 0.56rem; font-weight: 700; letter-spacing: 0.12em;
+                   text-transform: uppercase; color: var(--fl-muted-light); margin-bottom: 4px; }
+    .sv-cell .iv, .sv-cell .dn { white-space: normal; }
+  }
+
+  /* ── The strip ────────────────────────────────────────────────────────── */
+  .sv-band { padding: 22px 26px 20px; }
+  .sv-strip-line { font-size: 0.86rem; color: #fff; line-height: 1.55; margin-bottom: 6px; }
+  .sv-strip-line:last-child { margin-bottom: 0; }
+  .sv-strip-line .u { font-weight: 700; color: var(--fl-champagne); }
+  .sv-strip-line a { color: #fff; text-decoration: underline; text-underline-offset: 2px;
+                     text-decoration-color: rgba(255,255,255,0.3); }
+  .sv-strip-line a:hover { color: var(--fl-gold); }
+  .sv-strip-none { font-size: 0.86rem; color: rgba(255,255,255,0.72); line-height: 1.6; max-width: 52ch; }
+  .sv-more { font-size: 0.74rem; color: rgba(255,255,255,0.55); margin-top: 8px; }
+  .sv-stale { display: none; font-size: 0.75rem; color: var(--fl-champagne); margin-top: 14px;
+              padding-top: 11px; border-top: 1px solid rgba(255,255,255,0.12); }
+  .sv-stale.show { display: block; }
+  .sv-stale button { border: 0; background: transparent; color: var(--fl-gold);
+                     font-weight: 700; font-size: 0.75rem; padding: 0; text-decoration: underline; }
+
+  /* ── The editor ───────────────────────────────────────────────────────
+     A popover, not a modal. A modal per square would be the drill-down this
+     page was built to remove, in miniature. */
+  .sv-pop {
+    display: none; position: fixed; z-index: 2400; width: 312px;
+    background: #fff; border: 1px solid var(--fl-hair); border-radius: 0.9rem;
+    box-shadow: 0 18px 44px rgba(13,17,23,0.16); padding: 18px;
+  }
+  .sv-pop.show { display: block; }
+  .sv-pop-head { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.14em;
+                 text-transform: uppercase; color: var(--fl-gold); margin-bottom: 3px; }
+  .sv-pop-title { font-family: var(--fl-serif); font-size: 1.15rem; font-weight: 600;
+                  line-height: 1.2; margin-bottom: 15px; }
+  .sv-lab { display: block; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--fl-muted); margin-bottom: 6px; }
+  .sv-pair { display: flex; gap: 9px; margin-bottom: 14px; }
+  .sv-pair > div { flex: 1 1 0; min-width: 0; }
+  .sv-in { width: 100%; border: 1px solid var(--fl-hair); border-radius: 8px;
+           padding: 9px 11px; font-size: 0.86rem; font-family: var(--fl-sans);
+           color: var(--fl-ink); background: #fff; transition: var(--fl-t); }
+  .sv-in:focus { outline: none; border-color: var(--fl-gold); }
+  .sv-hint { font-size: 0.69rem; color: var(--fl-muted-light); line-height: 1.5; margin-bottom: 15px; }
+  .sv-acts { display: flex; align-items: center; gap: 8px; }
+  .sv-acts .grow { flex: 1; }
+  .sv-del { border: 0; background: transparent; color: var(--fl-muted);
+            font-size: 0.72rem; font-weight: 600; padding: 8px 0; transition: var(--fl-t); }
+  .sv-del:hover { color: var(--fl-critical); }
+  /* ── "Just done" ──────────────────────────────────────────────────────
+     Separated by a rule and a warmer label, because these two halves do
+     different things: above sets what the clock IS, below says the clock just
+     restarted and writes it into the car's history. */
+  .sv-done { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--fl-hair); }
+  .sv-done-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+  .sv-done-head .l { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em;
+                     text-transform: uppercase; color: var(--fl-good); }
+  .sv-done .sv-pair { margin-bottom: 9px; }
+  .sv-log { border: 0; background: var(--fl-good); color: #fff; font-size: 0.74rem;
+            font-weight: 600; padding: 9px 15px; border-radius: 50px; white-space: nowrap;
+            transition: var(--fl-t); width: 100%; }
+  .sv-log:hover { background: var(--fl-good-deep); }
+  .sv-done-hint { font-size: 0.68rem; color: var(--fl-muted-light); line-height: 1.45; margin-top: 8px; }
+
+  .sv-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--fl-hair-softest);
+             font-size: 0.69rem; color: var(--fl-muted-light); line-height: 1.5; }
+  .sv-foot a { font-weight: 600; color: var(--fl-muted); text-decoration: underline; }
+
+  /* ── Forecast ─────────────────────────────────────────────────────────
+     A calendar read downwards. An estimate off how hard the car is working
+     and a real calendar deadline are never printed the same way: the estimate
+     carries a "≈" and the rate it came from, so nobody books a shop day
+     against a number without seeing what it rests on. */
+  .sv-views { display: flex; gap: 3px; background: var(--fl-cream); padding: 3px; border-radius: 50px; }
+  .sv-view { border: 0; background: transparent; color: var(--fl-muted); font-size: 0.75rem;
+             font-weight: 600; padding: 7px 16px; border-radius: 50px; transition: var(--fl-t); }
+  .sv-view.active { background: var(--fl-ink); color: #fff; }
+  .fl-page a.sv-view { color: var(--fl-muted); }
+  .fl-page a.sv-view:hover { color: var(--fl-ink); }
+  .fl-page a.sv-view.active { color: #fff; }
+
+  .sv-fc { margin-top: 26px; }
+  .sv-fc-bucket { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.18em;
+                  text-transform: uppercase; color: var(--fl-muted-light);
+                  padding-bottom: 9px; border-bottom: 1px solid var(--fl-hair); margin-top: 32px; }
+  .sv-fc-bucket:first-child { margin-top: 0; }
+  .sv-fc-bucket.overdue { color: var(--fl-critical); border-bottom-color: var(--fl-critical-border); }
+  .sv-fc-row { display: flex; align-items: baseline; gap: 16px; padding: 13px 0;
+               border-bottom: 1px solid var(--fl-hair-softest); flex-wrap: wrap; }
+  .sv-fc-when { flex: 0 0 116px; font-size: 0.86rem; font-weight: 700;
+                font-variant-numeric: tabular-nums; color: var(--fl-ink); }
+  .sv-fc-row.is-overdue .sv-fc-when { color: var(--fl-critical); }
+  .sv-fc-what { flex: 1 1 260px; min-width: 0; font-size: 0.9rem; }
+  .sv-fc-what .u { font-weight: 700; }
+  .sv-fc-what .m { color: var(--fl-muted-light); font-size: 0.8rem; }
+  .sv-fc-basis { flex: 0 0 auto; font-size: 0.72rem; color: var(--fl-muted); white-space: nowrap; }
+  .sv-fc-basis .exact { color: var(--fl-settled); font-weight: 600; }
+  .sv-fc-blind { margin-top: 30px; padding: 16px 20px; background: var(--fl-cream);
+                 border-radius: 0.75rem; font-size: 0.82rem; color: var(--fl-muted); line-height: 1.6; }
+  .sv-fc-blind strong { color: var(--fl-ink); font-weight: 600; }
+  .sv-fc-blind a { font-weight: 600; text-decoration: underline; }
+
+  .sv-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.71rem;
+               color: var(--fl-muted-light); margin-top: 18px; }
+  .sv-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+                   margin-right: 6px; vertical-align: -1px; border: 1px solid var(--fl-hair); }
+
+  @media (max-width: 560px) {
+    .sv-pop { width: auto; left: 16px !important; right: 16px; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="fl-page">
+<div class="fl-inner">
+
+  {# ── Header ────────────────────────────────────────────────────────── #}
+  <div class="fl-head">
+    <div>
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">Service</h1>
+      <div class="fl-date">
+        {% if view == 'forecast' %}
+          What the fleet will need in the next {{ horizon_days }} days
+        {% else %}
+          {{ rows|length }} active unit{{ rows|length|pluralize }} &middot;
+          every interval on one screen
+        {% endif %}
+      </div>
+      <div class="sv-views" style="margin-top:14px;">
+        <a class="sv-view {% if view != 'forecast' %}active{% endif %}"
+           href="{% url 'fleet_service' %}">Grid</a>
+        <a class="sv-view {% if view == 'forecast' %}active{% endif %}"
+           href="{% url 'fleet_service' %}?view=forecast">Forecast</a>
+      </div>
+    </div>
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
+  </div>
+
+  {% if view == 'forecast' %}
+  {% include 'dispatching/includes/_fleet_service_forecast.html' %}
+  {% else %}
+
+  {# ── What is actually due ──────────────────────────────────────────── #}
+  <div class="fl-band sv-band">
+    <div class="fl-band-row">
+      <div class="fl-band-left">
+        <div class="fl-band-eyebrow">Needs booking</div>
+        {% for item in due_now %}
+        <div class="sv-strip-line">
+          <span class="u">{{ item.unit }}</span>
+          <a href="{{ item.href }}">{{ item.label }}</a> &middot; {{ item.detail }}
+        </div>
+        {% endfor %}
+        {% for item in due_soon %}
+        <div class="sv-strip-line">
+          <span class="u">{{ item.unit }}</span>
+          <a href="{{ item.href }}">{{ item.label }}</a> &middot; {{ item.detail }}
+        </div>
+        {% endfor %}
+
+        {% if not due_now and not due_soon %}
+        <div class="sv-strip-none">
+          Nothing is due in the next fortnight.
+          {% if no_baseline or no_intervals %}
+          That is only as true as the grid below &mdash; an interval with
+          nothing to count from cannot come due, however overdue the car is.
+          {% endif %}
+        </div>
+        {% elif no_baseline or no_intervals %}
+        <div class="sv-more">
+          That is what the grid can see. The intervals counted on the right
+          cannot come due at all.
+        </div>
+        {% endif %}
+
+        <div class="sv-stale" id="svStale">
+          What is due has changed since this page loaded.
+          <button type="button" onclick="window.location.reload()">Reload</button>
+        </div>
+      </div>
+
+      <div class="fl-band-right">
+        <div class="fl-band-eyebrow">Gaps in the record</div>
+        <div class="fl-counts" style="gap:22px;">
+          <div class="fl-count">
+            <span class="n">{{ no_intervals }}</span>
+            <span class="lab">unit{{ no_intervals|pluralize }} with<br>nothing set</span>
+          </div>
+          <div class="fl-count">
+            <span class="n">{{ no_baseline }}</span>
+            <span class="lab">interval{{ no_baseline|pluralize }} with<br>no baseline</span>
+          </div>
+        </div>
+        <div class="fl-shop-note" style="margin-top:14px;">
+          {% if no_intervals or no_baseline %}
+          Set the date of the last service &mdash; the windshield sticker is
+          usually enough.
+          {% else %}
+          Every unit has its intervals, and every interval has something to
+          count from.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── The grid ──────────────────────────────────────────────────────── #}
+  <div class="sv-wrap">
+    <table class="sv-table">
+      <colgroup>
+        <col style="width:150px;"><col style="width:104px;">
+        {% for column in columns %}<col>{% endfor %}
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="c-unit">Unit</th>
+          <th class="c-odo">Odometer</th>
+          {% for column in columns %}<th>{{ column.label }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="sv-unit">
+            <a href="{% url 'fleet_detail' row.vehicle.pk %}">{{ row.vehicle.vehicle_number }}</a>
+            <small>{{ row.vehicle.make }} {{ row.vehicle.model }}</small>
+          </td>
+          {% comment %}
+            None is an em-dash, never 0: zero means the car provably did not
+            move, a dash means nobody knows.
+          {% endcomment %}
+          <td class="sv-odo">
+            {% if row.odometer is not None %}
+              {{ row.odometer|floatformat:0|intcomma }} mi
+              {% if row.odometer_estimated %}<span class="est" title="Estimated from GPS distance, not the OBD bus">est</span>{% endif %}
+            {% else %}&mdash;{% endif %}
+          </td>
+          {% for cell in row.cells %}
+          <td>
+            <button type="button" class="sv-cell {{ cell.state }}"
+                    data-unit="{{ row.vehicle.pk }}"
+                    data-number="{{ row.vehicle.vehicle_number }}"
+                    data-type="{{ cell.service_type }}"
+                    data-label="{{ cell.label }}"
+                    data-schedule="{{ cell.schedule.id|default_if_none:'' }}"
+                    data-miles="{{ cell.schedule.interval_miles|default_if_none:'' }}"
+                    data-days="{{ cell.schedule.interval_days|default_if_none:'' }}"
+                    data-last-on="{{ cell.schedule.last_done_on|date:'Y-m-d' }}"
+                    data-last-odo="{% if cell.schedule.last_done_odometer_miles %}{{ cell.schedule.last_done_odometer_miles|floatformat:0 }}{% endif %}"
+                    data-odo="{% if row.odometer is not None %}{{ row.odometer|floatformat:0 }}{% endif %}"
+                    data-detail="{% url 'fleet_detail' row.vehicle.pk %}">
+              <span class="ct">{{ cell.label }}</span>
+              <span class="iv">{% if cell.state == 'unset' %}+ add{% else %}{{ cell.interval_text }}{% endif %}</span>
+              <span class="dn">{{ cell.due_text }}</span>
+            </button>
+          </td>
+          {% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ columns|length|add:2 }}">
+          <div class="fl-none" style="padding:26px 0;">No active units in the fleet.</div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sv-legend">
+    <span><span class="sw" style="background:#fff;border-style:dashed;"></span>never set</span>
+    <span><span class="sw" style="background:var(--fl-cream);"></span>no baseline &mdash; cannot come due</span>
+    <span><span class="sw" style="background:var(--fl-caution-tint);border-color:#E9DCB4;"></span>due soon</span>
+    <span><span class="sw" style="background:var(--fl-critical-tint);border-color:var(--fl-critical-border);"></span>overdue</span>
+  </div>
+
+  <div class="fl-caption">
+    Whichever comes first, miles or days. An interval with no last service
+    behind it stays quiet rather than inventing a due date &mdash; a made-up date
+    is worse than none, because someone will book a shop day around it.
+  </div>
+
+  {% endif %}
+
+</div>
+</div>
+
+{# ── The editor ────────────────────────────────────────────────────────── #}
+<div class="sv-pop" id="svPop">
+  <div class="sv-pop-head" id="svPopUnit">Unit</div>
+  <div class="sv-pop-title" id="svPopTitle">Oil change</div>
+
+  <span class="sv-lab">Due every</span>
+  <div class="sv-pair">
+    <div><input type="number" min="1" class="sv-in" id="svMiles" placeholder="5,000 mi" aria-label="Interval in miles"></div>
+    <div><input type="number" min="1" class="sv-in" id="svDays" placeholder="180 days" aria-label="Interval in days"></div>
+  </div>
+
+  <span class="sv-lab">Last done</span>
+  <div class="sv-pair">
+    <div><input type="date" class="sv-in" id="svLastOn" aria-label="Date of the last service"></div>
+    <div><input type="number" min="0" class="sv-in" id="svLastOdo" placeholder="odometer" aria-label="Odometer at the last service"></div>
+  </div>
+
+  <div class="sv-hint">
+    Miles, days, or both &mdash; whichever comes first wins. Without a last
+    service to count from, the interval is saved but stays quiet.
+  </div>
+
+  <div class="sv-acts">
+    <button type="button" class="fl-btn-primary" id="svSave">Save</button>
+    <button type="button" class="fl-btn-secondary" id="svCancel">Cancel</button>
+    <span class="grow"></span>
+    <button type="button" class="sv-del" id="svDelete">Remove</button>
+  </div>
+
+  <div class="sv-done" id="svDone">
+    <div class="sv-done-head">
+      <span class="l">Just done?</span>
+    </div>
+    <div class="sv-pair">
+      <div><input type="date" class="sv-in" id="svDoneOn" aria-label="Date the service was done"></div>
+      <div><input type="number" min="0" class="sv-in" id="svDoneOdo" placeholder="odometer" aria-label="Odometer when it was done"></div>
+    </div>
+    <div class="sv-pair">
+      <div><input type="number" min="0" step="0.01" class="sv-in" id="svDoneCost" placeholder="$ cost" aria-label="What it cost (optional)"></div>
+      <div><button type="button" class="sv-log" id="svLog">Log it</button></div>
+    </div>
+    <div class="sv-done-hint" id="svDoneHint">
+      Writes it to the car&rsquo;s history and restarts the clock from there.
+    </div>
+  </div>
+
+  <div class="sv-foot">
+    The shop&rsquo;s name, days off the road and what exactly was done go on
+    <a href="#" id="svDetailLink">the vehicle</a>.
+  </div>
+</div>
+
+<div class="fl-toast" id="fleetToast"></div>
+
+<script>
+(function () {
+  var CSRF = '{{ csrf_token }}';
+  var SAVE = "{% url 'fleet_save_schedule' 0 %}";
+  var DROP = "{% url 'fleet_delete_schedule' 0 %}";
+  var LOG  = "{% url 'fleet_add_service' 0 %}";
+  var TODAY = '{{ today|date:"Y-m-d" }}';
+
+  var pop = document.getElementById('svPop');
+  var stale = document.getElementById('svStale');
+  var active = null;   // the cell button being edited
+
+  var el = {
+    unit: document.getElementById('svPopUnit'),
+    title: document.getElementById('svPopTitle'),
+    miles: document.getElementById('svMiles'),
+    days: document.getElementById('svDays'),
+    lastOn: document.getElementById('svLastOn'),
+    lastOdo: document.getElementById('svLastOdo'),
+    del: document.getElementById('svDelete'),
+    link: document.getElementById('svDetailLink'),
+    done: document.getElementById('svDone'),
+    doneOn: document.getElementById('svDoneOn'),
+    doneOdo: document.getElementById('svDoneOdo'),
+    doneCost: document.getElementById('svDoneCost'),
+    doneHint: document.getElementById('svDoneHint')
+  };
+
+  function toast(message, ok) {
+    var t = document.getElementById('fleetToast');
+    t.textContent = message;
+    t.className = 'fl-toast ' + (ok ? 'ok' : 'err') + ' show';
+    setTimeout(function () { t.classList.remove('show'); }, 2800);
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      return r.json().catch(function () { return { success: false, error: 'Server error' }; });
+    });
+  }
+
+  // Anchor the popover under the square, nudged back on screen when the square
+  // is against the right edge or low in the window.
+  function place(cell) {
+    var box = cell.getBoundingClientRect();
+    pop.classList.add('show');
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.min(box.left, window.innerWidth - w - 12);
+    var top = box.bottom + 8;
+    if (top + h > window.innerHeight - 12) top = Math.max(12, box.top - h - 8);
+    pop.style.left = Math.max(12, left) + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  function open(cell) {
+    active = cell;
+    cell.classList.add('editing');
+    el.unit.textContent = 'Unit ' + cell.dataset.number;
+    el.title.textContent = cell.dataset.label;
+    el.miles.value = cell.dataset.miles || '';
+    el.days.value = cell.dataset.days || '';
+    el.lastOn.value = cell.dataset.lastOn || '';
+    el.lastOdo.value = cell.dataset.lastOdo || '';
+    el.del.style.display = cell.dataset.schedule ? '' : 'none';
+    el.link.setAttribute('href', cell.dataset.detail);
+
+    // "Just done" starts filled in with the two answers we already know: it
+    // happened today, at the odometer the car is reading now. Both stay
+    // editable for the receipt that turns up a week late.
+    el.doneOn.value = TODAY;
+    el.doneOdo.value = cell.dataset.odo || '';
+    el.doneCost.value = '';
+    el.doneHint.innerHTML = cell.dataset.schedule
+      ? 'Writes it to the car’s history and restarts the clock from there.'
+      : 'Writes it to the car’s history. There is no interval on this one '
+        + 'yet, so there is no clock to restart.';
+    place(cell);
+    el.miles.focus();
+    el.miles.select();
+  }
+
+  function close() {
+    pop.classList.remove('show');
+    if (active) active.classList.remove('editing');
+    active = null;
+  }
+
+  // Repaint one square from what the server says it now reads, so an edited
+  // square says exactly what a fresh page load would say.
+  function repaint(cell, data) {
+    cell.className = 'sv-cell ' + data.state;  // close() clears .editing next
+    cell.querySelector('.iv').textContent =
+      data.state === 'unset' ? '+ add' : data.interval_text;
+    cell.querySelector('.dn').textContent = data.due_text;
+    cell.dataset.schedule = data.schedule_id || '';
+    stale.classList.add('show');
+  }
+
+  document.querySelectorAll('.sv-cell').forEach(function (cell) {
+    cell.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (active === cell) { close(); return; }
+      open(cell);
+    });
+  });
+
+  document.getElementById('svSave').addEventListener('click', function () {
+    if (!active) return;
+    var cell = active;
+    post(SAVE.replace('/0/', '/' + cell.dataset.unit + '/'), {
+      service_type: cell.dataset.type,
+      interval_miles: el.miles.value,
+      interval_days: el.days.value,
+      last_done_on: el.lastOn.value,
+      last_done_odometer_miles: el.lastOdo.value
+    }).then(function (d) {
+      if (!d.success) { toast(d.error || 'Could not save', false); return; }
+      cell.dataset.miles = el.miles.value;
+      cell.dataset.days = el.days.value;
+      cell.dataset.lastOn = el.lastOn.value;
+      cell.dataset.lastOdo = el.lastOdo.value;
+      repaint(cell, d.cell);
+      close();
+      toast('Unit ' + cell.dataset.number + ' ' + cell.dataset.label.toLowerCase() + ' saved', true);
+    });
+  });
+
+  el.del.addEventListener('click', function () {
+    if (!active || !active.dataset.schedule) return;
+    var cell = active;
+    if (!confirm('Remove the ' + cell.dataset.label.toLowerCase() +
+                 ' interval from unit ' + cell.dataset.number +
+                 '? It stops being tracked until it is set again.')) return;
+    post(DROP.replace('/0/', '/' + cell.dataset.schedule + '/'), {}).then(function (d) {
+      if (!d.success) { toast(d.error || 'Could not remove', false); return; }
+      ['miles', 'days', 'lastOn', 'lastOdo'].forEach(function (k) { cell.dataset[k] = ''; });
+      repaint(cell, { state: 'unset', interval_text: '', due_text: '', schedule_id: '' });
+      close();
+      toast('Interval removed', true);
+    });
+  });
+
+  document.getElementById('svLog').addEventListener('click', function () {
+    if (!active) return;
+    var cell = active;
+    post(LOG.replace('/0/', '/' + cell.dataset.unit + '/'), {
+      service_type: cell.dataset.type,
+      performed_on: el.doneOn.value,
+      odometer_miles: el.doneOdo.value,
+      cost: el.doneCost.value
+    }).then(function (d) {
+      if (!d.success) { toast(d.error || 'Could not log it', false); return; }
+      var what = 'Unit ' + cell.dataset.number + ' ' + cell.dataset.label.toLowerCase();
+      if (d.cell) {
+        cell.dataset.lastOn = el.doneOn.value;
+        cell.dataset.lastOdo = el.doneOdo.value;
+        repaint(cell, d.cell);
+        // Say where the clock now stands, so a mis-click is obvious at once —
+        // deleting the record later does NOT wind the baseline back.
+        toast(what + ' logged · ' + d.cell.due_text, true);
+      } else {
+        toast(what + ' logged · no interval set, so nothing to restart', true);
+      }
+      close();
+    });
+  });
+
+  document.getElementById('svCancel').addEventListener('click', close);
+  pop.addEventListener('click', function (event) { event.stopPropagation(); });
+  document.addEventListener('click', function () { if (active) close(); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && active) close();
+    if (event.key === 'Enter' && active && pop.contains(document.activeElement)) {
+      // Whichever half of the popover the cursor is in is the half Enter means.
+      var inDone = el.done.contains(document.activeElement);
+      document.getElementById(inDone ? 'svLog' : 'svSave').click();
+    }
+  });
+  window.addEventListener('resize', function () { if (active) place(active); });
+})();
+</script>
+{% endblock %}

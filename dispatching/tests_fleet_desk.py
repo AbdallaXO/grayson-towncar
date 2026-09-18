@@ -631,71 +631,47 @@ class IssueEndpointTests(_FleetFixture):
         self.assertEqual(self.post_json("fleet_report_issue", [v.pk], {"title": "  "}).status_code, 400)
 
 
-class StandardIntervalTests(_FleetFixture):
-    def test_per_vehicle_adds_only_what_is_missing(self):
-        v = self.unit("7", samsara_vehicle_id="s1", samsara_odometer_meters=Decimal("160934000"))
-        VehicleServiceSchedule.objects.create(vehicle=v, service_type="oil", interval_miles=7500)
-        resp = self.post_json("fleet_apply_standard_intervals", [v.pk], {})
-        body = resp.json()
-        self.assertTrue(body["success"])
-        self.assertNotIn("oil", body["created"])
-        self.assertIn("tires", body["created"])
-        oil = VehicleServiceSchedule.objects.get(vehicle=v, service_type="oil")
-        self.assertEqual(oil.interval_miles, 7500)  # untouched
-        tires = VehicleServiceSchedule.objects.get(vehicle=v, service_type="tires")
-        # NO BASELINE. Stamping today's date invents a service history: press the
-        # button fleet-wide and all nineteen cars come due in the same fortnight
-        # on dates nobody serviced anything on.
-        self.assertIsNone(tires.last_done_on)
-        self.assertIsNone(tires.last_done_odometer_miles)
+class MaintenanceSetupTests(_FleetFixture):
+    """
+    The desk's two maintenance nudges, which are the only thing that says a car
+    is not being tracked at all.
 
-    def test_a_seeded_interval_is_inert_until_it_has_a_baseline(self):
-        """An interval with no baseline must produce no due date at all —
-        "an invented due date is worse than none, because someone will plan a
-        shop day around it" (fleet_health.service_findings)."""
-        from dispatching import fleet_health
-        v = self.unit("7", samsara_vehicle_id="s1", samsara_odometer_meters=Decimal("160934000"))
-        self.post_json("fleet_apply_standard_intervals", [v.pk], {})
-        for schedule in VehicleServiceSchedule.objects.filter(vehicle=v):
-            self.assertEqual(
-                fleet_health.service_findings(schedule, v.odometer_miles, TODAY), [],
-                schedule.service_type)
+    The "add the standard set" button these once exercised is gone: it filled the
+    fleet from a table of generic numbers, which nobody sets a fleet up from.
+    Intervals are now set deliberately, on the Service board. What still has to
+    hold is that the desk names both gaps — an unset interval and an interval
+    with nothing to count from — because silence and health look identical.
+    """
 
-    def test_a_diesel_sprinter_gets_a_longer_oil_interval(self):
-        """One table for the whole fleet put a diesel Sprinter on a Suburban's
-        5,000-mile oil interval — at 190-350 miles a day that is a shop visit a
-        fortnight the van never needed."""
-        suv = self.unit("7")
-        sprinter = self.unit("8", vtype=self.sprinter)
-        for unit in (suv, sprinter):
-            self.post_json("fleet_apply_standard_intervals", [unit.pk], {})
-        self.assertEqual(
-            VehicleServiceSchedule.objects.get(vehicle=suv, service_type="oil").interval_miles, 5_000)
-        self.assertEqual(
-            VehicleServiceSchedule.objects.get(vehicle=sprinter, service_type="oil").interval_miles, 10_000)
-
-    def test_the_desk_does_not_go_quiet_once_intervals_exist(self):
-        """Removing the fabricated baseline must not make the maintenance half
-        of the desk silent — silence and health look identical."""
-        v = self.unit("7")
+    def test_a_unit_with_nothing_set_is_named(self):
+        self.unit("7")
         desk = fleet_desk.load_desk(today=TODAY, use_cache=False)
         self.assertIsNotNone(desk["setup_intervals"])
         self.assertIsNone(desk["setup_baselines"])
 
-        self.post_json("fleet_apply_standard_intervals", [v.pk], {})
+    def test_once_intervals_exist_the_desk_asks_for_a_baseline_instead(self):
+        """Setting intervals must not make the maintenance half of the desk go
+        quiet — an interval with no baseline still cannot come due."""
+        v = self.unit("7")
+        for service_type in ("oil", "tires"):
+            VehicleServiceSchedule.objects.create(
+                vehicle=v, service_type=service_type, interval_miles=5_000)
+
         desk = fleet_desk.load_desk(today=TODAY, use_cache=False)
         self.assertIsNone(desk["setup_intervals"])
         self.assertIsNotNone(desk["setup_baselines"])
         self.assertIn("no baseline", desk["setup_baselines"]["title"])
 
-    def test_fleet_wide(self):
-        self.unit("7")
-        self.unit("8")
-        self.unit("9", is_active=False)
-        resp = self.post_json("fleet_apply_standard_intervals_all", [], {})
-        self.assertEqual(resp.json()["vehicles"], 2)
-        self.assertEqual(VehicleServiceSchedule.objects.count(), 2 * len(
-            __import__("dispatching.fleet_views", fromlist=["STANDARD_INTERVALS"]).STANDARD_INTERVALS))
+    def test_an_interval_without_a_baseline_produces_no_due_date(self):
+        """"An invented due date is worse than none, because someone will plan a
+        shop day around it" (fleet_health.service_findings)."""
+        from dispatching import fleet_health
+        v = self.unit("7", samsara_vehicle_id="s1",
+                      samsara_odometer_meters=Decimal("160934000"))
+        schedule = VehicleServiceSchedule.objects.create(
+            vehicle=v, service_type="oil", interval_miles=5_000)
+        self.assertEqual(
+            [], fleet_health.service_findings(schedule, v.odometer_miles, TODAY))
 
 
 # ════════════════════════════════════════════════════════════════════════════

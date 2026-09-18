@@ -48,6 +48,7 @@ from dispatching import fleet_day as fleet_day_builder
 from dispatching import fleet_inspection
 from dispatching import fleet_desk as fleet_desk_loader
 from dispatching import fleet_report as fleet_reporting
+from dispatching import fleet_service as fleet_service_board
 from dispatching.fleet_sync import FEED_NIGHTLY, FEED_VEHICLE_STATS
 from dispatching.mileage import days_to_cover, meters_to_miles, usage_rate
 from dispatching.samsara_service import EXTENDED_STAT_TYPES
@@ -66,16 +67,9 @@ logger = logging.getLogger(__name__)
 DETAIL_DAY_WINDOW = 30
 
 
-def _natural_key(vehicle_number):
-    """
-    Sort '001' < '10' < '13' the way a human reads a unit board.
-
-    The fleet numbers this company uses are a mix of zero-padded ('001') and
-    plain ('10'), so a plain string sort puts #10 before #002.
-    """
-    number = (vehicle_number or "").strip()
-    digits = "".join(ch for ch in number if ch.isdigit())
-    return (0, int(digits), number) if digits else (1, 0, number)
+# Sorting the unit board the way a human reads it now lives beside the unit
+# pool itself, so the Service board and this page cannot drift apart.
+_natural_key = fleet_capacity.natural_unit_key
 
 
 @login_required(login_url="login")
@@ -387,7 +381,6 @@ def fleet_detail(request, pk):
         "downtime_categories": VehicleDowntime.CATEGORY_CHOICES,
         "issue_severities": VehicleIssue.SEVERITY_CHOICES,
         "issue_sources": VehicleIssue.SOURCE_CHOICES,
-        "standard_intervals": STANDARD_INTERVALS,
         "today_date": today,
         "fleet_page": "vehicles",
         # Derived from what we actually ASK Samsara for, so these labels stay
@@ -714,7 +707,12 @@ def fleet_save_schedule(request, pk):
             "notes": (data.get("notes") or "").strip(),
         },
     )
-    return JsonResponse({"success": True, "created": created, "id": schedule.id})
+    return JsonResponse({
+        "success": True, "created": created, "id": schedule.id,
+        # The Service board repaints one square from this instead of reloading
+        # a nineteen-row grid. The vehicle page ignores it.
+        "cell": fleet_service_board.cell_payload(schedule, vehicle),
+    })
 
 
 @login_required(login_url="login")
@@ -798,17 +796,26 @@ def fleet_add_service(request, pk):
         created_by=request.user,
     )
 
-    advanced = _advance_schedule(vehicle, service_type, performed_on, odometer)
+    advanced, schedule = _advance_schedule(vehicle, service_type, performed_on, odometer)
     return JsonResponse({
         "success": True,
         "id": record.id,
         "schedule_advanced": advanced,
+        # The Service board repaints the square this was logged from. None when
+        # the service has no interval on this car: the record still stands and
+        # the Report still counts it, there is simply no clock to reset.
+        "cell": (fleet_service_board.cell_payload(schedule, vehicle)
+                 if schedule is not None else None),
     })
 
 
 def _advance_schedule(vehicle, service_type, performed_on, odometer):
     """
-    Move the matching interval's baseline forward. Returns True if it moved.
+    Move the matching interval's baseline forward.
+
+    Returns ``(moved, schedule)`` — the schedule so the caller can render the
+    square it now reads without fetching the same row a second time. It is None
+    when this service has no interval on this car.
 
     Guarded against going backwards: logging a receipt from three months ago
     must not reset an interval that a more recent service already advanced.
@@ -817,7 +824,7 @@ def _advance_schedule(vehicle, service_type, performed_on, odometer):
         vehicle=vehicle, service_type=service_type, is_active=True
     ).first()
     if schedule is None:
-        return False
+        return False, None
 
     changed = []
     if schedule.last_done_on is None or performed_on > schedule.last_done_on:
@@ -831,9 +838,9 @@ def _advance_schedule(vehicle, service_type, performed_on, odometer):
         changed.append("last_done_odometer_miles")
 
     if not changed:
-        return False
+        return False, schedule
     schedule.save(update_fields=changed)
-    return True
+    return True, schedule
 
 
 @login_required(login_url="login")
@@ -986,8 +993,8 @@ def _save_inspection(request, vehicle, day, existing):
     inspection.save()
 
     # The sticker is the only real service record this fleet has. If the oil
-    # schedule is still sitting without a baseline, this fills it — which is why
-    # the standard-interval button no longer needs to invent one.
+    # schedule is still sitting without a baseline, this fills it — a read
+    # baseline, off the glass, rather than an assumed one.
     fleet_inspection.seed_baseline_from_sticker(inspection, vehicle)
 
     # Found something -> the existing issue workflow, with the severity the
@@ -1547,98 +1554,40 @@ def fleet_resolve_issue(request, pk):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# Standard intervals — get the maintenance layer out of its inert state
+# Service — every unit's maintenance intervals, one grid
 # ════════════════════════════════════════════════════════════════════════════
 
-# A conservative starting set for a heavily-worked light-duty fleet. A STARTING
-# POINT, not a manufacturer schedule — the fleet manager corrects each car.
-#
-# TYPE-AWARE, because one table for the whole fleet was wrong in a way that
-# mattered: a diesel Sprinter on a Suburban's 5,000-mile oil interval comes due
-# twice as often as it should, and at 190-350 miles a day that is a shop visit a
-# fortnight the van did not need.
-STANDARD_INTERVALS = (
-    ("oil", 5_000, 180),
-    ("tires", 7_500, None),
-    ("brakes", 15_000, None),
-    ("inspection", None, 365),
-)
-
-# Diesel Sprinters. Mercedes' own service interval is far longer than a petrol
-# V8's; 10,000 miles is still conservative for one.
-DIESEL_INTERVALS = (
-    ("oil", 10_000, 365),
-    ("tires", 7_500, None),
-    ("brakes", 15_000, None),
-    ("inspection", None, 365),
-)
-
-DIESEL_TYPES = {"Van(14 Pax)"}
-
-
-def standard_intervals_for(vehicle):
-    """The starting interval table for this unit's type."""
-    if fleet_capacity.unit_type(vehicle) in DIESEL_TYPES:
-        return DIESEL_INTERVALS
-    return STANDARD_INTERVALS
-
-
-def _apply_standard_intervals(vehicle, today):
-    """Add the standard intervals this vehicle doesn't already have.
-
-    Created with NO BASELINE, deliberately. The old version stamped
-    ``last_done_on=today`` and the current odometer, which invents a service
-    history: press the button fleet-wide and all nineteen cars come due in the
-    same fortnight, on dates nobody has ever serviced anything on. Two of the
-    units have no odometer at all, so theirs were fabricated as NULL anyway.
-
-    ``fleet_health.service_findings`` already returns nothing for a schedule with
-    no usable baseline — "an invented due date is worse than none, because
-    someone will plan a shop day around it". So an interval without one is
-    honest and inert until a real service is logged, or until the windshield
-    sticker is read off during a walk-around (see fleet_inspection).
-
-    Returns the service types created.
+@login_required(login_url="login")
+@staff_member_required
+def fleet_service(request):
     """
-    existing = set(
-        VehicleServiceSchedule.objects.filter(vehicle=vehicle).values_list("service_type", flat=True)
-    )
-    created = []
-    for service_type, miles, days in standard_intervals_for(vehicle):
-        if service_type in existing:
-            continue
-        VehicleServiceSchedule.objects.create(
-            vehicle=vehicle, service_type=service_type,
-            interval_miles=miles, interval_days=days,
-            last_done_on=None, last_done_odometer_miles=None,
-            notes="Standard interval, no baseline yet. Log the last service, or "
-                  "read the windshield sticker into the next walk-around.",
-        )
-        created.append(service_type)
-    return created
+    The whole fleet's service intervals on one screen, editable in place.
 
-
-@login_required(login_url="login")
-@staff_member_required
-@require_POST
-def fleet_apply_standard_intervals(request, pk):
-    vehicle = get_object_or_404(FleetVehicle, pk=pk)
-    created = _apply_standard_intervals(vehicle, timezone.localdate())
-    return JsonResponse({"success": True, "created": created})
-
-
-@login_required(login_url="login")
-@staff_member_required
-@require_POST
-def fleet_apply_standard_intervals_all(request):
-    """Every active unit gets whichever standard intervals it lacks."""
+    Thin on purpose: ``fleet_service.load_service_board`` owns the arithmetic and
+    is tested without a request. Editing posts to the same
+    ``fleet_save_schedule`` / ``fleet_delete_schedule`` endpoints the vehicle
+    page uses, so there is one copy of the validation rather than two.
+    """
     today = timezone.localdate()
-    touched = {}
-    for vehicle in FleetVehicle.objects.filter(is_active=True):
-        created = _apply_standard_intervals(vehicle, today)
-        if created:
-            touched[vehicle.vehicle_number] = created
-    return JsonResponse({"success": True, "vehicles": len(touched), "detail": touched})
+    view = "forecast" if request.GET.get("view") == "forecast" else "grid"
+
+    context = {
+        "fleet_page": "service",
+        "today": today,
+        "view": view,
+        "schedule_types": VehicleServiceSchedule.SERVICE_TYPE_CHOICES,
+    }
+
+    if view == "forecast":
+        try:
+            days = int(request.GET.get("days") or fleet_service_board.DEFAULT_HORIZON)
+        except ValueError:
+            days = fleet_service_board.DEFAULT_HORIZON
+        context.update(fleet_service_board.load_forecast(today=today, horizon_days=days))
+    else:
+        context.update(fleet_service_board.load_service_board(today=today))
+
+    return render(request, "dispatching/fleet_service.html", context)
 
 
 # ════════════════════════════════════════════════════════════════════════════

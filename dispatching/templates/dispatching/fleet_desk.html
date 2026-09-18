@@ -166,11 +166,10 @@
       <div class="fl-setup">
         <div class="t">
           <strong>No service intervals set</strong> on {{ setup_intervals.title|cut:" have no service intervals"|cut:" has no service intervals" }}, so nothing can ever come due.
-          <span class="s">Adds oil, tires, brakes and inspection at sensible distances &mdash;
-          longer oil on the Sprinters. No dates are invented: each car stays quiet until
-          its last service is logged or its windshield sticker is read in.</span>
+          <span class="s">Set them on the Service board, where every unit and every
+          interval is one grid &mdash; the gaps are the empty squares.</span>
         </div>
-        <button type="button" class="fl-btn-small" id="applyStandard">Add the intervals</button>
+        <a class="fl-btn-small" href="{% url 'fleet_service' %}">Open the Service board</a>
       </div>
       {% elif setup_baselines %}
       <div class="fl-setup">
@@ -337,8 +336,7 @@
     check: "{% url 'fleet_check_window' 0 %}",
     close: "{% url 'fleet_close_downtime' 0 %}",
     remove: "{% url 'fleet_delete_downtime' 0 %}",
-    outlook: "{% url 'fleet_outlook' %}",
-    standard: "{% url 'fleet_apply_standard_intervals_all' %}"
+    outlook: "{% url 'fleet_outlook' %}"
   };
   var TODAY = '{{ today|date:"Y-m-d" }}', TOMORROW = '{{ tomorrow|date:"Y-m-d" }}';
   if (!FW) {
@@ -437,14 +435,6 @@
   }
   document.querySelectorAll('[data-cancel]').forEach(function (b) {
     b.addEventListener('click', function () { cancelBooking(b.getAttribute('data-cancel'), b.getAttribute('data-unit')); });
-  });
-  var std = document.getElementById('applyStandard');
-  if (std) std.addEventListener('click', function () {
-    if (!confirm('Add the standard intervals to every active unit that lacks them? Baselines start from today\'s odometer.')) return;
-    FW.post(URLS.standard, {}, CSRF).then(function (d) {
-      d.success ? done('Intervals added on ' + d.vehicles + ' unit' + (d.vehicles === 1 ? '' : 's'))
-                : FW.toast(d.error || 'Could not apply', false);
-    });
   });
 })();
 </script>
