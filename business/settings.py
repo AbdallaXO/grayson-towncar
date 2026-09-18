@@ -98,6 +98,7 @@ OUR_APPS = [
     "dispatching",
     "ghl_integration",
     "ops.apps.OpsConfig",
+    "ai_assistant",
 ]
 
 # After DEbuyg toolbar
@@ -386,6 +387,20 @@ FLEET_NOTIFY_PHONES = [
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
+
+# ── AI reservations assistant ────────────────────────────────────────────────
+# Both switches default OFF. Installing the code changes nothing; someone has to
+# deliberately turn it on. AI_ASSISTANT_LIVE_SEND gates EVERY outbound message,
+# including ones a dispatcher approved — so a local machine can never text a
+# real customer, no matter what else is misconfigured.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+AI_ASSISTANT_ENABLED = os.environ.get("AI_ASSISTANT_ENABLED", "False").lower() == "true"
+AI_ASSISTANT_LIVE_SEND = os.environ.get("AI_ASSISTANT_LIVE_SEND", "False").lower() == "true"
+AI_ASSISTANT_MODEL = os.environ.get("AI_ASSISTANT_MODEL", "claude-haiku-4-5")
+AI_PROMPT_VERSION = os.environ.get("AI_PROMPT_VERSION", "v1")
+AI_HUMAN_TAKEOVER_MINUTES = int(os.environ.get("AI_HUMAN_TAKEOVER_MINUTES", "15"))
+AI_HISTORY_TURNS = int(os.environ.get("AI_HISTORY_TURNS", "10"))
+AI_DAILY_SPEND_CAP_USD = int(os.environ.get("AI_DAILY_SPEND_CAP_USD", "10"))
 
 # Base URL used when building absolute links from background contexts
 # (no incoming request). Used by flight-verification emails and the unpaid

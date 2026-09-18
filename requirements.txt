@@ -48,3 +48,4 @@ twilio
 holidays
 django-simple-history==3.11.0
 pywebpush
+anthropic
