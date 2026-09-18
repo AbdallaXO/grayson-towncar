@@ -140,6 +140,8 @@ class AiConversationTurn(models.Model):
     status          = CharField(choices=[pending, drafted, escalated, failed, skipped, superseded])
     skip_reason     = CharField(blank=True)   # opted_out | human_active | disabled | duplicate
     context_packet  = JSONField(default=dict) # exactly what the model was given
+    extracted       = JSONField(default=dict) # trip details found in the message — §6.5
+    extracted_applied_at = DateTimeField(null=True)  # set when a dispatcher saves them
     error           = TextField(blank=True)
     attempts        = PositiveSmallIntegerField(default=0)
 
@@ -305,6 +307,62 @@ Ids must be stable across turns for the same lead, or the audit trail is
 worthless. They are derived from the fact's position and key, never from a
 counter or a UUID.
 
+### 6.5 What the Lead does not know — slot filling
+
+`Lead` is thin. It holds name, pickup, dropoff, **one** date, trip type, a
+vehicle and a price. It does not hold:
+
+| Missing | Why it matters |
+| --- | --- |
+| Return date | A round trip has two. Only the first is stored. |
+| Passenger count | Decides the vehicle, which decides the price. |
+| Luggage count | Same — `Vehicle.luggage_capacity` can bind before seats do. |
+| Car seats / boosters | 11.3% of inbound traffic asks about these. |
+| Flight number | Drives pickup timing and baggage-claim meetup. |
+
+So the assistant cannot only answer — it must **collect**. Two additions:
+
+**The packet states its own gaps.** Alongside `lead`, it carries:
+
+```python
+"known":   {"passenger_count": 3, "luggage_count": 2},
+"missing": ["return_date", "car_seats"],
+```
+
+`known` is merged from prior turns' `extracted` (most recent wins). `missing` is
+the difference against what the trip type requires — a round trip missing its
+return date is incomplete in a way a one-way is not. The prompt instructs the
+assistant to ask for **one** missing item at a time, never a form.
+
+**Extraction is proposed, never applied.** When a message supplies a detail
+("9 people 4 suitcases no seats"), the model returns it in `extracted`. It is
+stored on the turn and shown on the approval screen as a suggestion the
+dispatcher taps to save onto the `Lead`; `extracted_applied_at` records that.
+The assistant never writes to `Lead` on its own — a bad extraction would
+silently corrupt lead data and nobody would know which turn did it.
+
+### 6.6 Re-quoting when the vehicle changes
+
+If `known` passenger or luggage counts exceed the capacity of the vehicle on
+the Lead, the packet's pricing section is built for the **smallest vehicle that
+actually fits**, not the one originally quoted, and flags the change:
+
+```python
+"pricing": {
+    "quoted_vehicle": "towncar", "quoted_price": "140.00",
+    "required_vehicle": "van", "required_reason": "9 passengers exceeds towncar capacity of 4",
+    "required_price": "...",        # rate card, same route
+}
+```
+
+This stays inside the grounding rule. The van's price for that route is on the
+published card, so it is a lookup like any other — the assistant is not
+inventing an upcharge, it is reading a different row. It must state plainly
+that the vehicle changed and why.
+
+If no vehicle on the card fits the party, or the route has no card entry for
+the required vehicle, pricing is omitted and the turn escalates.
+
 ## 7. Grounding guards
 
 Enforced in code, after the model returns and before the draft reaches the
@@ -453,8 +511,14 @@ tracking and wait time, what is included in a quote, gratuity.
   "needs_human": "boolean",
   "reason":      "string",
   "confidence":  "high | medium | low",
-  "facts_used":  ["string"] }
+  "facts_used":  ["string"],
+  "extracted":   { "passenger_count": "int|null", "luggage_count": "int|null",
+                   "car_seats": "int|null", "booster_seats": "int|null",
+                   "return_date": "date|null", "flight_number": "string|null" } }
 ```
+
+`extracted` is proposed detail only (§6.5). Every field is nullable and the
+default is null — the model must not fill a slot the customer did not mention.
 
 Structured output is what makes escalation a field rather than a phrase to be
 parsed out of prose.
@@ -528,7 +592,17 @@ Hard requirements:
 - Output is a file for reading, not a pass/fail. Early on, judgement is the
   measurement.
 
-45,046 historical replies means the sample is never the constraint.
+45,046 historical replies means the sample is never the constraint. Cost is,
+mildly — so replay in slices, never the whole archive:
+
+| Messages replayed | Approximate cost |
+| --- | --- |
+| 200 | $0.80 |
+| 1,000 | $4 |
+| all 45,046 | $170, or ~$90 once caching is working |
+
+200–500 per category is enough to see a failure mode. Expect the whole testing
+phase to cost under $25.
 
 ## 13. Testing
 
