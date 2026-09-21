@@ -1635,6 +1635,247 @@ body {
   font-family: var(--ops-mono);
 }
 
+/* ── Quote needed: the whole request on one screen ── */
+.qn-hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: .85rem;
+  border-radius: 10px;
+  border: 1px solid var(--ops-border);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(37,99,235,.07), transparent 55%),
+    linear-gradient(180deg, #ffffff, #f9fafb);
+}
+.qn-hero-eyebrow {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ops-blue);
+  margin-bottom: .3rem;
+}
+.qn-hero h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: var(--ops-white);
+  margin: 0 0 .25rem;
+}
+.qn-hero-sub { font-size: .8rem; color: var(--ops-text-dim); }
+.qn-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+.qn-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .18rem .55rem; border-radius: 50px;
+  font-size: .66rem; font-weight: 600;
+  background: #f3f4f6; color: var(--ops-text-dim); border: 1px solid var(--ops-border);
+}
+.qn-chip.ok    { background: var(--ops-green-dim); color: var(--ops-green); border-color: #a7f3d0; }
+.qn-chip.warn  { background: var(--ops-amber-dim); color: var(--ops-amber); border-color: #fde68a; }
+.qn-chip.bad   { background: var(--ops-red-dim); color: var(--ops-red); border-color: #fecaca; }
+.qn-hero-actions { display: flex; flex-direction: column; gap: .45rem; min-width: 200px; }
+.qn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  padding: .7rem 1rem; border-radius: 8px; border: 0;
+  background: var(--ops-blue); color: #fff; font-weight: 700; font-size: .85rem;
+  text-decoration: none; box-shadow: 0 6px 16px rgba(37,99,235,.22);
+  transition: transform .12s, box-shadow .12s, background .12s;
+}
+.qn-primary:hover { background: #1d4ed8; color: #fff; transform: translateY(-1px); box-shadow: 0 8px 20px rgba(37,99,235,.28); }
+.qn-contact-row { display: flex; gap: .4rem; }
+.qn-contact {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
+  padding: .5rem .6rem; border-radius: 7px;
+  border: 1px solid var(--ops-border-lt); background: var(--ops-surface);
+  color: var(--ops-text); font-size: .74rem; font-weight: 600; text-decoration: none;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.qn-contact:hover { border-color: var(--ops-blue); color: var(--ops-blue); background: #eff6ff; }
+.qn-contact.is-off { opacity: .45; pointer-events: none; }
+
+.qn-compose { border-radius: 10px; overflow: visible; }
+.qn-compose-head {
+  display: grid; grid-template-columns: 1fr auto; gap: 1.25rem; align-items: start;
+  padding: 1.1rem 1.25rem .9rem;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(37,99,235,.08), transparent 55%),
+    linear-gradient(180deg, #ffffff, #f9fafb);
+  border-bottom: 1px solid var(--ops-border);
+}
+.qn-compose-head h2 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.01em; color: var(--ops-white); margin: 0 0 .25rem; }
+.qn-phone { font-family: var(--ops-mono); font-weight: 700; color: var(--ops-white); cursor: copy; border-bottom: 1px dashed var(--ops-border-lt); }
+.qn-phone:hover { color: var(--ops-blue); border-color: var(--ops-blue); }
+.qn-compose-side { display: flex; flex-direction: column; gap: .5rem; align-items: stretch; min-width: 190px; }
+.qn-price-wrap { display: flex; flex-direction: column; gap: .25rem; margin: 0; }
+.qn-price-label { font-family: var(--ops-mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ops-text-muted); }
+.qn-price-field {
+  display: flex; align-items: center; gap: .15rem; padding: .35rem .7rem;
+  border: 1px solid var(--ops-border-lt); border-radius: 8px; background: #fff;
+  font-size: 1.25rem; font-weight: 800; color: var(--ops-white);
+  transition: border-color .12s, box-shadow .12s;
+}
+.qn-price-field:focus-within { border-color: var(--ops-blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.qn-price-field span { color: var(--ops-text-muted); font-weight: 700; }
+.qn-price-field input { border: 0; outline: 0; width: 100%; font: inherit; color: inherit; background: transparent; }
+.qn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  padding: .5rem .7rem; border-radius: 7px; border: 1px solid var(--ops-border-lt);
+  background: #fff; color: var(--ops-text); font-size: .74rem; font-weight: 600; text-decoration: none;
+}
+.qn-ghost:hover { border-color: var(--ops-blue); color: var(--ops-blue); background: #eff6ff; }
+.qn-auto { font-size: .7rem; color: var(--ops-text-dim); line-height: 1.4; }
+.qn-auto-line { display: flex; align-items: flex-start; gap: .35rem; }
+.qn-auto-line i { color: var(--ops-blue); margin-top: .1rem; }
+.qn-auto.is-ok .qn-auto-line i { color: var(--ops-green); }
+.qn-auto.is-bad .qn-auto-line i { color: var(--ops-amber); }
+.qn-auto-src { color: var(--ops-white); font-weight: 700; }
+.qn-math { margin-top: .3rem; }
+.qn-math summary { cursor: pointer; color: var(--ops-blue); font-weight: 600; font-size: .68rem; list-style: none; }
+.qn-math summary::-webkit-details-marker { display: none; }
+.qn-math ul { margin: .3rem 0 0; padding: 0; list-style: none; font-family: var(--ops-mono); font-size: .62rem; color: var(--ops-text-dim); }
+.qn-math li { display: flex; justify-content: space-between; gap: .75rem; padding: .1rem 0; border-bottom: 1px dashed var(--ops-border); }
+.qn-math li span:last-child { color: var(--ops-white); }
+.qn-compose-body { padding: .9rem 1.25rem .4rem; }
+.qn-message {
+  width: 100%; resize: vertical; min-height: 96px;
+  padding: .8rem .95rem; border-radius: 8px; border: 1px solid var(--ops-border-lt);
+  background: #fff; color: var(--ops-white); font-family: var(--ops-sans); font-size: .9rem; line-height: 1.5;
+  transition: border-color .12s, box-shadow .12s;
+}
+.qn-message:focus { outline: 0; border-color: var(--ops-blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.qn-message:disabled { background: var(--ops-surface-3); color: var(--ops-text-muted); }
+.qn-message-meta { margin-top: .35rem; font-size: .68rem; color: var(--ops-text-muted); }
+.qn-compose-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .6rem 1.25rem .9rem; }
+.qn-compose-actions .qn-primary { padding: .6rem 1.1rem; }
+.qn-compose-actions .qn-primary:disabled { opacity: .5; box-shadow: none; transform: none; cursor: not-allowed; }
+.qn-compose-actions .qn-primary.is-done { background: var(--ops-green); box-shadow: 0 6px 16px rgba(5,150,105,.22); }
+.qn-secondary {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .6rem .9rem; border-radius: 8px;
+  border: 1px solid var(--ops-blue); color: var(--ops-blue); background: #fff; font-size: .8rem; font-weight: 700; text-decoration: none;
+}
+.qn-secondary:hover { background: #eff6ff; color: #1d4ed8; }
+.qn-actions-spacer { flex: 1; }
+.qn-compose-actions .qn-contact { flex: 0 0 auto; padding: .5rem .8rem; }
+.qn-optout { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 600; color: var(--ops-red); }
+.qn-compose-foot { padding: .5rem 1.25rem .75rem; font-size: .68rem; color: var(--ops-text-muted); border-top: 1px dashed var(--ops-border); }
+
+.qn-sub {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .55rem .85rem .35rem; margin-top: .25rem;
+  font-family: var(--ops-mono); font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ops-text-muted); border-top: 1px solid var(--ops-border);
+}
+.qn-sub i { color: var(--ops-blue); font-size: .75rem; }
+.qn-msg { margin: 0 .85rem .55rem; padding: .55rem .75rem; border-radius: 10px; border: 1px solid var(--ops-border); background: var(--ops-surface-2); }
+.qn-msg.text  { border-left: 3px solid var(--ops-blue); }
+.qn-msg.email { border-left: 3px solid var(--ops-purple); }
+.qn-msg.reply { border-left: 3px solid var(--ops-green); background: var(--ops-green-dim); }
+.qn-msg.upcoming { border-style: dashed; background: #fff; }
+.qn-msg.skipped { opacity: .6; }
+.qn-msg.skipped .qn-msg-body { text-decoration: line-through; text-decoration-color: var(--ops-border-lt); }
+.qn-msg-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .25rem; }
+.qn-msg-who { font-size: .7rem; font-weight: 700; color: var(--ops-white); display: inline-flex; align-items: center; gap: .3rem; }
+.qn-msg-who i { color: var(--ops-blue); }
+.qn-msg.reply .qn-msg-who i { color: var(--ops-green); }
+.qn-msg.email .qn-msg-who i { color: var(--ops-purple); }
+.qn-msg-when { font-family: var(--ops-mono); font-size: .6rem; color: var(--ops-text-muted); white-space: nowrap; }
+.qn-msg-body { font-size: .78rem; color: var(--ops-text); line-height: 1.45; white-space: pre-line; }
+.qn-msg-why { margin-top: .3rem; font-size: .68rem; font-weight: 600; color: var(--ops-amber); }
+.qn-note { margin: 0 .85rem .55rem; font-size: .7rem; color: var(--ops-text-dim); display: flex; gap: .35rem; align-items: flex-start; }
+.qn-note i { color: var(--ops-blue); margin-top: .1rem; }
+.qn-stop-row { padding: .2rem .85rem .7rem; }
+.qn-stop-seq {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .4rem .7rem; border-radius: 6px; border: 1px solid var(--ops-border-lt);
+  background: #fff; color: var(--ops-text); font-family: inherit; font-size: .7rem; font-weight: 700; cursor: pointer;
+}
+.qn-stop-seq:hover { border-color: var(--ops-red); color: var(--ops-red); background: var(--ops-red-dim); }
+.qn-stop-seq:disabled { opacity: .5; cursor: wait; }
+.qn-auto-line-foot { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .45rem; padding-top: .45rem; border-top: 1px dashed var(--ops-border); color: var(--ops-text-dim); }
+.qn-auto-line-foot i { color: var(--ops-purple); }
+.qn-auto-line-foot span { flex: 1; min-width: 200px; }
+.qn-standing { padding: .5rem .85rem .35rem; }
+.qn-stand { display: flex; align-items: flex-start; gap: .6rem; padding: .4rem 0; font-size: .8rem; color: var(--ops-text); line-height: 1.4; }
+.qn-stand i { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; background: #f3f4f6; color: var(--ops-text-dim); margin-top: .05rem; }
+.qn-stand.ok i   { background: var(--ops-green-dim); color: var(--ops-green); }
+.qn-stand.warn i { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.qn-stand.bad i  { background: var(--ops-red-dim); color: var(--ops-red); }
+.qn-stand.bad span, .qn-stand.warn span { font-weight: 600; }
+.qn-toggle {
+  display: flex; align-items: center; gap: .4rem; width: 100%; text-align: left;
+  padding: .55rem .85rem; border: 0; border-top: 1px solid var(--ops-border); border-bottom: 1px solid var(--ops-border);
+  background: var(--ops-surface-2); color: var(--ops-text-dim); font-size: .72rem; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.qn-toggle:hover { color: var(--ops-blue); }
+.qn-toggle-chev { font-size: .65rem; transition: transform .18s ease; }
+.qn-toggle[aria-expanded="true"] .qn-toggle-chev { transform: rotate(90deg); }
+@media (max-width: 900px) { .qn-compose-head { grid-template-columns: 1fr; } }
+
+.qn-trip { display: grid; grid-template-columns: 1fr 240px; gap: 0; }
+.qn-route { padding: 1rem 1.1rem; }
+.qn-route-line { display: grid; grid-template-columns: 18px 1fr; gap: .6rem .7rem; align-items: start; }
+.qn-dot { width: 10px; height: 10px; border-radius: 50%; margin: .3rem 0 0 4px; background: var(--ops-blue); }
+.qn-dot.end { background: var(--ops-white); }
+.qn-stem { width: 2px; height: 22px; margin-left: 8px; background: var(--ops-border-lt); }
+.qn-place-label { font-family: var(--ops-mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ops-text-muted); }
+.qn-place { font-size: .95rem; font-weight: 700; color: var(--ops-white); line-height: 1.25; }
+.qn-when { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; padding-top: .85rem; border-top: 1px dashed var(--ops-border); }
+.qn-when-date { font-size: 1.05rem; font-weight: 800; color: var(--ops-white); letter-spacing: -.01em; }
+.qn-when-rel { font-size: .74rem; font-weight: 700; padding: .12rem .5rem; border-radius: 50px; }
+.qn-when-rel.red   { background: var(--ops-red-dim); color: var(--ops-red); }
+.qn-when-rel.amber { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.qn-when-rel.ok    { background: var(--ops-green-dim); color: var(--ops-green); }
+.qn-when-rel.muted { background: #f3f4f6; color: var(--ops-text-dim); }
+.qn-when-type { font-size: .74rem; color: var(--ops-text-dim); }
+.qn-vehicle {
+  border-left: 1px solid var(--ops-border);
+  background: linear-gradient(180deg, #f9fafb, #f3f4f6);
+  padding: 1rem; display: flex; flex-direction: column; align-items: center; text-align: center; gap: .4rem;
+}
+.qn-vehicle img { width: 100%; max-width: 200px; height: 96px; object-fit: contain; filter: drop-shadow(0 8px 14px rgba(17,24,39,.15)); }
+.qn-vehicle-none { width: 100%; height: 96px; display: flex; align-items: center; justify-content: center; color: var(--ops-text-muted); font-size: 2rem; }
+.qn-vehicle-name { font-size: .95rem; font-weight: 800; color: var(--ops-white); }
+.qn-vehicle-caps { display: flex; gap: .8rem; font-size: .7rem; color: var(--ops-text-dim); }
+.qn-vehicle-caps i { color: var(--ops-blue); margin-right: .2rem; }
+.qn-vehicle-label { font-family: var(--ops-mono); font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ops-text-muted); }
+
+.qn-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; padding: .85rem; }
+.qn-step { display: flex; gap: .6rem; padding: .7rem .75rem; border-radius: 8px; background: var(--ops-surface-2); border: 1px solid var(--ops-border); }
+.qn-step-n { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--ops-white); color: #fff; font-family: var(--ops-mono); font-size: .66rem; font-weight: 700; }
+.qn-step strong { display: block; font-size: .78rem; color: var(--ops-white); margin-bottom: .1rem; }
+.qn-step span { font-size: .7rem; color: var(--ops-text-dim); line-height: 1.35; }
+
+.qn-quote-row { display: grid; grid-template-columns: 74px 1fr auto auto; gap: .75rem; align-items: center; padding: .55rem .85rem; border-bottom: 1px solid var(--ops-border); font-size: .76rem; }
+.qn-quote-row:last-child { border-bottom: 0; }
+.qn-quote-date { font-family: var(--ops-mono); font-size: .64rem; color: var(--ops-text-dim); }
+.qn-quote-route { color: var(--ops-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qn-quote-route small { color: var(--ops-text-muted); }
+.qn-quote-price { font-weight: 800; color: var(--ops-white); font-family: var(--ops-mono); }
+.qn-quote-price.none { color: var(--ops-amber); font-family: var(--ops-sans); font-weight: 600; font-size: .7rem; }
+.qn-touch { display: grid; grid-template-columns: 26px 1fr auto; gap: .6rem; align-items: start; padding: .55rem .85rem; border-bottom: 1px solid var(--ops-border); }
+.qn-touch:last-child { border-bottom: 0; }
+.qn-touch-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; background: #f3f4f6; color: var(--ops-text-dim); }
+.qn-touch.ok .qn-touch-icon { background: var(--ops-green-dim); color: var(--ops-green); }
+.qn-touch.red .qn-touch-icon { background: var(--ops-red-dim); color: var(--ops-red); }
+.qn-touch-label { font-size: .76rem; font-weight: 700; color: var(--ops-white); }
+.qn-touch-text { font-size: .72rem; color: var(--ops-text-dim); white-space: pre-line; margin-top: .1rem; }
+.qn-touch-when { font-family: var(--ops-mono); font-size: .62rem; color: var(--ops-text-muted); white-space: nowrap; }
+.qn-empty { padding: 1rem .85rem; font-size: .76rem; color: var(--ops-text-dim); }
+.qn-foot { display: flex; align-items: center; gap: .75rem; padding: .6rem .85rem; font-size: .72rem; color: var(--ops-text-dim); }
+.qn-foot a { color: var(--ops-text-dim); text-decoration: none; }
+.qn-foot a:hover { color: var(--ops-blue); }
+.qn-lost { margin-left: auto; background: none; border: 1px solid var(--ops-border-lt); border-radius: 6px; padding: .3rem .6rem; font-size: .7rem; color: var(--ops-text-dim); cursor: pointer; }
+.qn-lost:hover { border-color: var(--ops-red); color: var(--ops-red); }
+@media (max-width: 900px) {
+  .qn-hero { grid-template-columns: 1fr; }
+  .qn-trip { grid-template-columns: 1fr; }
+  .qn-vehicle { border-left: 0; border-top: 1px solid var(--ops-border); }
+  .qn-steps { grid-template-columns: 1fr; }
+}
+
 .pc-call-banner {
   display: flex;
   align-items: center;
@@ -1733,7 +1974,11 @@ body {
         {% endif %}
       </div>
 
-      {% if task.description %}
+      {% if is_quote_needed %}
+      <p class="td-desc">
+        {{ qn_first }} asked the website for a price {{ qn_asked_ago }} ago and the rate card could not answer. Send one.
+      </p>
+      {% elif task.description %}
       <p class="td-desc">
         {% if conflict_detail %}
         Driver will be {{ conflict_minutes }} min late — reassign or adjust times.
@@ -1757,6 +2002,228 @@ body {
     <div class="row">
       <!-- ═══ Main Column ═══ -->
       <div class="col-lg-8">
+
+        {% if is_quote_needed %}
+        {% comment %}A guest asked the website for a price the rate card could not give.
+           This is a lead form, so the first thing on the page is the text: the
+           message is written, the price drops in, and sending it records the
+           lead as contacted. Then the trip, where the lead stands in plain
+           sentences, and the quotes on file.{% endcomment %}
+        {{ qn_compose|json_script:"qn-compose" }}
+        <div class="ops-card qn-compose" id="qnCompose">
+          <div class="qn-compose-head">
+            <div>
+              <div class="qn-hero-eyebrow"><i class="bi bi-chat-dots-fill"></i> Text {{ qn_first }}</div>
+              <h2>{{ qn_name }}</h2>
+              <div class="qn-hero-sub">
+                {% if qn_phone_pretty %}<span class="qn-phone" id="qnPhone" title="Click to copy">{{ qn_phone_pretty }}</span> · {% endif %}
+                asked {{ qn_asked_ago }} ago · {{ qn_source }}{% if qn_segment %} · {{ qn_segment }}{% endif %}
+              </div>
+              <div class="qn-chips">
+                {% if qn_converted %}<span class="qn-chip ok"><i class="bi bi-check-circle-fill"></i> Booked</span>
+                {% elif qn_lost %}<span class="qn-chip bad"><i class="bi bi-x-circle-fill"></i> Marked lost</span>
+                {% else %}<span class="qn-chip" id="qnStatusChip"><i class="bi bi-person"></i> {{ qn_status }}</span>{% endif %}
+                {% if qn_lead.has_replied %}<span class="qn-chip ok"><i class="bi bi-reply-fill"></i> Has replied</span>{% endif %}
+                {% if qn_lead.sms_opt_out %}<span class="qn-chip bad"><i class="bi bi-chat-x"></i> No texts — opted out</span>{% endif %}
+                {% if qn_lead.needs_human_follow_up %}<span class="qn-chip warn"><i class="bi bi-hand-index"></i> Asked for a person</span>{% endif %}
+                <span class="qn-chip ok" id="qnContactedChip" hidden><i class="bi bi-check2-circle"></i> Marked contacted</span>
+              </div>
+            </div>
+            <div class="qn-compose-side">
+              <label class="qn-price-wrap">
+                <span class="qn-price-label">Price</span>
+                <span class="qn-price-field"><span>$</span><input type="text" inputmode="decimal" id="qnPrice" placeholder="185" autocomplete="off"></span>
+              </label>
+              <div class="qn-auto" id="qnAuto">
+                <span class="qn-auto-line"><i class="bi bi-hourglass-split"></i> Working out the price…</span>
+              </div>
+              <a class="qn-ghost" href="{{ qn_calculator_url }}" target="_blank" rel="noopener">
+                <i class="bi bi-calculator"></i> Open in the calculator
+              </a>
+            </div>
+          </div>
+
+          <div class="qn-compose-body">
+            <textarea id="qnMessage" class="qn-message" rows="4" spellcheck="true" {% if qn_lead.sms_opt_out %}disabled{% endif %}></textarea>
+            <div class="qn-message-meta"><span id="qnCount">0</span> characters · edit anything you like, the price drops in as you type it</div>
+          </div>
+
+          <div class="qn-compose-actions">
+            {% if qn_lead.sms_opt_out %}
+              <span class="qn-optout"><i class="bi bi-chat-x-fill"></i> {{ qn_first }} opted out of texts. Call or email instead.</span>
+            {% else %}
+              <button type="button" class="qn-primary" id="qnCopy" {% if not qn_phone_digits %}disabled{% endif %}>
+                <i class="bi bi-clipboard-check"></i> Copy text
+              </button>
+              <a class="qn-secondary" id="qnOpenSms" href="#" {% if not qn_phone_digits %}hidden{% endif %}>
+                <i class="bi bi-phone"></i> Open in texting app
+              </a>
+            {% endif %}
+            <span class="qn-actions-spacer"></span>
+            <a class="qn-contact {% if not qn_phone_link %}is-off{% endif %}" id="qnCall" href="{{ qn_phone_link|default:'#' }}"><i class="bi bi-telephone-fill"></i> Call</a>
+            <a class="qn-contact {% if not qn_email %}is-off{% endif %}" id="qnEmail" href="#"><i class="bi bi-envelope-fill"></i> Email</a>
+          </div>
+          <div class="qn-compose-foot">
+            Copying or opening the text marks {{ qn_first }} as contacted and records the attempt. Complete the task once the price is out.
+            {% if qn_sequence_active %}
+            <div class="qn-auto-line-foot">
+              <i class="bi bi-robot"></i>
+              <span>Automatic follow-up texts are still running{% if qn_next_auto %} — the next one goes {{ qn_next_auto|date:"D g:ia" }}{% endif %}. Once you have sent the price, stop them so {{ qn_first }} is not asked "still looking?" tomorrow.</span>
+              <button type="button" class="qn-stop-seq" data-task-id="{{ task.id }}">Stop them — I'm handling this</button>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-signpost-split-fill" style="color: var(--ops-blue);"></i>
+            <h6>The trip</h6>
+          </div>
+          <div class="qn-trip">
+            <div class="qn-route">
+              <div class="qn-route-line">
+                <div class="qn-dot"></div>
+                <div>
+                  <div class="qn-place-label">Pickup</div>
+                  <div class="qn-place">{{ qn_lead.pickup_location|default:"Not given" }}</div>
+                </div>
+                <div class="qn-stem"></div><div></div>
+                <div class="qn-dot end"></div>
+                <div>
+                  <div class="qn-place-label">Drop-off</div>
+                  <div class="qn-place">{{ qn_lead.dropoff_location|default:"Not given" }}</div>
+                </div>
+              </div>
+              <div class="qn-when">
+                {% if qn_lead.pickup_date %}
+                <span class="qn-when-date">{{ qn_lead.pickup_date|date:"D, M j, Y" }}</span>
+                {% else %}
+                <span class="qn-when-date" style="color: var(--ops-text-muted);">No date yet</span>
+                {% endif %}
+                <span class="qn-when-rel {{ qn_when_tone }}">{{ qn_when_relative }}</span>
+                <span class="qn-when-type"><i class="bi bi-arrow-left-right"></i> {{ qn_trip_type }}</span>
+              </div>
+            </div>
+            <div class="qn-vehicle">
+              <div class="qn-vehicle-label">Vehicle they chose</div>
+              {% if qn_vehicle %}
+                {% if qn_vehicle_image %}<img src="{{ qn_vehicle_image }}" alt="{{ qn_vehicle_label }}">{% else %}<div class="qn-vehicle-none"><i class="bi bi-car-front"></i></div>{% endif %}
+                <div class="qn-vehicle-name">{{ qn_vehicle_label }}</div>
+                <div class="qn-vehicle-caps">
+                  <span><i class="bi bi-people-fill"></i>up to {{ qn_vehicle.capacity }}</span>
+                  <span><i class="bi bi-suitcase2-fill"></i>{{ qn_vehicle.luggage_capacity }} bags</span>
+                </div>
+              {% else %}
+                <div class="qn-vehicle-none"><i class="bi bi-car-front"></i></div>
+                <div class="qn-vehicle-name" style="color: var(--ops-text-dim);">None picked</div>
+                <div class="qn-vehicle-caps"><span>Choose one in the calculator</span></div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-broadcast-pin" style="color: var(--ops-purple);"></i>
+            <h6>Where this lead stands</h6>
+          </div>
+          <div class="qn-standing">
+            {% for line in qn_standing %}
+            <div class="qn-stand {{ line.tone }}">
+              <i class="bi {{ line.icon }}"></i>
+              <span>{{ line.text }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="qn-sub"><i class="bi bi-send-check"></i> What has reached them so far</div>
+          {% if qn_sent %}
+            {% for m in qn_sent %}
+            <div class="qn-msg {{ m.kind }}">
+              <div class="qn-msg-head">
+                <span class="qn-msg-who">
+                  {% if m.kind == 'text' %}<i class="bi bi-chat-dots-fill"></i>{% elif m.kind == 'email' %}<i class="bi bi-envelope-fill"></i>{% else %}<i class="bi bi-reply-fill"></i>{% endif %}
+                  {{ m.who }}
+                </span>
+                <span class="qn-msg-when">{% if m.when %}{{ m.when|date:"D, M j · g:ia" }}{% endif %}</span>
+              </div>
+              <div class="qn-msg-body">{{ m.body }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="qn-empty">Nothing has reached them yet — no text, no email. They are waiting on us.</div>
+          {% endif %}
+
+          <div class="qn-sub"><i class="bi bi-clock-history"></i> What automation still plans to send</div>
+          {% if qn_upcoming %}
+            {% for u in qn_upcoming %}
+            <div class="qn-msg upcoming {% if u.skipped %}skipped{% endif %}">
+              <div class="qn-msg-head">
+                <span class="qn-msg-who"><i class="bi bi-chat-dots"></i> Automatic text {{ u.step }}</span>
+                <span class="qn-msg-when">{% if u.skipped %}will be skipped{% else %}{{ u.when|date:"D, M j · g:ia" }}{% endif %}</span>
+              </div>
+              <div class="qn-msg-body">{{ u.body }}</div>
+              {% if u.why %}<div class="qn-msg-why"><i class="bi bi-slash-circle"></i> {{ u.why }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          {% elif qn_sequence_active %}
+            <div class="qn-empty">The sequence is marked running but nothing is left to send.</div>
+          {% else %}
+            <div class="qn-empty">No more automatic texts are scheduled for this lead.</div>
+          {% endif %}
+          {% if qn_nudge_note %}<div class="qn-note"><i class="bi bi-info-circle"></i> {{ qn_nudge_note }}</div>{% endif %}
+          {% if qn_sequence_active and task.is_open %}
+          <div class="qn-stop-row">
+            <button type="button" class="qn-stop-seq" data-task-id="{{ task.id }}"><i class="bi bi-stop-circle"></i> Stop the automatic texts — I'm handling this</button>
+          </div>
+          {% endif %}
+
+          {% if qn_touches %}
+          <button type="button" class="qn-toggle" id="qnTouchesToggle" aria-expanded="false" aria-controls="qnTouches">
+            <i class="bi bi-chevron-right qn-toggle-chev"></i> Show every event on this lead ({{ qn_touches|length }})
+          </button>
+          <div id="qnTouches" hidden>
+            {% for t in qn_touches %}
+            <div class="qn-touch {{ t.tone }}">
+              <div class="qn-touch-icon"><i class="bi {{ t.icon }}"></i></div>
+              <div>
+                <div class="qn-touch-label">{{ t.label }}</div>
+                {% if t.text %}<div class="qn-touch-text">{{ t.text|truncatechars:400 }}</div>{% endif %}
+              </div>
+              <span class="qn-touch-when">{{ t.when|date:"M j g:ia" }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="qn-foot">
+            <a href="{{ qn_admin_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Lead record</a>
+            <a href="{% url 'leads_board' %}"><i class="bi bi-kanban"></i> Leads board</a>
+            {% if task.is_open and not qn_lost and not qn_converted %}
+            <button type="button" class="qn-lost" id="qnMarkLost" data-lead-id="{{ qn_lead.id }}">Mark lead lost</button>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-receipt" style="color: var(--ops-green);"></i>
+            <h6>Quotes on file</h6>
+            <span class="head-ct">{{ qn_quotes|length }}</span>
+          </div>
+          {% if qn_quotes %}
+            {% for qt in qn_quotes %}
+            <div class="qn-quote-row">
+              <span class="qn-quote-date">{{ qt.created_at|date:"M j" }}</span>
+              <span class="qn-quote-route">{{ qt.pickup_location|default:"—" }} → {{ qt.dropoff_location|default:"—" }} <small>· {{ qt.get_trip_type_display }}{% if qt.vehicle %} · {{ qt.vehicle.get_vehicle_type_display }}{% endif %}{% if qt.pickup_date %} · {{ qt.pickup_date|date:"M j" }}{% endif %}</small></span>
+              {% if qt.estimated_price %}<span class="qn-quote-price">${{ qt.estimated_price|floatformat:0 }}</span>{% else %}<span class="qn-quote-price none">no online rate</span>{% endif %}
+              <span class="qn-chip">{{ qt.get_status_display }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="qn-empty">No quotes recorded for this guest yet.</div>
+          {% endif %}
+        </div>
+        {% endif %}
 
         {% if driver_schedule %}
         <!-- ═══ Driver Conflict Panel ═══ -->
@@ -3030,7 +3497,7 @@ body {
             {% endif %}
           </div>
         </div>
-        {% elif task.lead %}
+        {% elif task.lead and not is_quote_needed %}
         <div class="ops-card">
           <div class="ops-card-head">
             <i class="bi bi-person-lines-fill" style="color: var(--ops-amber);"></i>
@@ -3117,6 +3584,173 @@ body {
 <script>
 const CSRF = '{{ csrf_token }}';
 const TASK_ID = {{ task.id }};
+
+/* Quote needed — the text is the first thing; sending it records the contact */
+(function() {
+  const dataEl = document.getElementById('qn-compose');
+  if (!dataEl) return;
+  const cfg = JSON.parse(dataEl.textContent);
+  const price = document.getElementById('qnPrice');
+  const msg = document.getElementById('qnMessage');
+  const count = document.getElementById('qnCount');
+  const copyBtn = document.getElementById('qnCopy');
+  const openSms = document.getElementById('qnOpenSms');
+  const callBtn = document.getElementById('qnCall');
+  const emailBtn = document.getElementById('qnEmail');
+  const chip = document.getElementById('qnContactedChip');
+  const statusChip = document.getElementById('qnStatusChip');
+  const phoneEl = document.getElementById('qnPhone');
+  let edited = false;
+
+  function priced(text) {
+    const p = (price.value || '').replace(/[^0-9.]/g, '');
+    return p ? text.replace('$PRICE', '$' + p) : null;
+  }
+  function render() {
+    if (edited) return;
+    msg.value = priced(cfg.sms_with_price) || cfg.sms_holding;
+    count.textContent = msg.value.length;
+  }
+  price.addEventListener('input', function() { price.dataset.typed = '1'; render(); });
+  msg.addEventListener('input', function() { edited = true; count.textContent = msg.value.length; });
+  render();
+
+  // The price, worked out by the same engine as the calculator, dropped
+  // straight into the text. The dispatcher sees where it came from and can
+  // open the math; a number they type themselves always wins.
+  const auto = document.getElementById('qnAuto');
+  function money(v) { const n = parseFloat(v); return isFinite(n) ? (Number.isInteger(n) ? String(n) : n.toFixed(2)) : ''; }
+  function autoFail(text) {
+    auto.className = 'qn-auto is-bad';
+    auto.innerHTML = '<span class="qn-auto-line"><i class="bi bi-exclamation-circle"></i><span>' + text + ' Type the price, or open the calculator.</span></span>';
+  }
+  function showPriced(data, stored) {
+      const amount = money(data.price);
+      if (!price.dataset.typed) { price.value = amount; render(); }
+      const bits = [];
+      if (data.distance_text && data.distance_text !== 'N/A') bits.push(data.distance_text);
+      if (data.duration_text && data.duration_text !== 'N/A' && data.duration_text !== 'n/a') bits.push(data.duration_text);
+      let html = '<span class="qn-auto-line"><i class="bi bi-check-circle-fill"></i><span>'
+        + '<span class="qn-auto-src">$' + amount + '</span> · ' + (data.source_label || 'Estimate')
+        + (data.card_route ? ' (' + data.card_route + ')' : '')
+        + (bits.length ? ' · ' + bits.join(', ') : '')
+        + (data.gratuity_mandatory ? ' · gratuity is added on this one' : '')
+        + (stored ? ' · priced when the request came in' : '')
+        + '</span></span>';
+      const rows = Object.entries(data.internal || {}).filter(([k]) => k !== 'direction');
+      const notes = (data.notes || []);
+      if (rows.length || notes.length) {
+        html += '<details class="qn-math"><summary>Show the math</summary><ul>'
+          + rows.map(([k, v]) => '<li><span>' + k.replace(/_/g, ' ') + '</span><span>' + v + '</span></li>').join('')
+          + notes.map(n => '<li><span>' + n + '</span><span></span></li>').join('')
+          + '</ul></details>';
+      }
+      auto.className = 'qn-auto is-ok';
+      auto.innerHTML = html;
+  }
+  if (auto && cfg.priced) {
+    showPriced(cfg.priced, true);
+  } else if (auto && cfg.price_request) {
+    fetch('{% url "quote_calculator_api" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(cfg.price_request),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || data.error || !data.price) { autoFail(data && data.error ? data.error : (cfg.price_error || 'Could not price this automatically.')); return; }
+      showPriced(data, false);
+    })
+    .catch(() => autoFail('Could not reach the pricing engine.'));
+  } else if (auto) {
+    autoFail(cfg.price_error || 'No route to price yet.');
+  }
+
+  const marked = {};
+  function markContacted(channel) {
+    if (marked[channel]) return;
+    marked[channel] = true;
+    fetch('{% url "task_lead_contacted" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({task_id: cfg.task_id, channel: channel}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) { marked[channel] = false; alert(data.error || 'Could not record the contact'); return; }
+      chip.hidden = false;
+      if (statusChip) statusChip.innerHTML = '<i class="bi bi-person-check"></i> ' + data.lead_status;
+      if (data.claimed) setTimeout(() => location.reload(), 1200);
+    })
+    .catch(() => { marked[channel] = false; });
+  }
+
+  if (copyBtn) copyBtn.addEventListener('click', function() {
+    const text = msg.value;
+    const done = () => {
+      copyBtn.classList.add('is-done');
+      copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied — paste it into RingCentral';
+      markContacted('sms');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => { msg.select(); document.execCommand('copy'); done(); });
+    } else { msg.select(); document.execCommand('copy'); done(); }
+  });
+  if (openSms) openSms.addEventListener('click', function() {
+    this.href = 'sms:+' + cfg.phone + '?&body=' + encodeURIComponent(msg.value);
+    markContacted('sms');
+  });
+  if (callBtn && cfg.phone) callBtn.addEventListener('click', function() { markContacted('call'); });
+  if (emailBtn && cfg.email) emailBtn.addEventListener('click', function() {
+    const body = priced(cfg.email_body) || cfg.email_body.replace('$PRICE', '$');
+    this.href = 'mailto:' + cfg.email + '?subject=' + encodeURIComponent(cfg.email_subject) + '&body=' + encodeURIComponent(body);
+    markContacted('email');
+  });
+  if (phoneEl) phoneEl.addEventListener('click', function() {
+    if (navigator.clipboard) navigator.clipboard.writeText('+' + cfg.phone);
+    const was = this.textContent; this.textContent = 'Copied'; setTimeout(() => { this.textContent = was; }, 1200);
+  });
+
+  const toggle = document.getElementById('qnTouchesToggle');
+  const list = document.getElementById('qnTouches');
+  if (toggle && list) toggle.addEventListener('click', function() {
+    const open = list.hasAttribute('hidden');
+    if (open) list.removeAttribute('hidden'); else list.setAttribute('hidden', '');
+    this.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+})();
+
+/* Quote needed — stop the automatic texts once a person has taken over */
+document.querySelectorAll('.qn-stop-seq').forEach(btn => {
+  btn.addEventListener('click', function() {
+    if (!confirm('Stop the automatic follow-up texts for this lead? You are taking it over.')) return;
+    document.querySelectorAll('.qn-stop-seq').forEach(b => b.disabled = true);
+    fetch('{% url "task_lead_stop_sequence" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({task_id: parseInt(this.dataset.taskId)}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) { location.reload(); }
+      else { alert(data.error || 'Could not stop the sequence'); document.querySelectorAll('.qn-stop-seq').forEach(b => b.disabled = false); }
+    })
+    .catch(err => { alert('Error: ' + err); document.querySelectorAll('.qn-stop-seq').forEach(b => b.disabled = false); });
+  });
+});
+
+/* Quote needed — mark the lead lost from here */
+document.getElementById('qnMarkLost')?.addEventListener('click', function() {
+  if (!confirm('Mark this lead as lost? Any automated follow-ups stop.')) return;
+  fetch('{% url "leads_board_mark_lost" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({lead_id: parseInt(this.dataset.leadId)}),
+  })
+  .then(r => r.json())
+  .then(data => { if (data.success) location.reload(); else alert(data.message || data.error || 'Could not mark lost'); })
+  .catch(err => alert('Error: ' + err));
+});
 
 /* Task actions — Complete */
 document.querySelectorAll('.btn-task-action').forEach(btn => {

@@ -931,6 +931,25 @@ class QuoteCalculatorEndpointTests(RateCardFixtureMixin, TestCase):
     def test_anonymous_is_redirected(self):
         self.assertEqual(self._post().status_code, 302)
 
+    def test_a_caller_that_asks_for_caching_pays_for_one_distance_lookup(self):
+        """The quote-needed task page sends `cache: true`: the same route is
+        priced on every open of the task, and it should cost one Distance
+        Matrix call, not one per open. The calculator page never asks for it."""
+        from django.core.cache import cache
+        cache.clear()
+        self.client.force_login(self.staff)
+        with patch(
+            "drivers.utils.get_drive_time", return_value=self._drive("20.1 mi", 1680)
+        ) as lookup:
+            first = self._post(cache=True).json()
+            again = self._post(cache=True).json()
+            self.assertEqual(lookup.call_count, 1)
+            self.assertEqual(first["price"], again["price"])
+            # Without the flag, the drive time is measured afresh.
+            self._post()
+            self.assertEqual(lookup.call_count, 2)
+        cache.clear()
+
     def test_ordinary_staff_dispatcher_can_use_it(self):
         """Opened to all dispatchers on 2026-07-29. The page's standing
         "Demo - still in progress" banner is what makes that safe while rates

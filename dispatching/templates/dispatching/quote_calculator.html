@@ -659,6 +659,28 @@
           });
       });
 
+      // Arriving from a "quote needed" task: the route, car and trip type come
+      // in the address bar, and the price is worked out without another click.
+      (function prefillFromQuery() {
+          const q = new URLSearchParams(window.location.search);
+          const pickup = (q.get('pickup') || '').trim();
+          const dropoff = (q.get('dropoff') || '').trim();
+          if (!pickup && !dropoff) return;
+          pickupInput.value = pickup;
+          dropoffInput.value = dropoff;
+          const vehicle = q.get('vehicle');
+          if (vehicle && Array.from(vehicleSelect.options).some(o => o.value === vehicle)) {
+              vehicleSelect.value = vehicle;
+          }
+          const trip = q.get('trip');
+          if (trip === 'roundtrip' || trip === 'oneway') {
+              tripTypeBtns.forEach(btn => {
+                  if (btn.dataset.value === trip) btn.click();
+              });
+          }
+          if (pickup && dropoff) calculateBtn.click();
+      })();
+
       // ── Copy the quote for pasting into email or SMS ──
       document.getElementById('copy-btn').addEventListener('click', function() {
           if (!lastQuote) return;

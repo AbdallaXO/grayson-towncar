@@ -15,6 +15,7 @@ from django.db import transaction
 import stripe
 import stripe.error
 import logging
+import hashlib
 import json
 import threading
 import uuid
@@ -20747,29 +20748,53 @@ def quote_calculator_api(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid request"}, status=400)
 
-    pickup = (data.get("pickup") or "").strip()
-    dropoff = (data.get("dropoff") or "").strip()
-    vehicle_type = data.get("vehicle") or "towncar"
-    trip_type = data.get("trip_type") or "oneway"
+    return JsonResponse(price_trip(
+        pickup=(data.get("pickup") or "").strip(),
+        dropoff=(data.get("dropoff") or "").strip(),
+        vehicle_type=data.get("vehicle") or "towncar",
+        trip_type=data.get("trip_type") or "oneway",
+        use_cache=bool(data.get("cache")),
+    ))
 
+
+def price_trip(pickup, dropoff, vehicle_type="towncar", trip_type="oneway", use_cache=False):
+    """Price a trip from two addresses. The calculator page, the quote-needed
+    task page and the quote-request pricer (ops/quote_pricing.py) all get their
+    number from here, so a guest is never quoted two different figures for the
+    same route by two different screens.
+
+    Returns the JSON-ready payload the calculator renders, or {"error": ...}.
+    Costs one Distance Matrix call (two on a long trip), unless `use_cache` is
+    set: then the answer is remembered for six hours per route, which is what
+    a task page opened five times wants. The calculator page never asks for it —
+    a dispatcher re-running a quote expects a fresh drive time.
+    """
     if not pickup or not dropoff:
-        return JsonResponse({"error": "Both addresses are required."})
+        return {"error": "Both addresses are required."}
     if vehicle_type not in quote_engine.VEHICLE_RATES:
-        return JsonResponse(
-            {"error": f"No quote rates are configured for '{vehicle_type}'."}
-        )
+        return {"error": f"No quote rates are configured for '{vehicle_type}'."}
+
+    from django.core.cache import cache as _cache
+    cache_key = None
+    if use_cache:
+        cache_key = "quote-calc:" + hashlib.sha1(
+            f"{pickup.lower()}|{dropoff.lower()}|{vehicle_type}|{trip_type}".encode()
+        ).hexdigest()
+        cached = _cache.get(cache_key)
+        if cached:
+            return cached
 
     from drivers.utils import get_drive_time
 
     drive_info = get_drive_time(pickup, dropoff)
     if not drive_info:
-        return JsonResponse({
+        return {
             "error": "Could not calculate distance. Check the addresses and try again."
-        })
+        }
 
     miles = quote_engine.parse_distance_miles(drive_info.get("distance_text"))
     if miles is None:
-        return JsonResponse({"error": "Could not read the distance for that route."})
+        return {"error": "Could not read the distance for that route."}
 
     duration_seconds = drive_info.get("duration_seconds")
     minutes = int(round(duration_seconds / 60)) if duration_seconds else None
@@ -20840,7 +20865,7 @@ def quote_calculator_api(request):
         )
     except (KeyError, ValueError) as exc:
         logger.warning("Quote calculator failed for %s -> %s: %s", pickup, dropoff, exc)
-        return JsonResponse({"error": "Could not price that trip."})
+        return {"error": "Could not price that trip."}
 
     payload = _quote_result_to_json(selected)
     payload.update({
@@ -20872,7 +20897,9 @@ def quote_calculator_api(request):
         ),
         "all_vehicles": [_quote_result_to_json(r) for r in all_vehicles],
     })
-    return JsonResponse(payload)
+    if cache_key:
+        _cache.set(cache_key, payload, 6 * 60 * 60)
+    return payload
 
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -1793,6 +1793,456 @@ def _build_flight_verify_context(task):
     }
 
 
+def _build_quote_needed_context(task):
+    """A "QUOTE NEEDED" task: a guest asked the website for a price on a route
+    the rate card cannot quote, and a person has to send one. The page used to
+    show the raw description — five lines of text — and nothing about the car.
+    This puts the whole request on one screen: who, the route, the date and how
+    soon, the vehicle they picked (with the picture and what it holds), what
+    automation has already sent them, every quote on file, and a calculator
+    link prefilled with the route so pricing it is one click.
+    """
+    from urllib.parse import quote_plus, urlencode
+    from django.templatetags.static import static
+    from django.urls import reverse
+    from django.utils.timesince import timesince
+
+    lead = task.lead
+    if lead is None:
+        return {}
+    now = timezone.now()
+    today = timezone.localdate()
+    first = (lead.first_name or "").strip() or "the guest"
+    full_name = f"{lead.first_name} {lead.last_name}".strip() or "Guest"
+
+    # ── When ──
+    days_until = (lead.pickup_date - today).days if lead.pickup_date else None
+    if days_until is None:
+        when_relative, when_tone = "no date given", "muted"
+    elif days_until < 0:
+        when_relative, when_tone = f"{-days_until} day{'s' if days_until != -1 else ''} ago", "muted"
+    elif days_until == 0:
+        when_relative, when_tone = "today", "red"
+    elif days_until == 1:
+        when_relative, when_tone = "tomorrow", "red"
+    elif days_until <= 3:
+        when_relative, when_tone = f"in {days_until} days", "red"
+    elif days_until <= 14:
+        when_relative, when_tone = f"in {days_until} days", "amber"
+    else:
+        when_relative, when_tone = f"in {days_until} days", "ok"
+
+    # ── Vehicle ──
+    vehicle = lead.vehicle
+    vehicle_image = ""
+    vehicle_label = ""
+    if vehicle is not None:
+        vehicle_label = vehicle.get_vehicle_type_display()
+        if getattr(vehicle, "image", None):
+            try:
+                vehicle_image = vehicle.image.url
+            except Exception:
+                vehicle_image = ""
+        if not vehicle_image:
+            from dispatching.views import QUOTE_VEHICLE_IMAGES
+            path = QUOTE_VEHICLE_IMAGES.get(vehicle.vehicle_type)
+            vehicle_image = static(path) if path else ""
+
+    # ── Source ──
+    source = (lead.utm_source or "").strip()
+    source_label = {
+        "google": "Google Ads", "meta": "Facebook / Instagram", "bing": "Bing",
+        "organic": "Organic search", "direct": "Direct",
+    }.get(source.lower(), source.replace("_", " ").title() if source else "")
+    if not source_label:
+        source_label = f"via {lead.referrer_host}" if lead.referrer_host else "Direct on the website"
+
+    # ── What automation has already sent ──
+    touches = []
+    for a in lead.activities.all().order_by("-created_at")[:12]:
+        touches.append({
+            "when": a.created_at,
+            "label": a.get_activity_type_display(),
+            "text": a.description,
+            "tone": {
+                "reply_received": "ok", "converted": "ok",
+                "sms_failed": "red", "sequence_stopped": "muted",
+            }.get(a.activity_type, "muted"),
+            "icon": {
+                "sms_sent": "bi-chat-dots", "sms_failed": "bi-chat-x",
+                "reply_received": "bi-reply-fill", "converted": "bi-check-circle-fill",
+                "status_change": "bi-arrow-repeat", "sequence_started": "bi-play-circle",
+                "sequence_stopped": "bi-stop-circle", "sequence_completed": "bi-flag",
+            }.get(a.activity_type, "bi-dot"),
+        })
+    for f in lead.follow_up_tasks.filter(status="sent").exclude(message_body="").order_by("-sent_at")[:6]:
+        touches.append({
+            "when": f.sent_at or f.scheduled_at,
+            "label": f"Follow-up {f.step_number} sent",
+            "text": f.message_body,
+            "tone": "muted",
+            "icon": "bi-send",
+        })
+    touches.sort(key=lambda t: t["when"] or now, reverse=True)
+
+    # ── Quotes on file ──
+    quotes = list(lead.quotes.select_related("vehicle").order_by("-created_at")[:8])
+
+    # ── Every message that actually reached them, with its full text, in order ──
+    # The first text is only recorded in the sync log (the step-1 row holds a
+    # placeholder); steps 2-6 keep their body on the follow-up row; a reply's
+    # body lives on its activity; the quote email is a template, so it is
+    # described rather than quoted.
+    from ghl_integration.models import FollowUpSequence, FollowUpTask, GHLSyncLog
+    from ghl_integration.templates_engine import render_follow_up_message, template_needs_price
+
+    sent = []
+    for log in lead.sync_logs.filter(action="send_sms", status="success").order_by("created_at"):
+        body = (log.request_payload or {}).get("message") or ""
+        if body:
+            sent.append({"kind": "text", "who": "Automatic text 1", "when": log.resolved_at or log.created_at, "body": body.strip()})
+    for f in lead.follow_up_tasks.filter(status="sent").order_by("sent_at"):
+        if f.step_number == 1 or not (f.message_body or "").strip() or f.message_body.startswith("(initial SMS"):
+            continue
+        label = "Pre-pickup text" if f.step_number >= 6 else f"Automatic text {f.step_number}"
+        sent.append({"kind": "text", "who": label, "when": f.sent_at, "body": f.message_body.strip()})
+    if lead.initial_email_sent:
+        sent.append({
+            "kind": "email", "who": "Quote email", "when": lead.initial_email_sent_at,
+            "body": (
+                "The website's quote email: the trip details"
+                + (" with the website price" if lead.estimated_price else ", with no price shown because there was no online rate,")
+                + " and a Book Now link. Sent because a text could not be delivered."
+            ),
+        })
+    for a in lead.activities.filter(activity_type="reply_received").order_by("created_at"):
+        body = (a.metadata or {}).get("message_body") or a.description.replace("SMS reply received: ", "")
+        sent.append({"kind": "reply", "who": f"{first} replied", "when": a.created_at, "body": body.strip()})
+    sent.sort(key=lambda m: m["when"] or now)
+
+    # ── What automation still plans to send, rendered as it would go out ──
+    upcoming = []
+    for f in lead.follow_up_tasks.filter(status="pending").order_by("scheduled_at"):
+        row = (
+            FollowUpSequence.objects.filter(step_number=f.step_number, segment=f.segment, is_active=True).first()
+            or FollowUpSequence.objects.filter(step_number=f.step_number, segment="general", is_active=True).first()
+        )
+        if row is None:
+            continue
+        blocked = template_needs_price(row.message_template) and not lead.estimated_price
+        upcoming.append({
+            "step": f.step_number,
+            "when": f.scheduled_at,
+            "body": render_follow_up_message(row.message_template, lead),
+            "skipped": blocked,
+            "why": "Skipped for this lead: it quotes a website price and there is none." if blocked else "",
+        })
+    next_auto = next((u["when"] for u in upcoming if not u["skipped"]), None)
+
+    nudge_note = ""
+    if (
+        lead.phone and not lead.sms_opt_out and lead.pickup_date and days_until is not None
+        and days_until > 3 and not lead.converted
+        and not lead.follow_up_tasks.filter(step_number=6).exists()
+    ):
+        nudge_note = (
+            "Two to three days before the trip a final 'your trip is coming up' text goes "
+            "out if they still have not booked — "
+            + ("but it quotes the website price, so for this lead it is skipped."
+               if not lead.estimated_price else "it quotes the website price.")
+        )
+
+    # ── Prefilled calculator ──
+    calc_params = {
+        "pickup": lead.pickup_location or "",
+        "dropoff": lead.dropoff_location or "",
+        "trip": "roundtrip" if lead.trip_type == "roundtrip" else "oneway",
+    }
+    if vehicle is not None:
+        calc_params["vehicle"] = vehicle.vehicle_type
+    calculator_url = reverse("quote_calculator") + "?" + urlencode(calc_params)
+
+    # ── Where this lead stands, in sentences a dispatcher can read at a glance ──
+    def _ago(dt):
+        return timesince(dt, now).split(",")[0] + " ago" if dt else ""
+
+    sms_sent = sum(1 for a in lead.activities.all() if a.activity_type == "sms_sent")
+    sms_failed = sum(1 for a in lead.activities.all() if a.activity_type == "sms_failed")
+    follow_ups_sent = lead.follow_up_tasks.filter(status="sent").count()
+    texts_out = sms_sent + follow_ups_sent
+    last_text_at = None
+    for t in touches:
+        if t["icon"] in ("bi-chat-dots", "bi-send") and t["when"]:
+            last_text_at = t["when"] if last_text_at is None else max(last_text_at, t["when"])
+    standing = []
+    if lead.sms_opt_out:
+        standing.append({"tone": "bad", "icon": "bi-chat-x-fill",
+                         "text": "Opted out of texts. Do not text — call or email instead."})
+    if texts_out:
+        standing.append({
+            "tone": "muted", "icon": "bi-chat-dots-fill",
+            "text": f"Texted {texts_out} time{'s' if texts_out != 1 else ''} by the automatic follow-ups"
+                    + (f", last one {_ago(last_text_at)}." if last_text_at else "."),
+        })
+    else:
+        standing.append({"tone": "warn", "icon": "bi-chat-dots",
+                         "text": "No text has gone out yet."})
+    if sms_failed:
+        standing.append({"tone": "bad", "icon": "bi-exclamation-triangle-fill",
+                         "text": f"{sms_failed} text{'s' if sms_failed != 1 else ''} failed to send."})
+    if lead.initial_email_sent:
+        standing.append({"tone": "muted", "icon": "bi-envelope-fill",
+                         "text": f"Welcome email sent {_ago(lead.initial_email_sent_at)}." if lead.initial_email_sent_at else "Welcome email sent."})
+    else:
+        standing.append({"tone": "muted", "icon": "bi-envelope",
+                         "text": "No email has gone out."})
+    if lead.has_replied:
+        standing.append({"tone": "ok", "icon": "bi-reply-fill",
+                         "text": f"They replied {_ago(lead.last_reply_at)}. Read it in GoHighLevel before you text." if lead.last_reply_at else "They replied. Read it in GoHighLevel before you text."})
+    else:
+        standing.append({"tone": "muted", "icon": "bi-reply",
+                         "text": "No reply from them yet."})
+    if lead.contact_attempts or lead.last_contact_date:
+        standing.append({
+            "tone": "ok", "icon": "bi-person-check-fill",
+            "text": f"A person last reached out {_ago(lead.last_contact_date)}" if lead.last_contact_date else "A person has reached out",
+        })
+        standing[-1]["text"] += f" ({lead.contact_attempts} attempt{'s' if lead.contact_attempts != 1 else ''})." if lead.contact_attempts else "."
+    else:
+        standing.append({"tone": "warn", "icon": "bi-person-dash",
+                         "text": "Nobody from the team has contacted them yet. Texting from here records it."})
+    if lead.sequence_active:
+        standing.append({"tone": "muted", "icon": "bi-robot",
+                         "text": "Automatic follow-ups are still running. Marking the lead lost stops them."})
+
+    # ── The text, ready to send. $PRICE is filled in on the page. ──
+    date_str = (
+        lead.pickup_date.strftime("%A, %B ") + str(lead.pickup_date.day)
+        if lead.pickup_date else "your travel date"
+    )
+    trip_word = "round-trip" if lead.trip_type == "roundtrip" else "one-way"
+    ride = f"{trip_word} {vehicle_label}" if vehicle_label else f"{trip_word} ride"
+    route = f"from {lead.pickup_location or 'your pickup'} to {lead.dropoff_location or 'your drop-off'}"
+    sms_with_price = (
+        f"Hi {first}, this is Grayson Towncar — thank you for your quote request. "
+        f"Your {ride} {route} on {date_str} comes to $PRICE. "
+        f"Reply to this text or call us and we'll hold the car for you."
+    )
+    sms_holding = (
+        f"Hi {first}, this is Grayson Towncar — thank you for your quote request. "
+        f"We're pricing your {ride} {route} on {date_str} now and will text you "
+        f"the price shortly."
+    )
+    email_subject = f"Your Grayson Towncar quote — {lead.pickup_location or 'your trip'}"
+    email_body = (
+        f"Hi {first},\n\nThank you for your quote request.\n\n"
+        f"{ride[0].upper() + ride[1:]}\nFrom: {lead.pickup_location or '—'}\n"
+        f"To: {lead.dropoff_location or '—'}\nDate: {date_str}\n\n"
+        f"Your price: $PRICE\n\n"
+        f"Reply to this email or call us and we'll hold the car for you.\n\n"
+        f"Grayson Towncar"
+    )
+    meta_price = task.metadata or {}
+    phone_digits = "".join(ch for ch in (lead.phone or "") if ch.isdigit())
+    if len(phone_digits) == 10:
+        phone_digits = "1" + phone_digits
+    phone_pretty = (
+        f"({phone_digits[1:4]}) {phone_digits[4:7]}-{phone_digits[7:]}"
+        if len(phone_digits) == 11 else (lead.phone or "")
+    )
+
+    return {
+        "is_quote_needed": True,
+        "qn_lead": lead,
+        "qn_name": full_name,
+        "qn_first": first,
+        "qn_asked_ago": timesince(lead.created_at, now) if lead.created_at else "",
+        "qn_source": source_label,
+        "qn_status": lead.get_status_display(),
+        "qn_status_key": lead.status,
+        "qn_segment": lead.get_segment_display() if lead.segment else "",
+        "qn_days_until": days_until,
+        "qn_when_relative": when_relative,
+        "qn_when_tone": when_tone,
+        "qn_trip_type": "Round trip" if lead.trip_type == "roundtrip" else "One way",
+        "qn_vehicle": vehicle,
+        "qn_vehicle_label": vehicle_label,
+        "qn_vehicle_image": vehicle_image,
+        "qn_touches": touches,
+        "qn_standing": standing,
+        "qn_sent": sent,
+        "qn_upcoming": upcoming,
+        "qn_next_auto": next_auto,
+        "qn_nudge_note": nudge_note,
+        "qn_sequence_active": bool(lead.sequence_active),
+        "qn_quotes": quotes,
+        "qn_calculator_url": calculator_url,
+        "qn_phone_digits": phone_digits,
+        "qn_phone_pretty": phone_pretty,
+        "qn_phone_link": f"tel:+{phone_digits}" if phone_digits else "",
+        "qn_email": lead.email or "",
+        "qn_sms_with_price": sms_with_price,
+        "qn_compose": {
+            "task_id": task.id,
+            # Priced when the request came in (ops/quote_pricing.py). The page
+            # shows this at once; only a task with no stored price asks the
+            # engine live.
+            "priced": (
+                {
+                    "price": meta_price["suggested_price"],
+                    "source_label": meta_price.get("price_source_label") or "Estimate",
+                    "card_route": meta_price.get("price_card_route"),
+                    "distance_text": meta_price.get("distance_text"),
+                    "duration_text": meta_price.get("duration_text"),
+                    "internal": meta_price.get("price_internal") or {},
+                    "notes": meta_price.get("price_notes") or [],
+                    "gratuity_mandatory": bool(meta_price.get("gratuity_mandatory")),
+                    "priced_at": meta_price.get("priced_at"),
+                }
+                if meta_price.get("suggested_price") else None
+            ),
+            "price_error": meta_price.get("price_error") if not meta_price.get("suggested_price") else None,
+            "price_request": (
+                {
+                    "pickup": lead.pickup_location,
+                    "dropoff": lead.dropoff_location,
+                    "vehicle": vehicle.vehicle_type if vehicle is not None else "towncar",
+                    "trip_type": "roundtrip" if lead.trip_type == "roundtrip" else "oneway",
+                    "cache": True,
+                }
+                if lead.pickup_location and lead.dropoff_location else None
+            ),
+            "phone": phone_digits,
+            "email": lead.email or "",
+            "sms_with_price": sms_with_price,
+            "sms_holding": sms_holding,
+            "email_subject": email_subject,
+            "email_body": email_body,
+            "opted_out": bool(lead.sms_opt_out),
+        },
+        "qn_admin_url": f"/admin/reservations/lead/{lead.id}/change/",
+        "qn_lost": lead.status == "lost",
+        "qn_converted": bool(lead.converted) or lead.status == "converted",
+    }
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+@require_POST
+def task_lead_stop_sequence(request):
+    """A person has taken this lead over: stop the automatic follow-up texts so
+    the guest is not told 'still looking?' the day after a human sent a price.
+    Uses the sequence's own cancel path, so the lead's record shows who stopped
+    it and why, exactly as a reply or a booking would."""
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    task = get_object_or_404(OperationalTask.objects.select_related("lead"), id=data.get("task_id"))
+    if task.lead is None:
+        return JsonResponse({"success": False, "error": "This task has no lead behind it."}, status=400)
+
+    from ghl_integration.models import LeadActivity
+    from ghl_integration.tasks import cancel_lead_sequence
+
+    who = request.user.get_full_name() or request.user.username
+    result = cancel_lead_sequence(task.lead_id, reason="manual")
+    LeadActivity.objects.create(
+        lead=task.lead,
+        activity_type=LeadActivity.ActivityType.SEQUENCE_STOPPED,
+        description=f"{who} stopped the automatic follow-ups from the quote task.",
+        metadata={"task_id": task.id, "by": request.user.id, "cancelled": result.get("cancelled", 0)},
+    )
+    return JsonResponse({
+        "success": True,
+        "cancelled": result.get("cancelled", 0),
+        "message": (
+            f"Stopped — {result.get('cancelled', 0)} scheduled text"
+            f"{'s' if result.get('cancelled', 0) != 1 else ''} cancelled."
+        ),
+    })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+@require_POST
+def task_lead_contacted(request):
+    """The dispatcher texted, called or emailed the lead behind a task — record
+    it. A quote request is a lead form: the moment someone from the team
+    reaches out, the lead is "contacted", the attempt is on the lead's record,
+    the task shows the touch in its communication history, and the task
+    belongs to the person who did it. Nothing is sent from here — the phone or
+    mail app does that — so this only writes what the person just did.
+    """
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    channel = (data.get("channel") or "").strip()
+    if channel not in ("sms", "call", "email"):
+        return JsonResponse({"success": False, "error": "Channel must be sms, call or email."}, status=400)
+
+    task = get_object_or_404(OperationalTask.objects.select_related("lead"), id=data.get("task_id"))
+    lead = task.lead
+    if lead is None:
+        return JsonResponse({"success": False, "error": "This task has no lead behind it."}, status=400)
+    if channel == "sms" and lead.sms_opt_out:
+        return JsonResponse({"success": False, "error": f"{lead.first_name or 'This guest'} opted out of texts. Call or email instead."}, status=400)
+
+    from ghl_integration.models import LeadActivity
+
+    now = timezone.now()
+    who = request.user.get_full_name() or request.user.username
+    verb = {"sms": "texted", "call": "called", "email": "emailed"}[channel]
+
+    update_fields = ["contact_attempts", "last_contact_date"]
+    lead.contact_attempts = (lead.contact_attempts or 0) + 1
+    lead.last_contact_date = now
+    if lead.status == "new":
+        lead.status = "contacted"
+        update_fields.append("status")
+    lead.save(update_fields=update_fields)
+
+    LeadActivity.objects.create(
+        lead=lead,
+        activity_type=LeadActivity.ActivityType.STATUS_CHANGE,
+        description=f"{who} {verb} {lead.first_name or 'the guest'} from the quote task.",
+        metadata={"task_id": task.id, "channel": channel, "by": request.user.id},
+    )
+
+    # A call's outcome is not known yet; the person logs it below. A text or
+    # email that just left the phone is a sent attempt.
+    if channel in ("sms", "email"):
+        log_communication(
+            task=task,
+            channel=CommunicationAttempt.Channel.SMS if channel == "sms" else CommunicationAttempt.Channel.EMAIL,
+            outcome=CommunicationAttempt.Outcome.SENT,
+            user=request.user,
+            notes=f"{verb.capitalize()} from the quote task",
+            contact_value=lead.phone if channel == "sms" else lead.email,
+        )
+
+    claimed = False
+    if task.is_open and task.assigned_to_id is None:
+        task.assigned_to = request.user
+        task.assigned_at = now
+        task.status = OperationalTask.Status.IN_PROGRESS
+        task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
+        StaffActivity.objects.create(
+            user=request.user, action_type=StaffActivity.ActionType.TASK_CLAIMED, task=task,
+        )
+        claimed = True
+
+    return JsonResponse({
+        "success": True,
+        "lead_status": lead.get_status_display(),
+        "contact_attempts": lead.contact_attempts,
+        "claimed": claimed,
+        "message": f"Marked contacted — {verb} by {who}.",
+    })
+
+
 def _build_payment_chase_context(task, request, comm_attempts):
     """
     Build extra context for payment_chase task detail: reservation payment
@@ -2420,6 +2870,8 @@ def task_detail_view(request, task_id):
         context.update(_build_afterhours_fee_context(task))
     elif task.task_type == OperationalTask.TaskType.TIGHT_TURN and task.leg:
         context.update(_build_tight_turn_context(task))
+    elif task.task_type == OperationalTask.TaskType.MANUAL and task.lead_id:
+        context.update(_build_quote_needed_context(task))
 
     # Conflict / tight-turn tasks get the redesigned "resolution ladder" page;
     # everything else keeps the standard ops task detail.

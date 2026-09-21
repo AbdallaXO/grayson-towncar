@@ -663,7 +663,7 @@ class QuoteFormHandlerView(View):
 
                         route_label = f"{pickup_location or '?'} → {dropoff_location or '?'}"
                         is_oneway = data.get("trip_type") == "1"
-                        create_task(
+                        quote_task = create_task(
                             task_type=OperationalTask.TaskType.MANUAL,
                             title=(
                                 f"QUOTE NEEDED — {lead.first_name} {lead.last_name}: "
@@ -681,6 +681,11 @@ class QuoteFormHandlerView(View):
                             lead=lead,
                             metadata={"source": "quote_form_no_rate"},
                         )
+                        # Price it now, off the request thread, so the task
+                        # opens with the number already in the text.
+                        if quote_task is not None:
+                            from ops.quote_pricing import price_quote_task_in_background
+                            price_quote_task_in_background(quote_task.id)
                     except Exception as e:
                         logger.error(
                             f"Could not create QUOTE NEEDED task for lead {lead.id}: {e}"
