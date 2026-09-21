@@ -716,6 +716,29 @@ class GoHighLevelService:
             logger.error(f"Exception sending SMS: {str(e)}", exc_info=True)
             return False
     
+    def add_note(self, contact_id: str, body: str) -> bool:
+        """Leave an internal note on a contact — staff-facing, never sent to
+        the guest. Used to put the engine's suggested price on the card of a
+        custom-route lead, so whoever answers their reply in GoHighLevel has
+        the number in front of them (2026-09-21: the QUOTE NEEDED task was
+        retired in favour of this)."""
+        if not self.api_key or not self.location_id:
+            logger.error("GHL API credentials not configured")
+            return False
+        if not contact_id or not (body or "").strip():
+            return False
+        try:
+            url = f"{self.base_url}/contacts/{contact_id}/notes"
+            response = requests.post(url, json={"body": body}, headers=self.headers, timeout=10)
+            if response.status_code in (200, 201):
+                logger.info(f"Added note to GHL contact {contact_id}")
+                return True
+            logger.error(f"Error adding note to contact {contact_id}: {response.status_code} - {response.text[:300]}")
+            return False
+        except Exception as e:
+            logger.error(f"Exception adding note to contact {contact_id}: {e}")
+            return False
+
     def add_tag(self, contact_id: str, tag: str) -> bool:
         """
         Add a tag to a contact in GHL.

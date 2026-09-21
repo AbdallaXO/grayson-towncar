@@ -168,8 +168,10 @@ class QuotePricingTests(TestCase):
 
 
 @override_settings(GHL_API_KEY="", GHL_LOCATION_ID="")
-class QuoteFormSchedulesPricingTests(TestCase):
-    """The public quote form files the task and hands it to the pricer."""
+class QuoteFormPricesTheLeadTests(TestCase):
+    """The public quote form no longer files a QUOTE NEEDED task (founder
+    decision 2026-09-21). It hands the lead to the pricer, which puts the number
+    on the GoHighLevel card and the lead's log for whoever answers the reply."""
 
     @classmethod
     def setUpTestData(cls):
@@ -180,8 +182,8 @@ class QuoteFormSchedulesPricingTests(TestCase):
         p.start()
         self.addCleanup(p.stop)
 
-    def test_a_custom_route_request_files_a_task_and_prices_it(self):
-        body = {
+    def _body(self):
+        return {
             "first_name": "Angeline", "last_name": "Owens",
             "email": "angeline@example.com", "phone": "7734167497",
             "pickup_location": "Sanford Int'l Airport",
@@ -189,13 +191,78 @@ class QuoteFormSchedulesPricingTests(TestCase):
             "pickup_date": (timezone.localdate() + timedelta(days=9)).isoformat(),
             "trip_type": "1", "vehicle_id": self.suv.id, "estimated_price": None,
         }
-        with patch("ops.quote_pricing.price_quote_task_in_background") as scheduled:
+
+    def test_a_custom_route_request_files_no_task_and_prices_the_lead(self):
+        with patch("ops.quote_pricing.price_lead_in_background") as scheduled:
             resp = self.client.post(
-                reverse("quote_form_handler"), json.dumps(body),
+                reverse("quote_form_handler"), json.dumps(self._body()),
                 content_type="application/json")
         self.assertEqual(resp.status_code, 200, resp.content[:200])
-        task = OperationalTask.objects.get(
-            task_type=OperationalTask.TaskType.MANUAL, title__startswith="QUOTE NEEDED")
-        scheduled.assert_called_once_with(task.id)
-        self.assertEqual(task.lead.first_name, "Angeline")
-        self.assertIsNone(task.lead.estimated_price)
+        lead = Lead.objects.get(first_name="Angeline")
+        scheduled.assert_called_once_with(lead.id)
+        self.assertFalse(OperationalTask.objects.filter(title__startswith="QUOTE NEEDED").exists())
+        self.assertIsNone(lead.estimated_price)
+
+
+@override_settings(GHL_API_KEY="k", GHL_LOCATION_ID="l")
+class PriceLeadTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+
+    def setUp(self):
+        p = patch("reservations.utils._run_in_background", lambda fn, *a, **k: None)
+        p.start()
+        self.addCleanup(p.stop)
+        self.lead = Lead.objects.create(
+            first_name="Angeline", last_name="Owens", phone="17734167497",
+            pickup_location="Sanford Int'l Airport", dropoff_location="Orlando International Airport",
+            pickup_date=timezone.localdate() + timedelta(days=9), trip_type="oneway",
+            vehicle=self.suv, ghl_contact_id="c123")
+
+    def test_the_price_goes_on_the_log_and_the_ghl_card(self):
+        from ghl_integration.models import LeadActivity
+        from ops.quote_pricing import price_lead
+        with patch("dispatching.views.price_trip", return_value=_payload()), \
+             patch("ghl_integration.services.GoHighLevelService.add_note", return_value=True) as note:
+            self.assertIsNotNone(price_lead(self.lead.id))
+        act = LeadActivity.objects.get(lead=self.lead)
+        self.assertTrue(act.description.startswith("Suggested price: $185 — one-way SUV Sanford Int'l Airport → Orlando International Airport"))
+        self.assertEqual(act.metadata["suggested_price"], "185")
+        self.assertEqual(act.metadata["price_internal"]["per_mile"], "3.00")
+        note.assert_called_once()
+        contact_id, body = note.call_args.args
+        self.assertEqual(contact_id, "c123")
+        self.assertIn("Suggested price: $185", body)
+        self.assertIn("no online rate", body)
+        # The website still did not quote it.
+        self.lead.refresh_from_db()
+        self.assertIsNone(self.lead.estimated_price)
+
+    def test_no_contact_yet_means_no_note_but_the_log_line_still_lands(self):
+        from ghl_integration.models import LeadActivity
+        from ops.quote_pricing import price_lead
+        Lead.objects.filter(pk=self.lead.pk).update(ghl_contact_id=None)
+        with patch("dispatching.views.price_trip", return_value=_payload()), \
+             patch("ghl_integration.services.GoHighLevelService.add_note") as note:
+            price_lead(self.lead.id, wait_for_contact=False)
+        note.assert_not_called()
+        self.assertEqual(LeadActivity.objects.filter(lead=self.lead).count(), 1)
+
+    def test_an_engine_error_is_written_as_a_log_line(self):
+        from ghl_integration.models import LeadActivity
+        from ops.quote_pricing import price_lead
+        with patch("dispatching.views.price_trip", return_value={"error": "Could not calculate distance."}), \
+             patch("ghl_integration.services.GoHighLevelService.add_note") as note:
+            self.assertIsNone(price_lead(self.lead.id))
+        note.assert_not_called()
+        act = LeadActivity.objects.get(lead=self.lead)
+        self.assertIn("No suggested price: Could not calculate distance.", act.description)
+
+    def test_the_note_posts_to_the_contact_notes_endpoint(self):
+        from ghl_integration.services import GoHighLevelService
+        with patch("ghl_integration.services.requests.post") as post:
+            post.return_value.status_code = 201
+            self.assertTrue(GoHighLevelService().add_note("c123", "Suggested price: $185"))
+        self.assertTrue(post.call_args.args[0].endswith("/contacts/c123/notes"))
+        self.assertEqual(post.call_args.kwargs["json"], {"body": "Suggested price: $185"})

@@ -6,6 +6,11 @@ title: A "quote needed" task opens on the text to send, and sending it marks the
 
 # A "quote needed" task opens on the text to send, and sending it marks the lead contacted
 
+> **Superseded the same day.** The founder retired the QUOTE NEEDED task
+> altogether: see [2026-09-21-quote-requests-answered-in-ghl.md](2026-09-21-quote-requests-answered-in-ghl.md).
+> This page still opens for the tasks that were already filed; no new ones
+> are created. Do not send the message below to the team.
+
 ## Send this to the team
 
 > Hey team — the "QUOTE NEEDED" tasks in Ops Control have a proper page now, and

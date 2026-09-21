@@ -651,45 +651,20 @@ class QuoteFormHandlerView(View):
                 # Save the lead
                 lead.save()
 
-                # Custom / unmatched route: no online rate, so the site couldn't quote
-                # it instantly. Rather than leaving the guest on the "we'll reach out
-                # shortly" promise (the first automated touch is 30 min-9 hrs out and
-                # price-less), file a HIGH ops task so a human sends a real price fast —
-                # these custom/long routes are the high-ticket jobs most worth chasing.
+                # Custom / unmatched route: no online rate, so the site could not
+                # quote it. The automatic first text still goes out and the reply
+                # lands in GoHighLevel, which the team sweeps all day — so the one
+                # thing the person answering needs is the price. Work it out in
+                # the background and put it on the contact card and the lead's
+                # log. (Until 2026-09-21 this filed a QUOTE NEEDED ops task as
+                # well; founder decision: the task was a second place to look at
+                # the same conversation, and it is gone.)
                 if not lead.estimated_price:
                     try:
-                        from ops.services import create_task
-                        from ops.models import OperationalTask
-
-                        route_label = f"{pickup_location or '?'} → {dropoff_location or '?'}"
-                        is_oneway = data.get("trip_type") == "1"
-                        quote_task = create_task(
-                            task_type=OperationalTask.TaskType.MANUAL,
-                            title=(
-                                f"QUOTE NEEDED — {lead.first_name} {lead.last_name}: "
-                                f"{route_label}"
-                            )[:200],
-                            description=(
-                                "Custom route with no online rate — send this guest a "
-                                "price.\n\n"
-                                f"Route: {route_label}\n"
-                                f"Trip: {'One way' if is_oneway else 'Round trip'}\n"
-                                f"Pickup date: {lead.pickup_date or '—'}\n"
-                                f"Phone: {lead.phone or '—'}   Email: {lead.email or '—'}"
-                            ),
-                            priority=OperationalTask.Priority.HIGH,
-                            lead=lead,
-                            metadata={"source": "quote_form_no_rate"},
-                        )
-                        # Price it now, off the request thread, so the task
-                        # opens with the number already in the text.
-                        if quote_task is not None:
-                            from ops.quote_pricing import price_quote_task_in_background
-                            price_quote_task_in_background(quote_task.id)
+                        from ops.quote_pricing import price_lead_in_background
+                        price_lead_in_background(lead.id)
                     except Exception as e:
-                        logger.error(
-                            f"Could not create QUOTE NEEDED task for lead {lead.id}: {e}"
-                        )
+                        logger.error(f"Could not schedule pricing for lead {lead.id}: {e}")
 
                 # Create the first quote for this lead
                 quote = Quote.objects.create(
