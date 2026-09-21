@@ -1433,6 +1433,7 @@ def schedule_board(request):
                 setattr(slot, _k, _v)
             for _k, _v in _slot_keoi(_sleg).items():
                 setattr(slot, _k, _v)
+            slot.flight_disruption, slot.flight_status = _flight_disruption(_sleg)
 
         # Affiliate capacity read-out (replaces the vehicle column on that board).
         # Mirrors AffiliateProfile's capacity model: a single-chain affiliate is one
@@ -1609,6 +1610,8 @@ def schedule_board(request):
             'vehicle_type': str(_vtype) if _vtype else '',
             'vehicle_abbr': _vabbr,
             'flight_info': _flight_str,
+            'flight_disruption': _flight_disruption(leg)[0],
+            'flight_status': _flight_disruption(leg)[1],
             'status': leg.status or '',
             'position_pct': _pos,
             'width_pct': _wid,
@@ -3342,6 +3345,24 @@ def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
             lane_ends.append(right)
         _set(s, 'lane_top', _get(s, 'lane') * (lane_height + gap) + top_pad)
     return max(len(lane_ends), 1)
+
+
+def _flight_disruption(leg):
+    """('cancelled' | 'diverted' | '', status text) for the job's tracked flight.
+
+    The tracker writes "Cancelled" and "Diverted" into Flight.status, and a
+    task is filed, but the board chip itself said nothing — the 4:42 PM job on
+    2026-09-21 sat on the board looking like any other arrival while its flight
+    had been cancelled. This is what the chip reads to shout about it.
+    """
+    fi = getattr(leg, "flight_information", None) if leg is not None else None
+    status = (getattr(fi, "status", "") or "").strip() if fi is not None else ""
+    low = status.lower()
+    if "cancel" in low:
+        return "cancelled", status
+    if "divert" in low:
+        return "diverted", status
+    return "", status
 
 
 def _slot_notes(leg):
