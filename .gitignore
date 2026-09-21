@@ -217,3 +217,6 @@ content/db_snapshot_meta.json
 
 # SOP engine: raw unredacted Cowork captures are never committed
 SOPS/*/captures/raw/
+
+# Incident exports with guest emails — never commit
+content/laptop_emails_*.csv

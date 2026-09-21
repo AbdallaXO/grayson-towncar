@@ -140,6 +140,9 @@ class UnpaidReminderEngine:
 
     def process(self) -> ReminderResult:
         """Walk all eligible reservations and act on each."""
+        if not self.dry_run and not settings.OUTBOUND_AUTOMATION_ENABLED:
+            logger.warning("Outbound automation is OFF (not production); reminder engine idle.")
+            return self.result
         for reservation in self._candidate_queryset():
             try:
                 self.process_one(reservation)
@@ -157,6 +160,8 @@ class UnpaidReminderEngine:
         ("sent:first" / "flagged" / "skipped:<reason>" / "dup_blocked" / None).
         Public so the management command can target one reservation by uuid.
         """
+        if not self.dry_run and not settings.OUTBOUND_AUTOMATION_ENABLED:
+            return self._skip(reservation, "automation_disabled")
         action = self._classify_and_act(reservation)
         self.result.actions.append(
             {

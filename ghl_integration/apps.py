@@ -25,6 +25,17 @@ class GhlIntegrationConfig(AppConfig):
         if running_management:
             return
 
+        # Production only. A laptop with the real credentials in .env and a stale
+        # database copy sent real guests reminders and texts (2026-09-21).
+        from django.conf import settings
+        if not settings.OUTBOUND_AUTOMATION_ENABLED:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Outbound automation is OFF (not production): the follow-up "
+                "scheduler will not start. Set OUTBOUND_AUTOMATION=1 to force it."
+            )
+            return
+
         is_runserver = 'runserver' in sys.argv
         is_gunicorn = 'gunicorn' in sys.modules
 

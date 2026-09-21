@@ -664,6 +664,13 @@ class GoHighLevelService:
             logger.error("GHL API credentials not configured")
             return False
 
+        # Production only — the one choke point every outbound text passes
+        # through. A laptop with the real key sent 151 texts on 2026-09-21.
+        from django.conf import settings
+        if not settings.OUTBOUND_AUTOMATION_ENABLED:
+            logger.warning("Outbound automation is OFF (not production); SMS not sent.")
+            return False
+
         if not contact_id or not message:
             logger.warning("Missing contact_id or message for SMS")
             return False

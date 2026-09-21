@@ -75,6 +75,9 @@ def start_wakeup_scheduler():
     if not settings.WAKEUP_CHECKS_ENABLED:
         logger.info("Wake-up checks disabled (WAKEUP_CHECKS_ENABLED) — sweeper not started")
         return
+    if not settings.OUTBOUND_AUTOMATION_ENABLED:
+        logger.warning("Outbound automation is OFF (not production); wake-up sweeper not started.")
+        return
 
     global _scheduler_started
     with _lock:

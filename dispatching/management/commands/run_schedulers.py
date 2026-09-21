@@ -27,6 +27,14 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
+        from django.conf import settings
+        if not settings.OUTBOUND_AUTOMATION_ENABLED:
+            self.stderr.write(self.style.ERROR(
+                "Outbound automation is OFF: this is not production. The schedulers "
+                "send real texts and emails. Set OUTBOUND_AUTOMATION=1 only against a "
+                "database you are allowed to act on."
+            ))
+            return
         # Imported lazily so `manage.py` startup (and other commands) don't spin
         # up scheduler modules.
         from ghl_integration.scheduler import start_scheduler

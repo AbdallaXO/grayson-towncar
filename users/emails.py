@@ -351,6 +351,14 @@ def send_payment_reminder(
             f"Reservation {reservation.uuid} has no customer email — cannot send reminder"
         )
 
+    # An AUTOMATED reminder is production's to send. Raising (not returning)
+    # keeps the engine from stamping the stage as sent.
+    from django.conf import settings
+    if automated and not settings.OUTBOUND_AUTOMATION_ENABLED:
+        raise RuntimeError(
+            "Outbound automation is OFF (not production); automated reminder not sent"
+        )
+
     subject = PAYMENT_REMINDER_SUBJECTS.get(stage, PAYMENT_REMINDER_SUBJECTS["manual"]).format(
         id=reservation.id
     )
