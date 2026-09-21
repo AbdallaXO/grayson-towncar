@@ -1,0 +1,79 @@
+{% comment %}
+One driver's turn checks for one date, folded into a single queue row.
+
+`bundle` comes from ops.views._fold_turn_rows: the member tasks (in pickup
+order), how many are red conflicts vs amber tight turns, a headline and a
+one-line summary that name the driver and the consequence, and the id lists
+the "all" buttons post. The member rows underneath are the ordinary task
+rows, hidden until the dispatcher opens the bundle, so every per-task action
+still works exactly as it does on a lone task.
+{% endcomment %}
+<div id="{{ bundle.dom_id }}" class="ops-row ops-bundle" data-bundle>
+  <div class="ops-row-edge edge-{{ bundle.priority_key }}"></div>
+
+  <div class="ops-row-icon {% if bundle.red %}icon-conflict{% else %}icon-payment{% endif %}">
+    <i class="bi {% if bundle.red %}bi-exclamation-octagon-fill{% else %}bi-hourglass-split{% endif %}"></i>
+  </div>
+
+  <div class="ops-row-body">
+    <div class="ops-row-info">
+      <div class="ops-row-title-line">
+        <button type="button" class="ops-row-title" data-bundle-toggle="{{ bundle.dom_id }}" aria-expanded="false" aria-controls="{{ bundle.dom_id }}-members">
+          <i class="bi bi-chevron-right bundle-chev"></i>
+          <span>{{ bundle.headline }}</span>
+        </button>
+        <span class="ops-bundle-count" title="Open tasks in this group">{{ bundle.count }}</span>
+        {% if bundle.is_overdue %}<span class="ops-tag tag-overdue"><i class="bi bi-clock-fill"></i> LATE</span>{% endif %}
+      </div>
+
+      <div class="ops-row-meta">
+        <span class="ops-meta">{{ bundle.summary }}</span>
+        <span class="ops-meta meta-mono">
+          <i class="bi bi-calendar-event"></i>
+          {{ bundle.leg_date|date:"D M j" }} · {{ bundle.first_time }}–{{ bundle.last_time }}
+        </span>
+        <span class="ops-meta meta-mono ops-bundle-mix">
+          {% if bundle.red %}<span class="mix-red">{{ bundle.red }} conflict{{ bundle.red|pluralize }}</span>{% endif %}
+          {% if bundle.red and bundle.amber %}·{% endif %}
+          {% if bundle.amber %}<span class="mix-amber">{{ bundle.amber }} tight</span>{% endif %}
+        </span>
+        {% if bundle.all_mine %}
+          <span class="ops-assignee"><i class="bi bi-person-check-fill"></i> All yours</span>
+        {% elif bundle.claimable_count == bundle.count %}
+          <span class="ops-assignee unassigned"><i class="bi bi-person-dash"></i> Unclaimed</span>
+        {% else %}
+          <span class="ops-assignee unassigned">
+            <i class="bi bi-people"></i>
+            {% if bundle.mine_count %}{{ bundle.mine_count }} yours{% endif %}
+            {% if bundle.mine_count and bundle.others %} · {% endif %}
+            {% if bundle.others %}{{ bundle.others|join:", " }}{% endif %}
+            {% if bundle.claimable_count %} · {{ bundle.claimable_count }} unclaimed{% endif %}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ops-row-actions">
+    {% if bundle.claimable_count %}
+      <button class="ops-act-lbl lbl-claim btn-bundle-action" data-action="claim" data-task-ids="{{ bundle.claimable_ids }}">
+        <i class="bi bi-person-check"></i> Claim all {{ bundle.claimable_count }}
+      </button>
+    {% endif %}
+    {% if bundle.mine_count %}
+      <button class="ops-act-lbl lbl-done btn-bundle-action" data-action="complete" data-task-ids="{{ bundle.mine_ids }}"
+              data-confirm="Complete all {{ bundle.mine_count }} of {{ bundle.driver_name }}'s turn checks {% if bundle.leg_date == today %}for today{% else %}for {{ bundle.leg_date|date:'l' }}{% endif %}? Nothing on the board changes — this only clears the tasks.">
+        <i class="bi bi-check-lg"></i> Complete all {{ bundle.mine_count }}
+      </button>
+    {% endif %}
+    <button class="ops-act-lbl" data-bundle-toggle="{{ bundle.dom_id }}" aria-expanded="false" aria-controls="{{ bundle.dom_id }}-members">
+      <i class="bi bi-list-ul"></i> <span data-bundle-cta data-show-label="Show {{ bundle.count }}">Show {{ bundle.count }}</span>
+    </button>
+  </div>
+</div>
+
+<div class="ops-bundle-members" id="{{ bundle.dom_id }}-members" data-bundle-members="{{ bundle.dom_id }}" hidden>
+  {% for task in bundle.tasks %}
+    {% include "dispatching/includes/_task_row.html" with task=task %}
+  {% endfor %}
+</div>

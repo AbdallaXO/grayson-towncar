@@ -75,6 +75,196 @@ def _is_staff(user):
     return user.is_staff or user.is_superuser
 
 
+# ── Turn checks fold into one row per driver per day ─────────────────────────
+# The scanner files one driver_conflict / tight_turn task per leg pair, and on
+# a busy next-day board that is a dozen rows for two drivers — measured at ~71
+# a day, two thirds of which close without anyone moving anything
+# (docs/scheduling-redesign/06_DAY_MANAGER.md §0.2). The tasks are left exactly
+# as they are (the auto-closer, the board flags and the advisor all key on
+# them); only the queue folds them so the rest of the day's work is readable.
+_TURN_TYPES = (
+    OperationalTask.TaskType.DRIVER_CONFLICT,
+    OperationalTask.TaskType.TIGHT_TURN,
+)
+_PRIORITY_KEYS = {1: "critical", 2: "high", 3: "medium", 4: "low"}
+
+
+def _fmt_clock(t):
+    return t.strftime("%I:%M %p").lstrip("0").lower() if t else ""
+
+
+def _day_phrase(day, today):
+    """'today' / 'tomorrow' / 'on Tue, Sep 22' — how a dispatcher says it."""
+    if day == today:
+        return "today"
+    if day == today + timedelta(days=1):
+        return "tomorrow"
+    return "on " + day.strftime("%a, %b ") + str(day.day)
+
+
+def _day_label(day, today):
+    """Section heading for a coming day: 'Tomorrow · Tue, Sep 22'."""
+    base = day.strftime("%a, %b ") + str(day.day)
+    if day == today + timedelta(days=1):
+        return "Tomorrow · " + base
+    return base
+
+
+def _turn_bundle_copy(driver_name, count, red, amber, day, today):
+    """Headline + one-line summary that names the person and the consequence."""
+    first = (driver_name or "").split(" ")[0] or "The driver"
+    headline = f"{driver_name} — {count} turns to check {_day_phrase(day, today)}"
+    if red and amber:
+        summary = (
+            f"{first} won't make {red} of them; "
+            f"{amber} {'is' if amber == 1 else 'are'} tight but makeable"
+        )
+    elif red:
+        summary = f"{first} won't make {'either' if red == 2 else 'any'} of them — move a job or farm one out"
+    else:
+        summary = f"All {amber} are tight but makeable — worth a glance, nothing to move yet"
+    return headline, summary
+
+
+def _fold_turn_rows(tasks, today, user_id):
+    """Turn a priority-sorted task list into queue rows.
+
+    Every task becomes {"kind": "task", ...} except driver_conflict / tight_turn
+    tasks that share a driver AND a pickup date with at least one other — those
+    become a single {"kind": "bundle", ...} row carrying the member tasks. A
+    driver-day with one task stays an ordinary row, so nothing changes for the
+    common case. Rows keep the order the tasks arrived in.
+    """
+    rows, bundles = [], {}
+    for t in tasks:
+        leg = t.leg if t.leg_id else None
+        if t.task_type in _TURN_TYPES and leg is not None:
+            meta = t.metadata or {}
+            driver_id = leg.driver_id or meta.get("driver_id")
+            driver_name = (
+                (str(leg.driver) if leg.driver_id else None)
+                or meta.get("driver_name")
+                or "No driver"
+            )
+            key = (leg.pickup_date, driver_id or driver_name)
+            b = bundles.get(key)
+            if b is None:
+                b = {
+                    "kind": "bundle",
+                    "driver_id": driver_id,
+                    "driver_name": driver_name,
+                    "leg_date": leg.pickup_date,
+                    "is_turn": True,
+                    "tasks": [],
+                }
+                bundles[key] = b
+                rows.append(b)
+            b["tasks"].append(t)
+            continue
+        rows.append({
+            "kind": "task",
+            "task": t,
+            "priority": t.priority,
+            "due_at": t.due_at,
+            "leg_date": leg.pickup_date if leg is not None else None,
+            "is_turn": False,
+        })
+
+    out = []
+    for r in rows:
+        if r["kind"] != "bundle":
+            out.append(r)
+            continue
+        ts = r["tasks"]
+        if len(ts) == 1:
+            t = ts[0]
+            out.append({
+                "kind": "task", "task": t, "priority": t.priority,
+                "due_at": t.due_at, "leg_date": r["leg_date"], "is_turn": True,
+            })
+            continue
+        ts.sort(key=lambda t: (t.leg.pickup_time, t.id))
+        red = sum(1 for t in ts if t.task_type == OperationalTask.TaskType.DRIVER_CONFLICT)
+        amber = len(ts) - red
+        headline, summary = _turn_bundle_copy(
+            r["driver_name"], len(ts), red, amber, r["leg_date"], today
+        )
+        claimable = [t.id for t in ts if t.assigned_to_id is None]
+        mine = [t.id for t in ts if t.assigned_to_id == user_id]
+        others = sorted({
+            (t.assigned_to.first_name or t.assigned_to.username)
+            for t in ts if t.assigned_to_id and t.assigned_to_id != user_id
+        })
+        r.update({
+            "dom_id": f"bundle-{r['leg_date'].isoformat()}-{r['driver_id'] or 'x'}",
+            "count": len(ts),
+            "red": red,
+            "amber": amber,
+            "priority": min(t.priority for t in ts),
+            "due_at": min(t.due_at for t in ts),
+            "is_overdue": any(t.is_overdue for t in ts),
+            "headline": headline,
+            "summary": summary,
+            "first_time": _fmt_clock(ts[0].leg.pickup_time),
+            "last_time": _fmt_clock(ts[-1].leg.pickup_time),
+            "task_ids": ",".join(str(t.id) for t in ts),
+            "claimable_ids": ",".join(str(i) for i in claimable),
+            "claimable_count": len(claimable),
+            "mine_ids": ",".join(str(i) for i in mine),
+            "mine_count": len(mine),
+            "all_mine": len(mine) == len(ts),
+            "others": others,
+        })
+        r["priority_key"] = _PRIORITY_KEYS.get(r["priority"], "low")
+        out.append(r)
+    return out
+
+
+_REFILING_TYPES = (
+    OperationalTask.TaskType.DRIVER_CONFLICT,
+    OperationalTask.TaskType.TIGHT_TURN,
+    OperationalTask.TaskType.FLIGHT_VERIFICATION,
+    OperationalTask.TaskType.AFTERHOURS_FEE,
+)
+
+
+def _came_back_count(now, days=7):
+    """How many scanner tasks in the last `days` were filed within a day of a
+    PERSON closing the same type on the same leg. This is the one number that
+    says whether looking turned into working: a hand-close that comes back was a
+    look that bought nothing. It should sit near zero; when it climbs, the
+    scanner is arguing with the dispatchers again."""
+    since = now - timedelta(days=days)
+    hand = (
+        OperationalTask.objects.filter(
+            task_type__in=_REFILING_TYPES,
+            status=OperationalTask.Status.COMPLETED,
+            resolved_by__isnull=False,
+            resolved_at__gte=since - timedelta(days=1),
+            leg__isnull=False,
+        )
+        .exclude(resolution_notes__startswith="Auto-closed")
+        .values_list("task_type", "leg_id", "resolved_at")
+    )
+    closes = defaultdict(list)
+    for ttype, leg_id, resolved_at in hand:
+        closes[(ttype, leg_id)].append(resolved_at)
+    if not closes:
+        return 0
+    refiled = OperationalTask.objects.filter(
+        task_type__in=_REFILING_TYPES,
+        created_at__gte=since,
+        leg_id__in={leg_id for _, leg_id in closes},
+    ).values_list("task_type", "leg_id", "created_at")
+    count = 0
+    for ttype, leg_id, created_at in refiled:
+        for resolved_at in closes.get((ttype, leg_id), ()):
+            if timedelta(0) <= created_at - resolved_at <= timedelta(days=1):
+                count += 1
+                break
+    return count
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_staff, login_url="login")
 def task_queue_view(request):
@@ -119,6 +309,8 @@ def task_queue_view(request):
             "leg__reservation",
             "leg__reservation__customer",
             "leg__flight_information",
+            "leg__driver",
+            "leg__driver__profile",
             "lead",
             "contact_form",
             "assigned_to",
@@ -238,18 +430,57 @@ def task_queue_view(request):
         (4, "low", "Low", "When time permits"),
     ]
     priority_groups = []
+    later_turn_days = []
+    later_turn_count = 0
     if lane != "completed":
+        rows = _fold_turn_rows(active_tasks, today, user_id)
+
+        # In the working lanes, turn checks for tomorrow and beyond fold into
+        # their own section under today's work. They are still open, still
+        # counted, still one click away — they just stop sitting between a
+        # dispatcher and the payment chase they came here to do. The Future
+        # Blockers lane is that view, so it keeps them in the main list.
+        main_rows, later_rows = rows, []
+        if lane in ("unclaimed", "mine", "others"):
+            main_rows, later_rows = [], []
+            for r in rows:
+                if r["is_turn"] and r["leg_date"] and r["leg_date"] > today:
+                    later_rows.append(r)
+                else:
+                    main_rows.append(r)
+
         for pval, key, label, hint in priority_config:
-            group_tasks = [t for t in active_tasks if t.priority == pval]
-            if not group_tasks:
+            group_rows = [r for r in main_rows if r["priority"] == pval]
+            if not group_rows:
                 continue
-            group_tasks.sort(key=lambda t: (t.due_at, t.task_type))
+            group_rows.sort(key=lambda r: (
+                r["due_at"],
+                r["task"].task_type if r["kind"] == "task" else "",
+            ))
             priority_groups.append({
                 "priority": pval,
                 "key": key,
                 "label": label,
                 "hint": hint,
-                "tasks": group_tasks,
+                "rows": group_rows,
+                "count": sum(
+                    r["count"] if r["kind"] == "bundle" else 1 for r in group_rows
+                ),
+            })
+
+        by_day = {}
+        for r in later_rows:
+            by_day.setdefault(r["leg_date"], []).append(r)
+        for day in sorted(by_day):
+            day_rows = sorted(by_day[day], key=lambda r: (r["priority"], r["due_at"]))
+            n = sum(r["count"] if r["kind"] == "bundle" else 1 for r in day_rows)
+            later_turn_count += n
+            later_turn_days.append({
+                "date": day,
+                "label": _day_label(day, today),
+                "rows": day_rows,
+                "count": n,
+                "driver_days": len(day_rows),
             })
 
     # ── "Next Up" anchor: the single most-urgent unclaimed task ─────────────
@@ -274,6 +505,7 @@ def task_queue_view(request):
     )
     total_open = sum(type_counts.values())
     overdue_count = summary_qs.filter(due_at__lt=now).count()
+    came_back_count = _came_back_count(now)
 
     ops_staff = list(
         User.objects.filter(is_staff=True, is_active=True)
@@ -300,6 +532,9 @@ def task_queue_view(request):
         "active_lane": lane,
         "lane_meta": lane_meta,
         "priority_groups": priority_groups,
+        "later_turn_days": later_turn_days,
+        "later_turn_count": later_turn_count,
+        "later_driver_days": sum(d["driver_days"] for d in later_turn_days),
         "active_tasks": active_tasks,
         "completed_today": completed_today,
         "completed_today_count": completed_today_count,
@@ -312,6 +547,7 @@ def task_queue_view(request):
         "type_counts": type_counts,
         "total_open": total_open,
         "overdue_count": overdue_count,
+        "came_back_count": came_back_count,
         "unclaimed_count": len(unclaimed),
         "mine_count": len(mine),
         "others_count": len(others),
@@ -371,6 +607,22 @@ def task_complete(request):
 
     if not task.is_open:
         return JsonResponse({"success": False, "error": "Task is not open"})
+
+    # An after-hours fee task is a money question, not a note. Measured over 60
+    # days: 88% of these ended with no fee on the leg, and 94% of the ones closed
+    # blank came straight back, because closing wrote nothing. The three real
+    # answers — charge, already collected, waive — each write a marker that makes
+    # the question stop, so those are the only ways to finish it.
+    if task.task_type == OperationalTask.TaskType.AFTERHOURS_FEE and task.leg_id:
+        return JsonResponse({
+            "success": False,
+            "needs_afterhours_decision": True,
+            "leg_id": task.leg_id,
+            "error": (
+                "Answer the fee question instead: charge it, mark it already "
+                "collected, or waive it. Closing it blank brings it back."
+            ),
+        })
 
     close_task(task, resolved_by=request.user, resolution_notes=notes)
 

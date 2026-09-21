@@ -8,6 +8,7 @@ against existing open tasks, and bulk-creates new ones.
 
 import logging
 from datetime import datetime, timedelta
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
@@ -69,6 +70,36 @@ TIGHT_TURN_ENABLED = True
 # apart, and a hotel-to-hotel turn isn't judged more leniently than an airport one.
 # Sourced from the one policy constant (pickup_policy.ARRIVAL_MEET_GRACE_MIN).
 TIGHT_TURN_RED_AFTER_MIN = pickup_policy.ARRIVAL_MEET_GRACE_MIN
+
+# ── Confirm before filing ───────────────────────────────────────────────────
+# Measured 2026-09-21 over 60 days (docs/scheduling-redesign/analysis/
+# 29_task_queue_audit.py): half of all same-day tight-turn tasks were gone within
+# one 30-minute scan tick whether a person closed them or not, and a third of the
+# "won't make it" conflicts resolved themselves the same way — the estimate moved,
+# the flight drifted back, the earlier job finished. A turn now has to be seen on
+# two consecutive scans before it becomes a task. The one exception is a RED turn
+# whose pickup is inside TURN_CONFIRM_URGENT_HOURS: there is no next tick to wait
+# for, so it files on first sight.
+TURN_CONFIRM_URGENT_HOURS = 2
+TURN_CONFIRM_TTL_SECONDS = 90 * 60   # a sighting older than this is forgotten
+
+# ── A hand-close means something ────────────────────────────────────────────
+# 38% of hand-closed turn tasks, 49% of flight tasks and 94% of after-hours fee
+# tasks were filed again within a day (same measurement), because closing set a
+# status and nothing else — the 2-hour cooldown ran out and the scanner saw the
+# same numbers. Every scanner task now carries a `fingerprint` of the facts it
+# describes, and a task a PERSON closed stays closed while that fingerprint is
+# unchanged. The moment a time, a driver or the flight moves, it is a new fact
+# and files again. Auto-closes (by the scanner or by a reassignment signal) do
+# not count as a dismissal.
+HAND_DISMISS_HOURS = 72
+
+# ── Payment chase only when the trip is close ───────────────────────────────
+# Unpaid bookings nobody touched paid themselves in a median 10 hours; the ones a
+# dispatcher chased took 43. The reminder engine already emails the guest from
+# two hours after booking. A dispatcher's call earns its place only when the trip
+# is close — before that the task is a row to look at, not a job.
+PAYMENT_CHASE_DAYS_AHEAD = 3
 
 # Priority matrix: (severity_tier, days_until_bucket) → Priority
 # severity_tier: "minor" (30-60min), "moderate" (60-120min), "major" (120+min)
@@ -299,6 +330,81 @@ def classify_turn(prev_leg, curr_leg, target_date):
         "travel": travel,
         "end_prev": end_prev,
     }
+
+
+def _pickup_dt(leg):
+    """The leg's booked pickup as an aware datetime in the dispatch timezone."""
+    return timezone.make_aware(
+        datetime.combine(leg.pickup_date, leg.pickup_time),
+        timezone.get_current_timezone(),
+    )
+
+
+def _turn_fingerprint(driver_id, leg_a, leg_b, tier, late_minutes):
+    """The facts a turn task describes, as one string. Same string = same problem.
+    Lateness is bucketed to ten minutes so a 6→8 minute wobble is not "new"."""
+    return (
+        f"{driver_id}|{leg_a.id}@{leg_a.pickup_time}|{leg_b.id}@{leg_b.pickup_time}"
+        f"|{tier}|{int(late_minutes) // 10}"
+    )
+
+
+def _flight_fingerprint(leg, mismatch):
+    """The facts a flight-verification task describes. Drift is bucketed to a
+    quarter hour: the airline feed wobbles by minutes all day, and that is not a
+    new fact worth a second task."""
+    return (
+        f"{leg.id}@{leg.pickup_time}|{mismatch.get('direction')}"
+        f"|{abs(int(mismatch.get('minutes') or 0)) // 15}"
+    )
+
+
+def _dismissed_by_hand(leg, task_type, fingerprint, now):
+    """True when a PERSON closed a task of this type on this leg, within
+    HAND_DISMISS_HOURS, describing exactly these facts. Their decision stands
+    until the facts change. Signal-driven closes carry a resolved_by too, but
+    their note starts with "Auto-closed", and they are not a dismissal."""
+    since = now - timedelta(hours=HAND_DISMISS_HOURS)
+    return (
+        OperationalTask.objects.filter(
+            leg=leg,
+            task_type=task_type,
+            status=OperationalTask.Status.COMPLETED,
+            resolved_by__isnull=False,
+            resolved_at__gte=since,
+            metadata__fingerprint=fingerprint,
+        )
+        .exclude(resolution_notes__startswith="Auto-closed")
+        .exists()
+    )
+
+
+def _seen_before(key, now):
+    """Two consecutive sightings before a scanner files. The first sighting is
+    remembered for TURN_CONFIRM_TTL_SECONDS and returns False; a sighting while
+    that memory is live returns True. Shared cache, so every worker agrees."""
+    if cache.get(key):
+        return True
+    cache.set(key, now.isoformat(), TURN_CONFIRM_TTL_SECONDS)
+    return False
+
+
+def _turn_confirmed(task_type, leg, other_leg, tier, now):
+    """A same-day turn files on the second consecutive sighting — unless it is
+    red and the pickup is inside TURN_CONFIRM_URGENT_HOURS, when it files now."""
+    if tier == "red" and _pickup_dt(leg) - now <= timedelta(hours=TURN_CONFIRM_URGENT_HOURS):
+        return True
+    return _seen_before(f"ops:turn-seen:{task_type}:{leg.id}:{other_leg.id}", now)
+
+
+def _flight_shift_confirmed(leg, mismatch, now):
+    """A same-day flight drift files on the second consecutive sighting. 72% of
+    same-day flight tasks closed themselves, median 19 minutes: the feed wobbled."""
+    key = (
+        f"ops:flight-seen:{leg.id}:{mismatch.get('direction')}"
+        f":{abs(int(mismatch.get('minutes') or 0)) // 15}"
+    )
+    return _seen_before(key, now)
 
 
 def _prior_same_driver_leg(leg, target_date):
@@ -750,6 +856,24 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
     # auto-close reconciliation can find and clear the right flag later.
     affected_leg = conflicting if worst["direction"] == "this_delays_other" else leg
 
+    # Earlier leg first, so the fingerprint matches the one the overlap scan
+    # writes for the same pair.
+    first, second = (
+        (leg, conflicting) if worst["direction"] == "this_delays_other" else (conflicting, leg)
+    )
+    task_type = (
+        OperationalTask.TaskType.TIGHT_TURN if worst["tier"] == "amber"
+        else OperationalTask.TaskType.DRIVER_CONFLICT
+    )
+    fingerprint = _turn_fingerprint(
+        driver.id, first, second, worst["tier"], worst["conflict_minutes"]
+    )
+    if _dismissed_by_hand(leg, task_type, fingerprint, now):
+        return 0
+    if not _turn_confirmed(task_type, affected_leg, conflicting if affected_leg is leg else leg,
+                           worst["tier"], now):
+        return 0
+
     metadata = {
         "driver_id": driver.id,
         "driver_name": driver_name,
@@ -764,6 +888,7 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
         "pickup_date": str(leg.pickup_date),
         "pickup_time": str(leg.pickup_time),
         "affected_leg_id": affected_leg.id,
+        "fingerprint": fingerprint,
     }
 
     if worst["tier"] == "amber":
@@ -828,11 +953,27 @@ def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now)
         return 0
 
     worst = max(conflicts, key=lambda c: c["conflict_minutes"])
+
+    # A tight-but-makeable turn on a FUTURE board is not filed. Measured over 60
+    # days: 321 of them, and not one ended in a driver move — 84% were later
+    # superseded by a red conflict (the same problem counted twice) and the rest
+    # went away on their own. The same-day scan still watches the turn on the
+    # day, when a wobble of a few minutes actually means something.
+    if worst["tier"] == "amber":
+        return 0
+
     conflicting = worst["conflicting_leg"]
     driver_name = str(driver)
     clears_str = worst["driver_clears_at"].strftime("%I:%M %p").lstrip("0")
     other_str = conflicting.pickup_time.strftime("%I:%M %p").lstrip("0")
     day_str = leg.pickup_date.strftime("%a %b %d")
+
+    first, second = (
+        (leg, conflicting) if worst["direction"] == "this_delays_other" else (conflicting, leg)
+    )
+    fingerprint = _turn_fingerprint(driver.id, first, second, "red", worst["conflict_minutes"])
+    if _dismissed_by_hand(leg, OperationalTask.TaskType.DRIVER_CONFLICT, fingerprint, now):
+        return 0
 
     metadata = {
         "driver_id": driver.id,
@@ -849,24 +990,8 @@ def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now)
         "pickup_time": str(leg.pickup_time),
         "days_until": days_until,
         "future_board": True,
+        "fingerprint": fingerprint,
     }
-
-    if worst["tier"] == "amber":
-        task = create_task(
-            task_type=OperationalTask.TaskType.TIGHT_TURN,
-            title=f"Tight turn — {driver_name} ({day_str})",
-            due_at=now + _DUE_DELAYS.get(OperationalTask.Priority.LOW, timedelta(hours=24)),
-            priority=OperationalTask.Priority.LOW,
-            description=(
-                f"{day_str}: flight {mismatch['label']}, so {driver_name} now clears "
-                f"~{clears_str} and is {worst['conflict_minutes']} min behind the {other_str} "
-                f"job — still makes it, but tight. Worth a glance before the day arrives."
-            ),
-            leg=leg,
-            reservation=leg.reservation,
-            metadata=metadata,
-        )
-        return 1 if task else 0
 
     # Red — genuinely won't make it. Priority is one step below the same-day
     # equivalent: real work but not a fire until it's inside 48 hours.
@@ -902,6 +1027,16 @@ def _handle_future_mismatch(leg, mismatch, customer_name, flight_label, days_unt
     with priority based on severity × proximity matrix.
     Returns 1 if task created, 0 otherwise.
     """
+    fingerprint = _flight_fingerprint(leg, mismatch)
+    # "Keeping this pickup time" is a decision. A person who closed this task
+    # while the flight said the same thing is not asked again.
+    if _dismissed_by_hand(leg, OperationalTask.TaskType.FLIGHT_VERIFICATION, fingerprint, now):
+        return 0
+    # On the day, the feed's estimate wobbles for most of the morning. Wait for
+    # the drift to still be there on the next scan before anyone is told.
+    if days_until == 0 and not _flight_shift_confirmed(leg, mismatch, now):
+        return 0
+
     priority = _get_flight_priority(mismatch["minutes"], days_until)
     due_delay = _DUE_DELAYS.get(priority, timedelta(hours=8))
     escalate_delay = _ESCALATION_DELAYS.get(priority, timedelta(hours=8))
@@ -927,6 +1062,7 @@ def _handle_future_mismatch(leg, mismatch, customer_name, flight_label, days_unt
             "flight_ident": flight_label,
             "pickup_date": str(leg.pickup_date),
             "pickup_time": str(leg.pickup_time),
+            "fingerprint": fingerprint,
         },
     )
     return 1 if task else 0
@@ -1061,6 +1197,18 @@ def _scan_driver_overlaps():
             driver = leg_a.driver
             driver_name = str(driver)
 
+            # A person's close stands while the facts stand, and a turn has to be
+            # seen twice before it is filed (once, if it is red and imminent).
+            task_type = (
+                OperationalTask.TaskType.TIGHT_TURN if tier == "amber"
+                else OperationalTask.TaskType.DRIVER_CONFLICT
+            )
+            fingerprint = _turn_fingerprint(driver_id, leg_a, leg_b, tier, conflict_minutes)
+            if _dismissed_by_hand(leg_b, task_type, fingerprint, now):
+                continue
+            if not _turn_confirmed(task_type, leg_b, leg_a, tier, now):
+                continue
+
             # Use leg_b as the "affected" leg (the one the driver is tight/late to)
             pickup_str_a = leg_a.pickup_time.strftime("%I:%M %p").lstrip("0")
             pickup_str_b = leg_b.pickup_time.strftime("%I:%M %p").lstrip("0")
@@ -1107,6 +1255,7 @@ def _scan_driver_overlaps():
                         "driver_clears_at": clears_str,
                         "pickup_date": str(today),
                         "pickup_time": str(leg_b.pickup_time),
+                        "fingerprint": fingerprint,
                     },
                 )
                 if task:
@@ -1154,6 +1303,7 @@ def _scan_driver_overlaps():
                     "pickup_date": str(today),
                     "pickup_time": str(leg_b.pickup_time),
                     "affected_leg_id": leg_b.id,
+                    "fingerprint": fingerprint,
                 },
             )
             if task:
@@ -1275,6 +1425,25 @@ def _scan_unpaid_reservations():
             continue
 
         days_until = (earliest_leg.pickup_date - today).days
+
+        # Too early to chase. Anything already open for this booking closes and
+        # comes back on its own once the trip is inside the window — the
+        # reminder engine keeps emailing the guest in the meantime.
+        if days_until > PAYMENT_CHASE_DAYS_AHEAD:
+            for early in OperationalTask.objects.filter(
+                reservation=res,
+                task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+            ):
+                close_task(
+                    early,
+                    resolution_notes=(
+                        f"Auto-closed: too early to chase — comes back "
+                        f"{PAYMENT_CHASE_DAYS_AHEAD} days before the trip"
+                    ),
+                )
+            continue
+
         if days_until == 0:
             priority = OperationalTask.Priority.CRITICAL
         elif days_until <= 2:

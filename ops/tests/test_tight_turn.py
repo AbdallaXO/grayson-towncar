@@ -16,6 +16,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
@@ -204,6 +205,11 @@ class DriverOverlapScanTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free), \
              patch("ops.tasks._get_raw_arrival_dt", return_value=raw_arrival):
+            # The scanner files on the SECOND consecutive sighting (ops.tasks
+            # TURN_CONFIRM_*): one tick to prove the turn is not a wobble. These
+            # tests are about what gets filed, so run the two ticks here.
+            cache.clear()
+            _scan_driver_overlaps()
             return _scan_driver_overlaps()
 
     def _open(self, task_type):
@@ -318,6 +324,8 @@ class DriverConflictKeoiTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks.timezone.localdate", return_value=TARGET), \
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free):
+            cache.clear()
+            _scan_driver_overlaps()  # first sighting is remembered, not filed
             return _scan_driver_overlaps()
 
     def _open_keoi(self):
@@ -356,6 +364,8 @@ class ConflictKeoiTakedownTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks.timezone.localdate", return_value=TARGET), \
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free):
+            cache.clear()
+            _scan_driver_overlaps()  # first sighting is remembered, not filed
             return _scan_driver_overlaps()
 
     def _run_autoclose(self, driver_free=None):
