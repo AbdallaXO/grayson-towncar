@@ -953,6 +953,38 @@ def index(request):
     return _response
 
 
+def _board_version(selected_date):
+    """A short fingerprint of everything the schedule board shows for a date:
+    the number of legs on it, the last time any of those legs changed, and the
+    last time any of their reservations changed (a cancellation lives on the
+    reservation as well). The open board polls this and reloads itself when
+    it moves, so a job cancelled or reassigned after the page loaded no longer
+    sits there looking live (2026-09-21)."""
+    import hashlib
+    from django.db.models import Max
+
+    legs = Leg.objects.filter(pickup_date=selected_date)
+    n = legs.count()
+    res_ids = list(legs.values_list("reservation_id", flat=True).distinct())
+    leg_hist = Leg.history.filter(pickup_date=selected_date).aggregate(m=Max("history_date"))["m"]
+    res_hist = Reservation.history.filter(id__in=res_ids).aggregate(m=Max("history_date"))["m"] if res_ids else None
+    raw = f"{selected_date}|{n}|{leg_hist}|{res_hist}"
+    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+@login_required(login_url="login")
+def schedule_board_version(request):
+    """JSON: the board fingerprint for ?date=YYYY-MM-DD (today by default)."""
+    if not request.user.is_staff:
+        return JsonResponse({"error": "Unauthorized"}, status=403)
+    raw = (request.GET.get("date") or "").strip()
+    try:
+        selected_date = datetime.strptime(raw, "%Y-%m-%d").date() if raw else timezone.localdate()
+    except ValueError:
+        selected_date = timezone.localdate()
+    return JsonResponse({"version": _board_version(selected_date), "date": selected_date.isoformat()})
+
+
 @login_required(login_url="login")
 def schedule_board(request):
     """
@@ -1143,6 +1175,68 @@ def schedule_board(request):
         _grow_end = not _grow_end
     timeline_hours = list(range(display_start, display_end + 1))
     total_display_minutes = (display_end - display_start + 1) * 60
+
+    # ── Cancelled jobs stay visible, as ghosts ─────────────────────────────
+    # The board used to drop a cancelled leg outright, and the page never
+    # refreshes its chips after it loads, so a job cancelled after the board
+    # was opened sat there looking live until someone reloaded — and then it
+    # simply vanished, with no way to tell it had been cancelled rather than
+    # moved (founder, 2026-09-21: the 4:42 PM job). Cancelled legs for the day
+    # now render in a thin amber lane under the row they were on, struck
+    # through, not draggable, not counted. Same for legs of a cancelled
+    # reservation.
+    _cancelled_by_driver = {}
+    unassigned_cancelled_slots = []
+    _vabbr_map_c = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
+    for _cl in (
+        Leg.objects.filter(pickup_date=selected_date)
+        .filter(Q(status="cancelled") | Q(reservation__status="cancelled"))
+        .select_related("driver", "driver__profile", "reservation", "reservation__customer",
+                        "status_changed_by", "vehicle", "reservation__vehicle")
+        .order_by("pickup_time")
+    ):
+        _c_start = _cl.pickup_time.hour * 60 + _cl.pickup_time.minute - display_start * 60
+        _c_pos = round(max(0, _c_start / total_display_minutes * 100), 1)
+        _c_wid = round(min(45 / total_display_minutes * 100, 100 - _c_pos), 1)
+        # When and by whom: the first history row that carries the cancelled
+        # status. Every save writes history, whichever screen did the cancelling;
+        # the leg's own status stamp is only written on driver changes.
+        _c_when = None
+        _c_by = None
+        _c_hist = None
+        if _cl.status == "cancelled":
+            _c_hist = _cl.history.filter(status="cancelled").order_by("history_date").first()
+        if _c_hist is None and _cl.reservation is not None and _cl.reservation.status == "cancelled":
+            _c_hist = _cl.reservation.history.filter(status="cancelled").order_by("history_date").first()
+        if _c_hist is not None:
+            _c_when = _c_hist.history_date
+            _c_by = _c_hist.history_user
+        _c_when_label = timezone.localtime(_c_when).strftime('%I:%M %p').lstrip('0') if _c_when else ''
+        _c_by_label = (_c_by.first_name or _c_by.username) if _c_by else ''
+        _c_vtype = _cl.effective_vehicle_type or ''
+        _c_customer = str(_cl.reservation.customer) if _cl.reservation and _cl.reservation.customer else ''
+        _c_slot = {
+            'leg_id': _cl.id,
+            'reservation_id': _cl.reservation_id,
+            'pickup_short': _cl.pickup_time.strftime('%I:%M').lstrip('0'),
+            'pickup_display': _cl.pickup_time.strftime('%I:%M %p').lstrip('0'),
+            'customer': _c_customer,
+            'vehicle_abbr': _vabbr_map_c.get(str(_c_vtype), '') if _c_vtype else '',
+            'route': f"{_cl.pickup_location or ''} → {_cl.dropoff_location or ''}",
+            'position_pct': _c_pos,
+            'width_pct': _c_wid,
+            'cancelled_label': (
+                f"Cancelled {_c_when_label}" + (f" by {_c_by_label}" if _c_by_label else "")
+                if _c_when_label else "Cancelled"
+            ),
+            'whole_reservation': bool(_cl.reservation and _cl.reservation.status == "cancelled"),
+            'driver_id': _cl.driver_id,
+            'driver_label': str(_cl.driver) if _cl.driver_id else '',
+        }
+        if _cl.driver_id:
+            _cancelled_by_driver.setdefault(_cl.driver_id, []).append(_c_slot)
+        else:
+            unassigned_cancelled_slots.append(_c_slot)
 
     # Build half-hour ticks for the schedule board grid
     _timeline_ticks = []
@@ -1475,6 +1569,10 @@ def schedule_board(request):
         _row_lanes = _pack_lanes(sched.slots,
                                  lane_height=_DRIVER_LANE_H, gap=_DRIVER_LANE_GAP)
         _row_bar_height = _row_lanes * (_DRIVER_LANE_H + _DRIVER_LANE_GAP) + 2
+        _row_cancelled = _cancelled_by_driver.get(driver.id, [])
+        _row_cancelled_top = _row_bar_height
+        if _row_cancelled:
+            _row_bar_height += _CANCELLED_LANE_H + _DRIVER_LANE_GAP
 
         inhouse_timeline.append({
             'driver': driver,
@@ -1482,6 +1580,8 @@ def schedule_board(request):
             'total_legs': sched.total_legs,
             'row_lanes': _row_lanes,
             'row_bar_height': _row_bar_height,
+            'cancelled_slots': _row_cancelled,
+            'cancelled_lane_top': _row_cancelled_top,
             'has_overlap': _row_lanes > 1,
             'has_vehicle': has_vehicle,
             'aff_cap_label': _aff_cap_label,
@@ -1649,6 +1749,10 @@ def schedule_board(request):
     unassigned_timeline_slots.sort(
         key=lambda s: (_vehicle_sort_order.get(s['vehicle_type'], 5), s['position_pct']))
     _unassigned_lane_height = _num_lanes * (_UNASSIGNED_LANE_H + _UNASSIGNED_LANE_GAP) + 4
+    _unassigned_cancelled_top = _unassigned_lane_height if unassigned_timeline_slots else 8
+    if unassigned_cancelled_slots:
+        _unassigned_lane_height = max(
+            36, _unassigned_cancelled_top + _CANCELLED_LANE_H + 4)
 
     # Live-clock seed (server local time; see the context block for why).
     _board_local_now = timezone.localtime()
@@ -1856,6 +1960,9 @@ def schedule_board(request):
         "timeline_ticks": _timeline_ticks,
         "unassigned_timeline_slots": unassigned_timeline_slots,
         "unassigned_lane_height": _unassigned_lane_height,
+        'unassigned_cancelled_slots': unassigned_cancelled_slots,
+        'unassigned_cancelled_top': _unassigned_cancelled_top,
+        'board_version': _board_version(selected_date),
         "total_legs": total_legs,
         "assigned_count": assigned_count,
         "unassigned_count": unassigned_count,
@@ -3246,6 +3353,7 @@ def update_leg_assignment(request):
 _UNASSIGNED_LANE_H = 18   # px per stacked chip in the unassigned backlog
 _UNASSIGNED_LANE_GAP = 2
 _DRIVER_LANE_H = 30       # px per stacked bar in a driver row (matches .timeline-slot)
+_CANCELLED_LANE_H = 20    # px for the thin ghost lane of cancelled jobs under a row
 _DRIVER_LANE_GAP = 2
 
 # Timeline pill geometry (schedule board). A pill is drawn from REALITY wherever
