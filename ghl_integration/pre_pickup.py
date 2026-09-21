@@ -322,6 +322,9 @@ class PrePickupNudgeEngine:
         ).first()
         if not row:
             return variant, None
+        from .templates_engine import template_needs_price
+        if template_needs_price(row.message_template) and not lead.estimated_price:
+            return variant, None
         return variant, render_follow_up_message(row.message_template, lead, extra=ctx)
 
     def _send_nudge(self, lead, variant, ctx, message=None) -> str:
@@ -337,6 +340,10 @@ class PrePickupNudgeEngine:
             if not template_row:
                 logger.warning(f"No active pre-pickup template for variant '{variant}'")
                 return self._skip(lead, "no_template")
+            from .templates_engine import template_needs_price
+            if template_needs_price(template_row.message_template) and not lead.estimated_price:
+                # The nudge quotes the website price; this lead never got one.
+                return self._skip(lead, "no_price")
             message = render_follow_up_message(template_row.message_template, lead, extra=ctx)
 
         if self.dry_run:

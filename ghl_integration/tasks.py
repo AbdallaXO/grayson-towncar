@@ -720,6 +720,18 @@ def process_follow_up_batch():
             task.save(update_fields=["status"])
             continue
 
+        # A step that quotes the website price cannot go to a lead the website
+        # never priced — it would read "your quoted rate of  for the …".
+        from .templates_engine import template_needs_price
+        if template_needs_price(template_row.message_template) and not lead.estimated_price:
+            _cancel_task(task, "no_price", now)
+            cancelled += 1
+            logger.info(
+                f"Lead #{lead.id} step {task.step_number} skipped: template quotes a price "
+                f"and the lead has none"
+            )
+            continue
+
         message = render_follow_up_message(template_row.message_template, lead)
 
         # --- Send via GHL ---
