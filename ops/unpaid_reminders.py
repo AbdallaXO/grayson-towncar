@@ -56,6 +56,15 @@ logger = logging.getLogger(__name__)
 EXCLUDE_TRAVEL_AGENT = True
 RECENT_STAFF_CONTACT_HOURS = 6
 
+# Automated reminder emails go out between 8 AM and 9 PM Eastern only — the
+# same window the lead texts keep (ghl_integration/timing.py). Measured over
+# 1–21 September 2026: 93 reminders went at 2 AM and 118 at 8 PM Eastern,
+# because the scheduler runs all night and a reservation entering the 14-day
+# horizon fires its booking-relative stages back to back. A cycle that lands in
+# the quiet hours defers; nothing is lost, the next daytime cycle sends it.
+# The auto-cancel flag is not an email and is not deferred.
+QUIET_HOURS_DEFER = True
+
 # Minimum hours between two automated reminder emails to the same reservation.
 # The three-day and final-24h stage windows are adjacent at ttp=24h, so without
 # this guard a reservation crossing 24h-to-pickup between two scheduler cycles
@@ -269,9 +278,16 @@ class UnpaidReminderEngine:
             self._flag_for_auto_cancel(reservation)
             return "flagged"
 
-        # Email stage — but throttle adjacent-window stages (e.g. three_day →
-        # final) so a reservation crossing 24h-to-pickup between two cycles
-        # doesn't get two reminders 30 minutes apart.
+        # Email stage — never in the middle of the night. Defer to the next
+        # daytime cycle; the stage window is still open then.
+        if QUIET_HOURS_DEFER:
+            from ghl_integration.timing import is_within_send_window
+            if not is_within_send_window(self.now):
+                return self._skip(reservation, "quiet_hours")
+
+        # Throttle adjacent-window stages (e.g. three_day → final) so a
+        # reservation crossing 24h-to-pickup between two cycles doesn't get
+        # two reminders 30 minutes apart.
         last_auto = self._last_auto_reminder_at(reservation)
         if last_auto is not None and (
             self.now - last_auto
@@ -327,11 +343,16 @@ class UnpaidReminderEngine:
         # more than 24h away (don't double up on the near-pickup reminders).
         if time_to_pickup > timedelta(hours=24):
             since_booking = now - booking_dt
-            # Stage 2: 24h after booking, gated on stage 1
+            # Stage 2: a full day after the FIRST reminder went, not after the
+            # booking. A reservation booked weeks ago only enters the engine's
+            # 14-day horizon later; measured off the booking date both stages
+            # were "due" at once and the second followed the first by the bare
+            # six-hour minimum — Mary Tomasso, 2026-09-19: 8:14 PM, then 2:20 AM.
+            first_sent = reservation.unpaid_first_reminder_sent_at
             if (
-                since_booking >= timedelta(hours=24)
+                first_sent is not None
+                and now - first_sent >= timedelta(hours=24)
                 and reservation.unpaid_second_reminder_sent_at is None
-                and reservation.unpaid_first_reminder_sent_at is not None
             ):
                 return STAGE_SECOND
             # Stage 1: 2h after booking

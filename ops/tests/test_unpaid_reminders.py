@@ -159,13 +159,13 @@ class StageTimingTests(_ReminderFixtureMixin, TestCase):
         mock_send.assert_called_once()
         self.assertEqual(mock_send.call_args.kwargs["stage"], STAGE_FIRST)
 
-    def test_second_reminder_fires_after_first(self):
+    def test_second_reminder_fires_a_day_after_the_first(self):
         now = _aware(datetime(2026, 6, 2, 12, 0))
-        booking = now - timedelta(hours=25)
+        booking = now - timedelta(days=10)
         pickup = now + timedelta(days=7)
         res = self._reservation(created_at=booking, pickup_dt=pickup)
         Reservation.objects.filter(pk=res.pk).update(
-            unpaid_first_reminder_sent_at=now - timedelta(hours=23)
+            unpaid_first_reminder_sent_at=now - timedelta(hours=25)
         )
         res.refresh_from_db()
 
@@ -182,6 +182,52 @@ class StageTimingTests(_ReminderFixtureMixin, TestCase):
         )
         res.refresh_from_db()
         self.assertIsNotNone(res.unpaid_second_reminder_sent_at)
+
+    def test_second_reminder_waits_a_day_after_the_first_not_after_booking(self):
+        """Booked weeks ago, first reminder went 7 hours ago: measured off the
+        booking date the second was 'due' too, and followed the first by the
+        six-hour minimum — at 2 AM, in Mary Tomasso's case (2026-09-19)."""
+        now = _aware(datetime(2026, 6, 2, 12, 0))
+        booking = now - timedelta(days=45)
+        pickup = now + timedelta(days=12)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        Reservation.objects.filter(pk=res.pk).update(
+            unpaid_first_reminder_sent_at=now - timedelta(hours=7)
+        )
+        res.refresh_from_db()
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+        self.assertEqual(action, "skipped:no_stage_window")
+        mock_send.assert_not_called()
+
+    def test_no_reminder_email_in_the_middle_of_the_night(self):
+        """2:20 AM Eastern: the stage is due, the email waits for the morning.
+        The reservation is untouched, so the 8 AM cycle sends it."""
+        now = _aware(datetime(2026, 6, 2, 2, 20))
+        booking = now - timedelta(hours=3)
+        pickup = now + timedelta(days=7)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+        self.assertEqual(action, "skipped:quiet_hours")
+        mock_send.assert_not_called()
+        res.refresh_from_db()
+        self.assertIsNone(res.unpaid_first_reminder_sent_at)
+
+        morning = _aware(datetime(2026, 6, 2, 8, 30))
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=morning).process_one(res)
+        self.assertEqual(action, f"sent:{STAGE_FIRST}")
+
+    def test_the_auto_cancel_flag_is_not_deferred_at_night(self):
+        now = _aware(datetime(2026, 6, 2, 3, 0))
+        booking = now - timedelta(days=5)
+        pickup = now + timedelta(hours=1)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+        self.assertEqual(action, "flagged")
+        mock_send.assert_not_called()
 
     def test_three_day_warning_fires_in_window(self):
         now = _aware(datetime(2026, 6, 1, 12, 0))
