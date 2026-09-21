@@ -54,21 +54,6 @@
           container-type: inline-size;
       }
       .timeline-slot:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 10; }
-      /* A cancelled job: still where it was, so nobody wonders where it went,
-         but unmistakably dead — amber dashed ghost, struck-through time, ✕. */
-      .timeline-slot.tl-cancelled {
-          height: 20px; top: auto; z-index: 2; cursor: default;
-          background: repeating-linear-gradient(135deg, #fffbeb 0 5px, #fef3c7 5px 10px);
-          border: 1px dashed #d97706; color: #92400e; box-shadow: none;
-          font-weight: 700; gap: 4px;
-      }
-      .timeline-slot.tl-cancelled:hover { opacity: 1; box-shadow: 0 1px 4px rgba(217,119,6,.3); }
-      .timeline-slot.tl-cancelled .tl-time-text { text-decoration: line-through; text-decoration-thickness: 2px; }
-      .timeline-slot.tl-cancelled .tl-cancel-x { color: #b45309; font-size: 0.72rem; line-height: 1; }
-      .timeline-slot.tl-cancelled .tl-cancel-word { font-size: 0.58rem; letter-spacing: .06em; text-transform: uppercase; opacity: .9; }
-      .timeline-slot.tl-cancelled .tl-vehicle-badge { background: rgba(146,64,14,.12); color: #92400e; }
-      @container (max-width: 80px) { .timeline-slot.tl-cancelled .tl-cancel-word { display: none; } }
-      .tl-cancelled-count { color: #b45309; font-weight: 600; }
       /* Folded-corner marker: this job carries a note. Absolutely positioned, so it
          costs no room in the label flow and survives every shed threshold — notes
          would otherwise be invisible until you happened to hover the right bar. */
@@ -1262,7 +1247,7 @@
                 <div class="driver-name-col">
                   <strong style="color:#C9A227;">Unassigned</strong>
                   {% if unassigned_timeline_slots %}
-                  <small class="text-muted">{{ unassigned_timeline_slots|length }} job{{ unassigned_timeline_slots|length|pluralize }}{% if unassigned_cancelled_slots %} · <span class="tl-cancelled-count">{{ unassigned_cancelled_slots|length }} cancelled</span>{% endif %}</small>
+                  <small class="text-muted">{{ unassigned_timeline_slots|length }} job{{ unassigned_timeline_slots|length|pluralize }}</small>
                   <span class="unassigned-more-hint" id="unassignedMoreHint">
                     <i class="bi bi-arrow-down-circle-fill me-1"></i><span id="unassignedHiddenCount"></span> below — scroll
                   </span>
@@ -1270,14 +1255,7 @@
                   <small class="text-muted">Drop here to unassign</small>
                   {% endif %}
                 </div>
-                <div class="timeline-bar" style="height:{% if unassigned_timeline_slots or unassigned_cancelled_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
-                  {% for c in unassigned_cancelled_slots %}
-                    <div class="timeline-slot tl-cancelled" data-leg-id="{{ c.leg_id }}" data-cancelled="1"
-                         style="left: {{ c.position_pct }}%; width: {{ c.width_pct }}%; top: {{ unassigned_cancelled_top }}px;"
-                         title="{{ c.cancelled_label }} — {{ c.customer }} · {{ c.pickup_display }} · {{ c.route }}{% if c.whole_reservation %} (whole reservation cancelled){% endif %}">
-                      <span class="tl-cancel-x">&#10005;</span><span class="tl-time-text">{{ c.pickup_short }}</span>{% if c.vehicle_abbr %}<span class="tl-vehicle-badge">{{ c.vehicle_abbr }}</span>{% endif %}<span class="tl-cancel-word">cancelled</span>
-                    </div>
-                  {% endfor %}
+                <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
                     <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if uslot.is_sanford %} sanford{% endif %}{% if uslot.pay_state == 'unpaid' %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}{% if uslot.keoi_category %} has-keoi{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
@@ -1356,7 +1334,7 @@
                   </div>
                   {% if is_affiliate_board %}
                   <small class="text-muted">
-                    {% if data.affiliate_vehicle %}<span style="color:#888;">{{ data.affiliate_vehicle|truncatechars:22 }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}{% if data.cancelled_slots %} · <span class="tl-cancelled-count">{{ data.cancelled_slots|length }} cancelled</span>{% endif %}
+                    {% if data.affiliate_vehicle %}<span style="color:#888;">{{ data.affiliate_vehicle|truncatechars:22 }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   <div class="driver-avail-line">
                     {% if data.aff_cap_label %}
@@ -1380,7 +1358,7 @@
                       {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}
                     {% else %}
                       <span class="no-vehicle-tag" title="No vehicle assigned for this date — run Day Setup">No vehicle</span>
-                    {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}{% if data.cancelled_slots %} · <span class="tl-cancelled-count">{{ data.cancelled_slots|length }} cancelled</span>{% endif %}
+                    {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   <div class="driver-avail-line">
                     {% if data.exc_badge %}<span class="exc-badge" title="{{ data.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ data.exc_badge }}</span>{% endif %}
@@ -1427,14 +1405,7 @@
                     <div style="color:#ff9100;font-size:0.68rem;font-weight:600;margin-top:1px;" title="Last job cleared previous night"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                   {% endif %}
                 </div>
-                <div class="timeline-bar"{% if data.row_lanes > 1 or data.chg_needs_height or data.cancelled_slots %} style="height:{{ data.row_bar_height }}px;"{% endif %}>
-                  {% for c in data.cancelled_slots %}
-                    <div class="timeline-slot tl-cancelled" data-leg-id="{{ c.leg_id }}" data-cancelled="1"
-                         style="left: {{ c.position_pct }}%; width: {{ c.width_pct }}%; top: {{ data.cancelled_lane_top }}px;"
-                         title="{{ c.cancelled_label }} — {{ c.customer }} · {{ c.pickup_display }} · {{ c.route }}{% if c.whole_reservation %} (whole reservation cancelled){% endif %}">
-                      <span class="tl-cancel-x">&#10005;</span><span class="tl-time-text">{{ c.pickup_short }}</span>{% if c.vehicle_abbr %}<span class="tl-vehicle-badge">{{ c.vehicle_abbr }}</span>{% endif %}<span class="tl-cancel-word">cancelled</span>
-                    </div>
-                  {% endfor %}
+                <div class="timeline-bar"{% if data.row_lanes > 1 or data.chg_needs_height %} style="height:{{ data.row_bar_height }}px;"{% endif %}>
                   {% comment %}
                     Affiliates have no shift on file with us — they're contractors, so the
                     weekly-schedule fallback would paint an invented 6a-10p band. Bands are
@@ -2117,51 +2088,6 @@
     (function(){
       const SEARCH_URL = '{% url "board_passenger_search" %}';
       const BOARD_DATE = '{{ selected_date|date:"Y-m-d" }}';
-      // ── The board keeps itself current ──────────────────────────────────
-      // Every 45 s it asks the server for the day's fingerprint (legs, their
-      // last change, their reservations' last change). When it moves — a job
-      // cancelled, reassigned, retimed by someone else — the page reloads
-      // itself, unless the dispatcher is mid-drag, has a dialog open or is
-      // typing. Scroll position survives the reload.
-      const BOARD_VERSION = '{{ board_version }}';
-      const BOARD_VERSION_URL = '{% url "schedule_board_version" %}';
-      (function(){
-        const KEY = 'sbScroll:' + BOARD_DATE;
-        try {
-          const saved = JSON.parse(sessionStorage.getItem(KEY) || 'null');
-          if (saved) {
-            window.scrollTo(0, saved.y || 0);
-            const rows = document.getElementById('boardRows');
-            if (rows && saved.x) rows.scrollLeft = saved.x;
-            sessionStorage.removeItem(KEY);
-          }
-        } catch (e) {}
-        let sbDragging = false;
-        document.addEventListener('dragstart', function(){ sbDragging = true; });
-        document.addEventListener('dragend', function(){ sbDragging = false; });
-        document.addEventListener('drop', function(){ sbDragging = false; });
-        function busy(){
-          if (document.hidden || sbDragging) return true;
-          if (document.querySelector('.modal.show')) return true;
-          const a = document.activeElement;
-          return !!(a && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName));
-        }
-        function check(){
-          fetch(BOARD_VERSION_URL + '?date=' + BOARD_DATE, { headers: { 'Accept': 'application/json' } })
-            .then(function(r){ return r.json(); })
-            .then(function(d){
-              if (!d || !d.version || d.version === BOARD_VERSION || busy()) return;
-              try {
-                const rows = document.getElementById('boardRows');
-                sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, x: rows ? rows.scrollLeft : 0 }));
-              } catch (e) {}
-              location.reload();
-            })
-            .catch(function(){});
-        }
-        setInterval(check, 45000);
-        document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
-      })();
       const BOARD_VIEW = '{{ board_view }}';
       const BOARD_YEAR = '{{ selected_date|date:"Y" }}';
 

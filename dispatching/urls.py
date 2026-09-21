@@ -152,7 +152,6 @@ urlpatterns = [
     path("execute-takeback/", views.execute_takeback, name="execute_takeback"),
     path("swap-tester/", views.swap_tester, name="swap_tester"),
     path("schedule-board/", views.schedule_board, name="schedule_board"),
-    path("schedule-board/version/", views.schedule_board_version, name="schedule_board_version"),
     # Board search box: find a guest by name / phone / email / 50-number and
     # land on the day their trip is actually on.
     path("board-search/", passenger_search.board_passenger_search,
