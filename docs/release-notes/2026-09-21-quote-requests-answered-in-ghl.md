@@ -26,8 +26,9 @@ title: No more "QUOTE NEEDED" tasks. The price is on the GoHighLevel card when t
 > If the note says "No suggested price", the calculator could not price the
 > addresses. Open the quote calculator and price it by hand.
 >
-> The handful of QUOTE NEEDED tasks still open in Ops Control can be completed
-> as you finish them. No new ones will appear.
+> The QUOTE NEEDED tasks that were still open have been closed for you, each
+> with a note saying the request is being handled in GoHighLevel. No new ones
+> will appear.
 
 ---
 
