@@ -7710,6 +7710,24 @@ def _booking_leg_vehicle(leg_data, default_vehicle):
     return default_vehicle
 
 
+def _sort_legs_by_pickup(legs_data, flights_data):
+    """Return (legs, flights) in pickup date+time order, keeping each flight
+    on its own leg. Stable, so two legs at the same minute keep the order the
+    dispatcher typed them. A leg missing a date or time (only possible on a
+    partial form) sorts after the dated ones rather than raising."""
+    pairs = list(zip(legs_data, flights_data))
+
+    def _key(pair):
+        leg = pair[0] or {}
+        d = leg.get('pickup_date') or ''
+        t = leg.get('pickup_time') or ''
+        # str(date) / str(time) are ISO, so plain string order is time order.
+        return (0 if d and t else 1, str(d), str(t))
+
+    pairs.sort(key=_key)
+    return [lg for lg, _ in pairs], [fl for _, fl in pairs]
+
+
 def _booking_is_round_trip(legs_data, default_vehicle, locations):
     """True only when leg 2 is genuinely the return half of leg 1 — same
     vehicle, and its pickup/dropoff are leg 1's dropoff/pickup reversed.
@@ -8566,6 +8584,15 @@ def dispatcher_booking_legs(request):
             if not legs_data:
                 messages.error(request, "At least one trip leg is required. Please add leg details.")
             else:
+                # Legs live in pickup order, whatever order they were typed in.
+                # A guest who adds a stop halfway through the call gets its card
+                # appended at the bottom; the dispatcher used to delete the later
+                # leg and re-type it just to get the numbering right. The page
+                # re-sorts as they type, and this is the authority: the review,
+                # the pricing and the saved reservation all read this order.
+                # Flights ride along with their leg (paired by index above).
+                legs_data, flights_data = _sort_legs_by_pickup(legs_data, flights_data)
+
                 # Sanity guards: wrong-date / AM-PM / flight-schedule checks.
                 # Blocking warnings render once with an acknowledge checkbox;
                 # the token pins the acknowledgment to THIS set of warnings, so

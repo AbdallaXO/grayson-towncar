@@ -217,6 +217,15 @@
           .rw-leg { transition:opacity .28s ease, transform .28s ease; }
           .rw-leg.is-entering { opacity:0; transform:translateY(-8px); }
       }
+      /* A card that just slid into its place in the day: the head glows for a
+         beat so the eye can follow it, then the new number is all that's left. */
+      .rw-leg.is-moved .rw-leg-head { background:var(--blue-soft); border-bottom-color:var(--blue-line); }
+      .rw-leg .rw-leg-head { transition:background .6s ease, border-color .6s ease; }
+      .rw-leg-moved-note {
+          font-size:11px; font-weight:600; color:var(--blue); white-space:nowrap;
+          opacity:0; transition:opacity .3s ease;
+      }
+      .rw-leg.is-moved .rw-leg-moved-note { opacity:1; }
 
       /* ── Server-side sanity panel (the authority — kept, restyled) ── */
       .sanity-panel {
@@ -1200,8 +1209,79 @@
                   ? 'That is the most legs one reservation can hold.'
                   : (n === 1
                       ? 'Round trip? Add a second leg for the return.'
-                      : 'Add as many legs as the guest needs.');
+                      : 'Add as many legs as the guest needs, in any order — they sort themselves by pickup time.');
           }
+
+          /* ── Legs keep themselves in pickup order ──────────────────────
+             A guest who remembers a stop halfway through the call gets it
+             added at the bottom; the dispatcher used to delete the later leg
+             and re-type it to fix the numbering. Now a card slides into its
+             place in the day once its date AND time are known and the
+             dispatcher has moved on from it (we never yank a card out from
+             under a cursor). Cards still missing a date or time stay in the
+             slot they occupy. The server sorts again on submit, so this is
+             about what the dispatcher sees, not about correctness. */
+          function legSortKey(card) {
+              var d = legDate(card), t = legTime(card);
+              if (!d || !t) return null;
+              return d.getTime() + t.h * 3600000 + t.mi * 60000;
+          }
+
+          function sortLegs() {
+              var cards = legCards();
+              var slots = [], dated = [];
+              cards.forEach(function(card, i) {
+                  var k = legSortKey(card);
+                  if (k === null) return;
+                  slots.push(i);
+                  dated.push({card: card, key: k, i: i});
+              });
+              if (dated.length < 2) return false;
+              var sorted = dated.slice().sort(function(a, b) { return a.key - b.key || a.i - b.i; });
+              var changed = sorted.some(function(m, j) { return m !== dated[j]; });
+              if (!changed) return false;
+
+              var before = cards.map(function(card) { return card.getBoundingClientRect().top; });
+              var order = cards.slice();
+              sorted.forEach(function(m, j) { order[slots[j]] = m.card; });
+              var moved = [];
+              order.forEach(function(card, i) {
+                  if (cards[i] !== card) moved.push(card);
+                  legsContainer.appendChild(card);
+              });
+              reindex();
+
+              // FLIP: start each card where it was and let it glide to its slot.
+              order.forEach(function(card) {
+                  var was = before[cards.indexOf(card)];
+                  var dy = was - card.getBoundingClientRect().top;
+                  if (!dy) return;
+                  card.style.transition = 'none';
+                  card.style.transform = 'translateY(' + dy + 'px)';
+                  requestAnimationFrame(function() {
+                      requestAnimationFrame(function() {
+                          card.style.transition = '';
+                          card.style.transform = '';
+                      });
+                  });
+              });
+              moved.forEach(function(card) {
+                  var note = q(card, '.rw-leg-moved-note');
+                  if (note) note.textContent = 'moved into pickup order';
+                  card.classList.add('is-moved');
+                  setTimeout(function() { card.classList.remove('is-moved'); }, 1600);
+              });
+              if (window.rwLegGate) window.rwLegGate.refresh();
+              return true;
+          }
+
+          // Sort when the cursor leaves a card, never while it is inside one.
+          legsContainer.addEventListener('focusout', function(e) {
+              var card = e.target.closest && e.target.closest('[data-leg-card]');
+              if (!card) return;
+              if (e.relatedTarget && card.contains(e.relatedTarget)) return;
+              setTimeout(sortLegs, 0);
+          });
 
           function addLeg() {
               var cards = legCards();
@@ -1252,10 +1332,13 @@
               flagBox: document.getElementById('rw-flags'),
               compute: allFlags
           });
+          window.rwLegGate = gate;
+          sortLegs();
 
           // Once the dispatcher has tried to move on, every echo drops its
           // resting state and says what it is still waiting for.
           document.getElementById('rw-next').addEventListener('click', function() {
+              sortLegs();
               setTimeout(function(){ legCards().forEach(refreshCard); }, 0);
           });
 

@@ -2,6 +2,7 @@
 trip type is derived from how many the dispatcher ended up with."""
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -398,6 +399,74 @@ class BookingWizardFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("legs_data", self.client.session["dispatcher_booking"])
+
+    # ── Legs are saved in pickup order, whatever order they were typed in ──
+    # Founder report 2026-09-21: a guest who remembered a stop halfway through
+    # the call got it added as leg 3, after the return. The only way to fix the
+    # numbering was to delete the return and type it again. Now the step sorts
+    # on submit, so the review, the pricing and the saved trip read in the order
+    # the day actually happens — and each flight stays with its own leg.
+
+    def test_legs_are_saved_in_pickup_order_however_they_were_typed(self):
+        self._walk_to_legs()
+        payload = self._legs_payload([
+            # Typed first: the return, five days out.
+            self._return_leg(day_offset=5, time="10:00"),
+            # Typed second: the arrival, day one — with the flight.
+            self._leg(time="14:30"),
+            # Added mid-call: a resort hop on day three.
+            self._leg(pickup="Disney Pop Century", dropoff="Universal Orlando",
+                      time="09:00", day_offset=2),
+        ])
+        payload["flights-1-airline"] = "Delta"
+        payload["flights-1-flight_number"] = "DL123"
+        payload["flights-1-flight_type"] = "arrival"
+
+        with patch("dispatching.booking_guards._fetch_flight",
+                   return_value={"status": "error"}):
+            resp = self.client.post(reverse("dispatcher_booking_legs"), payload)
+        self.assertRedirects(
+            resp, reverse("dispatcher_booking_pricing"), fetch_redirect_response=False
+        )
+
+        saved = self.client.session["dispatcher_booking"]
+        legs = saved["legs_data"]
+        self.assertEqual(
+            [(l["pickup_date"], l["pickup_time"]) for l in legs],
+            [
+                (self.future.isoformat(), "14:30:00"),
+                ((self.future + timedelta(days=2)).isoformat(), "09:00:00"),
+                ((self.future + timedelta(days=5)).isoformat(), "10:00:00"),
+            ],
+        )
+        self.assertEqual(
+            [l["pickup_location"] for l in legs],
+            ["MCO Airport", "Disney Pop Century", "Disney Pop Century"],
+        )
+        # The flight moved with its leg: it was posted on form 1, and the
+        # arrival is now leg 1 of the saved trip.
+        flights = saved["flights_data"]
+        self.assertEqual(flights[0].get("flight_number"), "DL123")
+        self.assertFalse(flights[1].get("flight_number"))
+        self.assertFalse(flights[2].get("flight_number"))
+        self.assertEqual(saved["trip_type"], "multi_leg")
+
+    def test_round_trip_typed_return_first_still_prices_as_a_round_trip(self):
+        """Return typed before the outbound: sorting puts the outbound first,
+        and the pair is still recognised as one round trip."""
+        self._walk_to_legs()
+        with patch("dispatching.booking_guards._fetch_flight",
+                   return_value={"status": "error"}):
+            resp = self.client.post(reverse("dispatcher_booking_legs"), self._legs_payload([
+                self._return_leg(day_offset=5, time="09:00"),
+                self._leg(time="14:30"),
+            ]))
+        self.assertRedirects(
+            resp, reverse("dispatcher_booking_pricing"), fetch_redirect_response=False
+        )
+        saved = self.client.session["dispatcher_booking"]
+        self.assertEqual(saved["legs_data"][0]["pickup_location"], "MCO Airport")
+        self.assertEqual(saved["trip_type"], "round_trip")
 
 
 class BookingWizardMultiVehiclePricingTests(TestCase):
