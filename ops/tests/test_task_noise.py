@@ -127,12 +127,14 @@ class ConfirmBeforeFilingTests(_BoardFixture):
         self.next = self._leg(time(16, 30), pickup="Loews Royal Pacific", dropoff="MCO Airport")
         self.morning = self._aware(6, 0)
 
-    def test_a_tight_turn_files_on_the_second_sighting_not_the_first(self):
-        free = datetime(2026, 6, 1, 16, 36)  # 6 min behind → amber
-        self.assertEqual(self._scan(self.morning, free), 0)
+    def test_a_tight_turn_never_becomes_a_task(self):
+        # 6 min behind → amber: he makes the meet deadline. Retired 2026-09-22;
+        # no number of sightings turns it into a task.
+        free = datetime(2026, 6, 1, 16, 36)
+        for tick in range(4):
+            self.assertEqual(self._scan(self.morning + timedelta(minutes=30 * tick), free), 0)
         self.assertFalse(self._open(OperationalTask.TaskType.TIGHT_TURN).exists())
-        self.assertEqual(self._scan(self.morning + timedelta(minutes=30), free), 1)
-        self.assertTrue(self._open(OperationalTask.TaskType.TIGHT_TURN, self.next).exists())
+        self.assertEqual(OperationalTask.objects.count(), 0)
 
     def test_a_red_conflict_hours_out_also_waits_one_tick(self):
         free = datetime(2026, 6, 1, 16, 50)  # 20 min late → red, pickup 10h away
@@ -155,10 +157,11 @@ class ConfirmBeforeFilingTests(_BoardFixture):
         self.assertEqual(OperationalTask.objects.count(), 0)
 
     def test_a_sighting_is_forgotten_after_ninety_minutes(self):
-        free = datetime(2026, 6, 1, 16, 36)
+        free = datetime(2026, 6, 1, 16, 50)  # 20 min late → red, pickup hours out
         self.assertEqual(self._scan(self.morning, free), 0)
         cache.clear()  # what TURN_CONFIRM_TTL_SECONDS does to a stale sighting
         self.assertEqual(self._scan(self.morning + timedelta(hours=3), free), 0)
+        self.assertFalse(self._open(OperationalTask.TaskType.DRIVER_CONFLICT).exists())
 
     def test_the_task_carries_a_fingerprint_of_the_facts(self):
         free = datetime(2026, 6, 1, 16, 50)

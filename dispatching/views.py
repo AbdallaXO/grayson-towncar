@@ -5967,7 +5967,8 @@ def _serialize_match_conflicts(leg, raw_conflicts):
             "guest_name": guest_name,
             "driver": str(leg.driver) if leg.driver else "",
             "conflict_minutes": minutes,
-            "tier": "red" if minutes >= TIGHT_TURN_RED_AFTER_MIN else "amber",
+            # Same edge as classify_turn: exactly the grace is still makeable.
+            "tier": "red" if minutes > TIGHT_TURN_RED_AFTER_MIN else "amber",
             "conflicting_pickup_time": (
                 other.pickup_time.strftime("%I:%M %p").lstrip("0")
                 if other.pickup_time else ""

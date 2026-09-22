@@ -50,19 +50,31 @@ MAJOR_THRESHOLD = 120
 # runs entirely on the precomputed/category drive tables (see _reposition_minutes).
 CHAIN_RECHECK_THRESHOLD = 5
 
-# ── Early-flight "tight turn" safety net ────────────────────────────────────
+# ── Turns: one line, red or nothing ─────────────────────────────────────────
 # When an arrival flight lands early, a driver coming off a prior job may reach
 # the airport AFTER the plane is already down. Founder's rule (no deplaning
 # padding): compare the driver's projected arrival to the RAW flight arrival.
-#   * driver arrives >= TIGHT_TURN_RED_AFTER_MIN min after the flight → RED
-#     "won't make it" (existing CRITICAL driver_conflict).
-#   * driver arrives 0..TIGHT_TURN_RED_AFTER_MIN min after the flight → AMBER
-#     "tight turn — keep an eye" (MEDIUM tight_turn task; the new tier).
+#   * driver arrives > TIGHT_TURN_RED_AFTER_MIN min after the flight → RED
+#     "won't make it" (CRITICAL driver_conflict task).
+#   * driver arrives 0..TIGHT_TURN_RED_AFTER_MIN min after the flight → AMBER.
+#     classify_turn still reports this tier (the board, the advisor and
+#     move_impact describe it as "tight but makeable") but NO TASK IS FILED.
 #   * driver arrives before the flight lands → no flag.
+#
+# The amber tier used to file a MEDIUM tight_turn task (2026-08-25 → 2026-09-22).
+# Retired by founder decision 2026-09-22. By the business's own rule the driver
+# is on time — inside by gate + 10 — so the task described a non-problem, and
+# the 60-day audit (docs/scheduling-redesign/analysis/29_task_queue_audit.py)
+# measured what that cost: ~73 filed a day, a third of them 1–3 minutes "late";
+# 31% closed by hand with a blank note, 28% closed themselves, 24% were replaced
+# by the red task anyway; 0 of 321 future-board ones led to a move. The board's
+# driver timeline still draws the dashed amber "tight turn" gap live, which is
+# the right place for a watch signal. Open tight_turn rows were closed once by
+# ops/migrations/0024; the auto-closer below sweeps any straggler.
+#
 # This threshold is intentionally measured against the raw arrival and is kept
 # SEPARATE from the scheduler's AIRPORT_ARRIVAL_GRACE_MINUTES so the morning
 # safety flag stays conservative even if the deplaning grace is retuned.
-TIGHT_TURN_ENABLED = True
 # Past this many minutes late the driver has missed the deadline -> red. Used for
 # BOTH turn shapes classify_turn()/detect_driver_conflicts() judge: a flight-arrival
 # meet (measured against the raw arrival) and a booked-pickup-to-booked-pickup
@@ -70,6 +82,12 @@ TIGHT_TURN_ENABLED = True
 # apart, and a hotel-to-hotel turn isn't judged more leniently than an airport one.
 # Sourced from the one policy constant (pickup_policy.ARRIVAL_MEET_GRACE_MIN).
 TIGHT_TURN_RED_AFTER_MIN = pickup_policy.ARRIVAL_MEET_GRACE_MIN
+# The note on a tight_turn task closed because the type is retired. Shared with
+# ops/migrations/0024 so the history reads the same either way.
+TIGHT_TURN_RETIRED_NOTE = (
+    "Auto-closed: tight turns no longer file as tasks — the driver makes the "
+    "meet deadline. A turn he can't make still files as a Driver Conflict."
+)
 
 # ── Confirm before filing ───────────────────────────────────────────────────
 # Measured 2026-09-21 over 60 days (docs/scheduling-redesign/analysis/
@@ -861,10 +879,11 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
     first, second = (
         (leg, conflicting) if worst["direction"] == "this_delays_other" else (conflicting, leg)
     )
-    task_type = (
-        OperationalTask.TaskType.TIGHT_TURN if worst["tier"] == "amber"
-        else OperationalTask.TaskType.DRIVER_CONFLICT
-    )
+    if worst["tier"] != "red":
+        # Amber: he still makes the meet deadline. Not a task (see the header
+        # note on tight turns); the board shows the thin gap live.
+        return 0
+    task_type = OperationalTask.TaskType.DRIVER_CONFLICT
     fingerprint = _turn_fingerprint(
         driver.id, first, second, worst["tier"], worst["conflict_minutes"]
     )
@@ -890,22 +909,6 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
         "affected_leg_id": affected_leg.id,
         "fingerprint": fingerprint,
     }
-
-    if worst["tier"] == "amber":
-        task = create_task(
-            task_type=OperationalTask.TaskType.TIGHT_TURN,
-            title=f"Tight turn — {driver_name}",
-            due_at=now,
-            priority=OperationalTask.Priority.MEDIUM,
-            description=(
-                f"Flight {mismatch['label']}. Driver will be {worst['conflict_minutes']} "
-                f"min behind — still makes it, but tight. Keep an eye on it."
-            ),
-            leg=leg,
-            reservation=leg.reservation,
-            metadata=metadata,
-        )
-        return 1 if task else 0
 
     task = create_task(
         task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
@@ -954,11 +957,11 @@ def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now)
 
     worst = max(conflicts, key=lambda c: c["conflict_minutes"])
 
-    # A tight-but-makeable turn on a FUTURE board is not filed. Measured over 60
-    # days: 321 of them, and not one ended in a driver move — 84% were later
-    # superseded by a red conflict (the same problem counted twice) and the rest
-    # went away on their own. The same-day scan still watches the turn on the
-    # day, when a wobble of a few minutes actually means something.
+    # A tight-but-makeable turn is not filed, on any board. Measured over 60
+    # days: 321 future-board ones, and not one ended in a driver move — 84% were
+    # later superseded by a red conflict (the same problem counted twice) and
+    # the rest went away on their own. Same-day amber was retired 2026-09-22 for
+    # the same reason (see the tight-turn note at the top of this module).
     if worst["tier"] == "amber":
         return 0
 
@@ -1124,10 +1127,10 @@ def _scan_driver_overlaps():
     driver where the first leg's estimated end time overlaps the second
     leg's effective ready time.
 
-    Two tiers (see classify_turn): a RED driver_conflict when the driver can't
-    make it, and a softer AMBER tight_turn when an early flight leaves him a thin
-    cushion — still makes it, but worth watching. Both use the early-flight rule
-    (driver arrival vs the RAW flight arrival) for airport-arrival legs.
+    Files a RED driver_conflict when the driver can't make it (see classify_turn).
+    An AMBER turn — he still makes the meet deadline, with little to spare — is
+    not a task; the board's driver timeline shows that gap live. Airport-arrival
+    legs use the early-flight rule (driver arrival vs the RAW flight arrival).
 
     Only checks same-day, in-house drivers. Skips legs that already have
     an open driver_conflict task (deduplication handled by create_task).
@@ -1186,10 +1189,8 @@ def _scan_driver_overlaps():
                 continue
 
             risk = classify_turn(leg_a, leg_b, today)
-            if risk is None:
-                continue
-            if risk["tier"] == "amber" and not TIGHT_TURN_ENABLED:
-                continue
+            if risk is None or risk["tier"] != "red":
+                continue  # comfortable, or tight-but-makes-it: nothing to do
 
             conflict_minutes = risk["late"]
             tier = risk["tier"]
@@ -1199,10 +1200,7 @@ def _scan_driver_overlaps():
 
             # A person's close stands while the facts stand, and a turn has to be
             # seen twice before it is filed (once, if it is red and imminent).
-            task_type = (
-                OperationalTask.TaskType.TIGHT_TURN if tier == "amber"
-                else OperationalTask.TaskType.DRIVER_CONFLICT
-            )
+            task_type = OperationalTask.TaskType.DRIVER_CONFLICT
             fingerprint = _turn_fingerprint(driver_id, leg_a, leg_b, tier, conflict_minutes)
             if _dismissed_by_hand(leg_b, task_type, fingerprint, now):
                 continue
@@ -1227,42 +1225,7 @@ def _scan_driver_overlaps():
                     flight_label = f"{fi.airline_display_name or fi.airline or ''} {fi.flight_number or ''}".strip()
                     break
 
-            # ── Amber: tight turn — driver still makes it, but only just ───────
-            if tier == "amber":
-                title = f"Tight turn — {driver_name}"
-                description = (
-                    f"Flight {flight_label or 'arrival'} now lands {arrival_str}. After the "
-                    f"{pickup_str_a} job, {driver_name} would reach the airport about "
-                    f"{conflict_minutes} min after it lands — still makes it, but tight. "
-                    f"Keep an eye on it / consider matching the pickup time."
-                )
-                task = create_task(
-                    task_type=OperationalTask.TaskType.TIGHT_TURN,
-                    title=title,
-                    due_at=now,
-                    priority=OperationalTask.Priority.MEDIUM,
-                    description=description,
-                    leg=leg_b,
-                    reservation=leg_b.reservation,
-                    metadata={
-                        "driver_id": driver.id,
-                        "driver_name": driver_name,
-                        "flight_ident": flight_label,
-                        "late_minutes": conflict_minutes,
-                        "new_arrival_time": arrival_str,
-                        "conflicting_leg_id": leg_a.id,
-                        "conflicting_pickup_time": str(leg_a.pickup_time),
-                        "driver_clears_at": clears_str,
-                        "pickup_date": str(today),
-                        "pickup_time": str(leg_b.pickup_time),
-                        "fingerprint": fingerprint,
-                    },
-                )
-                if task:
-                    created += 1
-                continue
-
-            # ── Red: won't make it — escalate, dropping any softer tight flag ──
+            # Red: won't make it. Drop any legacy tight flag still on the leg.
             _close_open_tight_turn_tasks(
                 leg_b, note="Escalated to driver conflict (driver now late)."
             )
@@ -1311,7 +1274,7 @@ def _scan_driver_overlaps():
                 _raise_conflict_keoi(leg_b, driver_name, conflict_minutes)
 
     if created:
-        logger.info(f"Driver overlap scan: created {created} driver/tight-turn tasks")
+        logger.info(f"Driver overlap scan: created {created} driver conflict tasks")
     return created
 
 
@@ -1766,43 +1729,21 @@ def _auto_close_resolved_tasks():
     except Exception as e:
         logger.error(f"Conflict KEOI reconciliation error: {e}", exc_info=True)
 
-    # ── 2b. Tight-turn (amber) tasks: close when no longer tight ─────────────
+    # ── 2b. Tight-turn tasks: the type is retired, sweep any straggler ───────
+    # Nothing files these any more (see the tight-turn note at the top of this
+    # module). Migration 0024 closed the ones open at the switch; this catches a
+    # row an older worker wrote during the deploy, or a hand-made one.
     try:
         tight_tasks = OperationalTask.objects.filter(
             task_type=OperationalTask.TaskType.TIGHT_TURN,
             status__in=list(OperationalTask.OPEN_STATUSES),
-            leg__isnull=False,
-        ).select_related(
-            "leg", "leg__driver", "leg__flight_information", "leg__reservation"
         )
         for task in tight_tasks:
             try:
-                leg = task.leg
-                if not leg.driver_id:
-                    close_task(task, auto=True, resolution_notes="Auto-closed: driver unassigned")
-                    closed += 1
-                    continue
-
-                # Stale once the pickup time is well past
-                pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
-                pickup_aware = timezone.make_aware(pickup_dt, timezone.get_current_timezone())
-                if pickup_aware < now - timedelta(hours=3):
-                    close_task(task, auto=True, resolution_notes="Auto-closed: pickup time has passed")
-                    closed += 1
-                    continue
-
-                prior = _prior_same_driver_leg(leg, leg.pickup_date)
-                risk = classify_turn(prior, leg, leg.pickup_date) if prior else None
-                if risk is None:
-                    close_task(task, auto=True, resolution_notes="Auto-closed: turn no longer tight")
-                    closed += 1
-                elif risk["tier"] == "red":
-                    # Escalated to a real conflict — the overlap scan raises the red
-                    # task; drop the softer flag so the leg isn't double-flagged.
-                    close_task(task, auto=True, resolution_notes="Auto-closed: escalated to driver conflict")
-                    closed += 1
+                close_task(task, auto=True, resolution_notes=TIGHT_TURN_RETIRED_NOTE)
+                closed += 1
             except Exception as e:
-                logger.error(f"Error checking tight_turn task #{task.id}: {e}", exc_info=True)
+                logger.error(f"Error closing tight_turn task #{task.id}: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Auto-close tight_turn tasks error: {e}", exc_info=True)
 

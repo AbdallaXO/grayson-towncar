@@ -1330,13 +1330,23 @@ def _build_driver_conflict_context(task):
             _behind_gate = (
                 int((earliest_arrival - _gate_dt).total_seconds() / 60) if _gate_dt else None
             )
+            # The number that matters is not "after the gate" but "after the
+            # meet deadline": gate + ARRIVAL_MEET_GRACE_MIN, the founder's rule
+            # (a 10:30 flight means he is inside and waiting by 10:40). It is
+            # the same edge the scanner filed on, so the headline can never
+            # call a 1-minute-after-gate driver a problem. Negative = to spare.
+            from dispatching.pickup_policy import ARRIVAL_MEET_GRACE_MIN
+            _meet_by = _gate_dt + timedelta(minutes=ARRIVAL_MEET_GRACE_MIN) if _gate_dt else None
+            _past_deadline = (
+                int((earliest_arrival - _meet_by).total_seconds() / 60) if _meet_by else None
+            )
 
             def _mins(dt):
                 return dt.hour * 60 + dt.minute + dt.second / 60.0
 
             _events = [_prior_pickup, clears_at, earliest_arrival, second_pickup, _arr_end]
             if _gate_dt:
-                _events.append(_gate_dt)
+                _events.extend([_gate_dt, _meet_by])
             _lo = min(_mins(e) for e in _events) - 5
             _lo -= _lo % 15
             _hi = max(_mins(e) for e in _events) + 5
@@ -1367,6 +1377,13 @@ def _build_driver_conflict_context(task):
 
             redesign = {
                 "behind_gate": _behind_gate,
+                "meet_by_str": _meet_by.strftime("%I:%M %p").lstrip("0") if _meet_by else "",
+                "meet_grace_min": ARRIVAL_MEET_GRACE_MIN,
+                # Gate mode headline: minutes past the meet deadline (>0) or,
+                # when the latest estimate says he makes it, minutes to spare.
+                "past_deadline": _past_deadline,
+                "makes_it": (_past_deadline is not None and _past_deadline <= 0),
+                "to_spare": (-_past_deadline if _past_deadline is not None and _past_deadline <= 0 else None),
                 "monitor_first": _monitor_first,
                 "driver_curb_str": earliest_arrival.strftime("%I:%M %p").lstrip("0"),
                 "gate_str": flight_gate_str,
@@ -1389,20 +1406,23 @@ def _build_driver_conflict_context(task):
                     "driver_arrival": _bar(earliest_arrival, _arr_end),
                     "guest_terminal": _bar(_gate_dt, earliest_arrival) if _gate_dt else None,
                     "guest_enroute": _bar(earliest_arrival, _arr_end),
-                    # Shortfall band: gate → driver-free in gate mode; booked
+                    # Shortfall band: meet-by deadline → driver-free in gate
+                    # mode (the guest is standing at the meet point); booked
                     # pickup → driver-free in ETA mode (guest waiting).
                     "band": (
-                        _bar(_gate_dt, earliest_arrival) if _gate_dt
+                        (_bar(_meet_by, earliest_arrival) if earliest_arrival > _meet_by else None)
+                        if _gate_dt
                         else (
                             _bar(second_pickup, earliest_arrival)
                             if earliest_arrival > second_pickup else None
                         )
                     ),
                     "band_label": (
-                        f"+{_behind_gate} MIN AFTER ARRIVAL" if _gate_dt
+                        f"{_past_deadline} MIN PAST MEET-BY" if _gate_dt
                         else f"≈{late_minutes} MIN BEHIND"
                     ),
                     "marker_gate": _pct(_gate_dt) if _gate_dt else None,
+                    "marker_meet_by": _pct(_meet_by) if _meet_by else None,
                     "marker_booked": _pct(second_pickup),
                     "marker_driver_free": _pct(earliest_arrival),
                 },
