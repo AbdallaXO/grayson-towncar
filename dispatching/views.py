@@ -20530,94 +20530,31 @@ def admin_agent_payout_detail(request, pk):
 
 @login_required(login_url="login")
 def duplicate_reservations(request):
-    """Show duplicate reservations: same customer + same pickup date, one paid one unpaid."""
+    """Duplicate bookings, each unpaid twin sorted safe / check first / hold.
+
+    Grouping and verdicts live in reservations.duplicates so the delete
+    endpoint below can re-derive the same verdict from live data. Superuser-only
+    because the action is a hard delete.
+    """
     if not request.user.is_superuser:
         messages.error(request, "You don't have permission to access this page.")
         return redirect("dashboard")
 
-    from collections import defaultdict
+    from reservations.duplicates import HOLD, REVIEW, SAFE, build_groups
 
-    # Scan range: past 90 days + future
-    cutoff = timezone.now().date() - timedelta(days=90)
-
-    reservations = (
-        Reservation.objects.filter(
-            legs__pickup_date__gte=cutoff,
-        )
-        .exclude(status="cancelled")
-        .select_related("customer", "vehicle")
-        .prefetch_related(
-            Prefetch("payments", queryset=Payment.objects.all()),
-            Prefetch(
-                "legs",
-                queryset=Leg.objects.select_related(
-                    "flight_information", "cruise_information"
-                ).order_by("pickup_date", "pickup_time"),
-            ),
-        )
-        .distinct()
-    )
-
-    # Group by (last_name_lower, phone_last10, pickup_date) so dupes across
-    # separate Customer rows (e.g. same person booked under two different emails)
-    # still collapse together. Falls back to first_name if last_name is blank.
-    groups = defaultdict(list)
-    for res in reservations:
-        customer = res.customer
-        if not customer:
-            continue
-        first_leg = res.legs.all().first()
-        if not first_leg:
-            continue
-        phone_digits = "".join(ch for ch in (customer.phone_number or "") if ch.isdigit())[-10:]
-        if not phone_digits:
-            continue
-        name_part = (customer.last_name or customer.first_name or "").strip().lower()
-        if not name_part:
-            continue
-        key = (name_part, phone_digits, first_leg.pickup_date)
-        groups[key].append(res)
-
-    # Find groups where at least one paid + one unpaid
-    duplicate_groups = []
-    total_unpaid = 0
-    for (_name_part, _phone_digits, pickup_date), res_list in groups.items():
-        seen_ids = set()
-        unique = []
-        for r in res_list:
-            if r.id not in seen_ids:
-                seen_ids.add(r.id)
-                unique.append(r)
-        if len(unique) < 2:
-            continue
-
-        paid = [r for r in unique if r.payment_status in ("paid", "card_saved")]
-        unpaid = [r for r in unique if r.payment_status not in ("paid", "card_saved")]
-
-        if not paid or not unpaid:
-            continue
-
-        total_unpaid += len(unpaid)
-        customer = unique[0].customer
-        duplicate_groups.append(
-            {
-                "customer": customer,
-                "pickup_date": pickup_date,
-                "paid": paid,
-                "unpaid": unpaid,
-            }
-        )
-
-    # Sort by upcoming dates first (ascending), then past dates after
-    today = timezone.now().date()
-    duplicate_groups.sort(
-        key=lambda g: (0 if g["pickup_date"] >= today else 1, g["pickup_date"]),
-    )
+    duplicate_groups = build_groups()
+    tier_counts = {SAFE: 0, REVIEW: 0, HOLD: 0}
+    for group in duplicate_groups:
+        for res in group.unpaid:
+            tier_counts[res.dupe_verdict.tier] += 1
 
     context = {
         "duplicate_groups": duplicate_groups,
-        "total_unpaid": total_unpaid,
         "total_groups": len(duplicate_groups),
+        "total_unpaid": sum(tier_counts.values()),
+        "safe_count": tier_counts[SAFE],
+        "review_count": tier_counts[REVIEW],
+        "hold_count": tier_counts[HOLD],
     }
     return render(request, "dispatching/duplicate_reservations.html", context)
 
@@ -20625,53 +20562,74 @@ def duplicate_reservations(request):
 @require_POST
 @login_required(login_url="login")
 def cancel_duplicate_reservation(request):
-    """Delete an unpaid duplicate reservation via AJAX."""
+    """Delete one unpaid duplicate via AJAX.
+
+    The verdict is re-derived from live data at delete time: the booking must
+    still be unpaid with no card on file, and must still have a paid twin in
+    its group. A stale tab, or a booking the guest paid in the meantime, is
+    refused rather than deleted.
+    """
     if not request.user.is_superuser:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
         data = json.loads(request.body)
-        reservation_uuid = data.get("reservation_uuid")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
-        if not reservation_uuid:
-            return JsonResponse(
-                {"success": False, "error": "Missing reservation UUID"}, status=400
-            )
-
-        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
-
-        # Safety: don't delete paid reservations
-        if reservation.payment_status == "paid":
-            return JsonResponse(
-                {"success": False, "error": "Cannot delete a paid reservation from this page. Use the refund workflow instead."},
-                status=400,
-            )
-
-        res_id = reservation.id
-        res_name = reservation.customer.get_full_name()
-        reservation.delete()
-
-        logger.info(
-            f"Deleted duplicate reservation #{res_id} "
-            f"({res_name}) by {request.user.username}"
+    reservation_uuid = data.get("reservation_uuid")
+    if not reservation_uuid:
+        return JsonResponse(
+            {"success": False, "error": "Missing reservation UUID"}, status=400
         )
 
+    from reservations.duplicates import PAID_STATES, verdict_for
+
+    reservation = get_object_or_404(
+        Reservation.objects.select_related("customer"), uuid=reservation_uuid
+    )
+
+    if reservation.payment_status in PAID_STATES:
         return JsonResponse(
             {
-                "success": True,
-                "message": f"Reservation #{res_id} deleted.",
-            }
+                "success": False,
+                "error": "This booking is paid or has a card on file. "
+                "Use the refund workflow instead.",
+            },
+            status=400,
         )
 
-    except json.JSONDecodeError:
+    verdict = verdict_for(reservation)
+    if verdict is None:
         return JsonResponse(
-            {"success": False, "error": "Invalid JSON"}, status=400
+            {
+                "success": False,
+                "error": "No paid twin for this booking any more. "
+                "Refresh the page before deleting.",
+            },
+            status=409,
         )
+
+    res_id = reservation.id
+    res_name = reservation.customer.get_full_name()
+    try:
+        reservation.delete()
     except Exception as e:
-        logger.error(f"Error cancelling duplicate reservation: {e}")
-        return JsonResponse(
-            {"success": False, "error": str(e)}, status=500
-        )
+        logger.error(f"Error deleting duplicate reservation #{res_id}: {e}", exc_info=True)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    logger.info(
+        f"Deleted duplicate reservation #{res_id} ({res_name}) by "
+        f"{request.user.username} — verdict {verdict.tier}"
+        + (f": {'; '.join(verdict.reasons)}" if verdict.reasons else "")
+    )
+    return JsonResponse(
+        {
+            "success": True,
+            "message": f"Reservation #{res_id} deleted.",
+            "tier": verdict.tier,
+        }
+    )
 
 
 # ── Quote Calculator ────────────────────────────────────────────────

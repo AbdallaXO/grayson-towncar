@@ -466,12 +466,54 @@ class DuplicateTests(_ReminderFixtureMixin, TestCase):
         mock_send.assert_not_called()
         res1.refresh_from_db()
         self.assertTrue(res1.unpaid_duplicate_suspected)
-        self.assertTrue(
+        # No "Possible duplicate" task: the Duplicate Reservations page is
+        # where these get resolved (founder decision 2026-09-22).
+        self.assertFalse(
             OperationalTask.objects.filter(
                 reservation=res1,
                 task_type=OperationalTask.TaskType.PAYMENT_CHASE,
             ).exists()
         )
+
+    def test_flag_clears_when_twin_is_gone(self):
+        """A flagged booking whose twin was deleted is a real booking again:
+        the flag comes off and the reminder ladder resumes."""
+        now = _aware(datetime(2026, 6, 1, 12, 0))
+        booking = now - timedelta(hours=3)
+        pickup_dt = _aware(datetime(2026, 6, 8, 9, 30))
+
+        res1 = self._reservation(created_at=booking, pickup_dt=pickup_dt)
+        Reservation.objects.filter(pk=res1.pk).update(unpaid_duplicate_suspected=True)
+        res1.refresh_from_db()
+
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res1)
+
+        self.assertNotEqual(action, "dup_blocked")
+        self.assertNotEqual(action, "skipped:duplicate_suspected")
+        res1.refresh_from_db()
+        self.assertFalse(res1.unpaid_duplicate_suspected)
+        mock_send.assert_called_once()
+
+    def test_flag_stays_while_twin_is_live(self):
+        now = _aware(datetime(2026, 6, 1, 12, 0))
+        booking = now - timedelta(hours=3)
+        pickup_dt = _aware(datetime(2026, 6, 8, 9, 30))
+
+        cust1 = self._customer(email="alice@example.com")
+        cust2 = self._customer(email="alice+dup@example.com")
+        res1 = self._reservation(customer=cust1, created_at=booking, pickup_dt=pickup_dt)
+        self._reservation(customer=cust2, created_at=booking, pickup_dt=pickup_dt)
+        Reservation.objects.filter(pk=res1.pk).update(unpaid_duplicate_suspected=True)
+        res1.refresh_from_db()
+
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res1)
+
+        self.assertEqual(action, "skipped:duplicate_suspected")
+        mock_send.assert_not_called()
+        res1.refresh_from_db()
+        self.assertTrue(res1.unpaid_duplicate_suspected)
 
 
 # ── Idempotency and dry-run ─────────────────────────────────────────────────

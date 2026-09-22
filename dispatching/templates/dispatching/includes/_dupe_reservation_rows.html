@@ -1,0 +1,70 @@
+{% comment %}
+One reservation's rows on the Duplicate Reservations page, one <tr> per leg.
+  res   — the reservation (legs + payments prefetched)
+  kind  — "keep" for the paid booking, "dupe" for an unpaid twin
+For "dupe", res.dupe_verdict carries the tier (safe / review / hold) and reasons.
+{% endcomment %}
+{% with legs=res.legs.all leg_count=res.legs.all|length %}
+{% if kind == "dupe" %}{% with verdict=res.dupe_verdict %}
+{% for leg in legs %}
+<tr class="dupe-{{ verdict.tier }}{% if forloop.first %} unpaid-row{% endif %}"
+    {% if forloop.first %}data-uuid="{{ res.uuid }}" data-tier="{{ verdict.tier }}" data-res-id="{{ res.id }}"{% endif %}>
+  {% if forloop.first %}
+  <td class="text-center select-cell" rowspan="{{ leg_count }}">
+    <input type="checkbox" class="form-check-input dupe-check" data-uuid="{{ res.uuid }}" data-tier="{{ verdict.tier }}" aria-label="Select #{{ res.id }}">
+    <span class="status-pill {{ verdict.tier }} d-block mt-2">{{ verdict.label }}</span>
+  </td>
+  <td rowspan="{{ leg_count }}">
+    <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
+    <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
+  </td>
+  {% endif %}
+  {% include "dispatching/includes/_dupe_leg_cells.html" %}
+  {% if forloop.first %}
+  {% include "dispatching/includes/_dupe_res_cells.html" %}
+  <td rowspan="{{ leg_count }}" class="why-cell">
+    {% if verdict.reasons %}
+      <ul class="why-list {{ verdict.tier }}">
+        {% for reason in verdict.reasons %}<li>{{ reason }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <div class="why-safe"><i class="bi bi-check2-circle me-1"></i>Same trip and dates as the paid booking, booked from the website first, nobody has touched it since.</div>
+    {% endif %}
+  </td>
+  <td class="text-center" rowspan="{{ leg_count }}">
+    <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
+            style="font-size: 0.75rem;"
+            onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
+      <i class="bi bi-trash me-1"></i>Delete
+    </button>
+    <div class="text-muted mt-1" style="font-size: 0.68rem;">{{ res.created_at|date:"M d, g:i A" }}</div>
+  </td>
+  {% endif %}
+</tr>
+{% endfor %}
+{% endwith %}{% else %}
+{% for leg in legs %}
+<tr class="dupe-keep">
+  {% if forloop.first %}
+  <td class="text-center" rowspan="{{ leg_count }}">
+    <span class="status-pill keep">Keep</span>
+  </td>
+  <td rowspan="{{ leg_count }}">
+    <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
+    <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
+  </td>
+  {% endif %}
+  {% include "dispatching/includes/_dupe_leg_cells.html" %}
+  {% if forloop.first %}
+  {% include "dispatching/includes/_dupe_res_cells.html" %}
+  <td rowspan="{{ leg_count }}" class="why-cell">
+    <div class="why-keep"><i class="bi bi-shield-check me-1"></i>{{ res.payment_status|title }} &mdash; this is the one the guest is travelling on.</div>
+  </td>
+  <td class="text-center" rowspan="{{ leg_count }}">
+    <div class="text-muted" style="font-size: 0.68rem;">Created<br>{{ res.created_at|date:"M d, g:i A" }}</div>
+  </td>
+  {% endif %}
+</tr>
+{% endfor %}
+{% endif %}
+{% endwith %}

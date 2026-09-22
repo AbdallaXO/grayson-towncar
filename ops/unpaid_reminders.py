@@ -201,10 +201,10 @@ class UnpaidReminderEngine:
                 # Booked at least 2h ago — even the earliest reminder can't
                 # fire any sooner.
                 created_at__lte=booking_cutoff,
-                # Not on staff hold.
+                # Not on staff hold. (Suspected duplicates are NOT filtered
+                # here: they are re-checked per reservation so the flag clears
+                # itself once the paid twin is gone.)
                 unpaid_auto_reminder_hold=False,
-                # Not already flagged as suspected duplicate.
-                unpaid_duplicate_suspected=False,
                 # Has unsent SOMETHING (any stage_field NULL OR auto-cancel
                 # flag NULL). Use a Q-OR; cheap because the indexes exist.
             )
@@ -254,9 +254,13 @@ class UnpaidReminderEngine:
         if not reservation.customer or not reservation.customer.email:
             return self._skip(reservation, "no_email")
 
-        # 7. Already flagged duplicate
+        # 7. Already flagged duplicate — still one? The flag used to be
+        #    permanent until an admin cleared it by hand, which left genuine
+        #    bookings silenced after their twin was deleted.
         if reservation.unpaid_duplicate_suspected:
-            return self._skip(reservation, "duplicate_suspected")
+            if self._is_duplicate(reservation):
+                return self._skip(reservation, "duplicate_suspected")
+            self._clear_duplicate_flag(reservation)
 
         # 8. Pickup must exist and not be in the past
         pickup_dt = reservation.first_pickup_dt
@@ -544,12 +548,16 @@ class UnpaidReminderEngine:
         return len(unique_ids) >= 2 and reservation.pk in unique_ids
 
     def _handle_duplicate(self, reservation: Reservation) -> None:
+        """Pause reminders on a suspected duplicate. No task is filed: the
+        Duplicate Reservations page already lists it with a verdict, and the
+        "Possible duplicate" tasks this used to raise were never worked
+        (founder decision 2026-09-22)."""
         self.result.dup_blocked += 1
         logger.info(
             f"Skipped reservation {reservation.id}: suspected duplicate "
             f"(name+phone+pickup_date matches another live reservation)"
         )
-        if self.dry_run:
+        if self.dry_run or reservation.unpaid_duplicate_suspected:
             return
 
         Reservation.objects.filter(pk=reservation.pk).update(
@@ -557,27 +565,17 @@ class UnpaidReminderEngine:
         )
         reservation.unpaid_duplicate_suspected = True
 
-        create_task(
-            task_type=OperationalTask.TaskType.PAYMENT_CHASE,
-            title=(
-                f"Possible duplicate reservation #{reservation.id} — "
-                f"{reservation.customer.get_full_name()}"
-            ),
-            description=(
-                "The unpaid-reminder engine flagged this reservation as a "
-                "possible duplicate (same last name + phone last-10 + pickup "
-                "date as another live reservation). Reminders are paused. "
-                "Resolve via /duplicate-reservations/, then clear "
-                "unpaid_duplicate_suspected to re-enable reminders."
-            ),
-            due_at=self.now,
-            priority=OperationalTask.Priority.HIGH,
-            reservation=reservation,
-            metadata={
-                "trigger": "duplicate_suspected",
-                "automated": True,
-            },
+    def _clear_duplicate_flag(self, reservation: Reservation) -> None:
+        logger.info(
+            f"Reservation {reservation.id}: no longer a suspected duplicate, "
+            f"reminders resume"
         )
+        if self.dry_run:
+            return
+        Reservation.objects.filter(pk=reservation.pk).update(
+            unpaid_duplicate_suspected=False,
+        )
+        reservation.unpaid_duplicate_suspected = False
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
