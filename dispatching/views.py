@@ -54,6 +54,7 @@ from drivers.models import (
 from drivers.availability import format_exception_badge, availability_block_bands, format_shift_preference
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate, Location
+from urllib.parse import quote as _urlquote
 from users.emails import send_reservation_confirmation
 from reservations.conversions import send_purchase_event
 from payment.webhook import save_card_to_customer
@@ -1716,6 +1717,38 @@ def schedule_board(request):
             driver_filter_dropped = str(_req) if _req else "That driver"
             driver_filter = ""
 
+    # ── Vehicle-type filter (Unassigned row only) ───────────────────────────
+    # Narrow the BACKLOG to one or more vehicle types — "just show me the van
+    # jobs still needing a driver". Driver lanes are never touched: what is
+    # already assigned is the day as it stands, and the point of the filter is
+    # to work the backlog one vehicle class at a time. The hiding happens in
+    # the browser — every backlog chip carries data-vehicle — so the rows, the
+    # header counts and the axis stay exactly as they are. The server's job is
+    # the honest option list: the types that actually have an unassigned job
+    # today, with counts, in the fleet's own order. A type that is ticked but
+    # has no backlog job today stays in the list (count 0) so it can be
+    # unticked, and the URL keeps it — the filter must survive a quiet day in
+    # the middle of a week of paging forward.
+    _vehicle_counts = {}
+    for _s in unassigned_timeline_slots:
+        _k = _s["vehicle_type"] or ""
+        _vehicle_counts[_k] = _vehicle_counts.get(_k, 0) + 1
+    _vehicle_choices = list(Vehicle.VEHICLE_TYPES) + [("none", "No vehicle set")]
+    _vehicle_valid = {_k for _k, _ in _vehicle_choices}
+    vehicle_filter = []
+    for _k in (request.GET.get("vehicle") or "").split(","):
+        _k = _k.strip()
+        if _k in _vehicle_valid and _k not in vehicle_filter:
+            vehicle_filter.append(_k)
+    board_vehicle_options = []
+    for _k, _lbl in _vehicle_choices:
+        _n = _vehicle_counts.get("" if _k == "none" else _k, 0)
+        if _n or _k in vehicle_filter:
+            board_vehicle_options.append({"key": _k, "label": _lbl, "count": _n})
+    vehicle_filter_qs = (
+        "&vehicle=" + _urlquote(",".join(vehicle_filter), safe="") if vehicle_filter else ""
+    )
+
     # Overnight tail (same night-crew rule as the dashboard): tomorrow's
     # 12-2 AM jobs shown as a read-only strip at the end of TONIGHT's board.
     # Deliberately NOT merged into the drag/assign timeline — drivers watch
@@ -1837,6 +1870,10 @@ def schedule_board(request):
         "filtered_driver_name": filtered_driver_name,
         "filtered_driver_legs": filtered_driver_legs,
         "driver_filter_dropped": driver_filter_dropped,
+        # ── Vehicle-type filter (browser-side; see above) ──
+        "vehicle_filter": vehicle_filter,
+        "vehicle_filter_qs": vehicle_filter_qs,
+        "board_vehicle_options": board_vehicle_options,
         # ── Passenger search ──
         "focus_leg_id": focus_leg_id,
         "focus_note": focus_note,

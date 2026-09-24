@@ -931,6 +931,56 @@
       .board-driver-filter > .bi { color: #94a3b8; font-size: 0.85rem; }
       .board-driver-filter .bi-funnel-fill { color: #C9A227; }
       .board-driver-filter select { width: 210px; }
+
+      /* ── Filter the Unassigned row by vehicle type ──────────────────────
+         Deliberately tiny: one icon button beside the driver filter with a
+         checklist under it. It hides BACKLOG chips only — driver lanes, the
+         header counts and the axis stay exactly as they are, so the board
+         keeps its shape. Light-only, like the rest of the dispatcher UI. */
+      .board-vehicle-filter { position: relative; display: flex; align-items: center; }
+      .board-vehicle-btn {
+          display: inline-flex; align-items: center; gap: 4px;
+          height: 31px; padding: 0 8px; border-radius: 6px;
+          border: 1px solid #ced4da; background: #fff; color: #64748b;
+          font-size: 0.9rem; line-height: 1; cursor: pointer;
+          transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+      }
+      /* The car itself is always gold — it is the one thing in the header
+         that says "vehicles" at a glance, so it is not left grey at rest. */
+      .board-vehicle-btn .bi { color: #C9A227; font-size: 1rem; }
+      .board-vehicle-btn:hover { border-color: #C9A227; color: #1a2332; }
+      .board-vehicle-btn:hover .bi { color: #a8861c; }
+      .board-vehicle-btn.is-active { border-color: #C9A227; color: #8a6d10; background: rgba(201,162,39,0.10); }
+      .board-vehicle-btn[aria-expanded="true"] { box-shadow: 0 0 0 3px rgba(201,162,39,0.22); }
+      .board-vehicle-count {
+          min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+          background: #C9A227; color: #1a2332; font-size: 0.62rem; font-weight: 800;
+          display: inline-flex; align-items: center; justify-content: center;
+      }
+      .board-vehicle-menu {
+          position: absolute; top: calc(100% + 6px); left: 0; z-index: 1050;
+          min-width: 200px; padding: 6px 0 4px;
+          background: #fff; border: 1px solid #d8dde5; border-radius: 8px;
+          box-shadow: 0 10px 28px rgba(15,23,42,0.16);
+      }
+      .board-vehicle-menu label {
+          display: flex; align-items: center; gap: 8px;
+          padding: 5px 12px; margin: 0; font-size: 0.8rem; color: #1a2332;
+          cursor: pointer; white-space: nowrap;
+      }
+      .board-vehicle-menu label:hover { background: rgba(201,162,39,0.08); }
+      .board-vehicle-menu input { accent-color: #C9A227; margin: 0; }
+      .board-vehicle-menu .bvf-cnt {
+          margin-left: auto; color: #94a3b8; font-size: 0.72rem;
+          font-variant-numeric: tabular-nums;
+      }
+      .board-vehicle-menu .bvf-foot {
+          margin-top: 4px; padding: 6px 12px 2px; border-top: 1px solid #eef1f5;
+          font-size: 0.74rem;
+      }
+      .board-vehicle-menu .bvf-foot a { color: #8a6d10; font-weight: 600; text-decoration: none; }
+      .board-vehicle-menu .bvf-foot a:hover { text-decoration: underline; }
+      .timeline-slot.bvf-hidden { display: none !important; }
       /* A filtered board looks like a quiet day, so say out loud that it isn't. */
       .board-focus-note {
           display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -1084,10 +1134,10 @@
           <i class="bi bi-kanban me-2"></i>{% if is_affiliate_board %}Affiliate Board{% else %}Schedule Board{% endif %}
         </h5>
         <div class="d-flex align-items-center gap-2">
-          <a href="?date={{ prev_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+          <a href="?date={{ prev_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{{ vehicle_filter_qs }}" class="board-keeps-vehicle btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
           <input type="date" class="form-control form-control-sm" id="boardDatePicker"
                  value="{{ selected_date|date:'Y-m-d' }}" style="width:150px;">
-          <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+          <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{{ vehicle_filter_qs }}" class="board-keeps-vehicle btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
         </div>
         <!-- Board switch: two separate boards over the same day, never mixed -->
         {% if move_changes and not move_changes.is_empty %}
@@ -1102,12 +1152,12 @@
           </div>
         {% endif %}
         <div class="btn-group btn-group-sm board-switch" role="group" aria-label="Board">
-          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=inhouse"
-             class="btn {% if not is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
+          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=inhouse{{ vehicle_filter_qs }}"
+             class="board-keeps-vehicle btn {% if not is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
             <i class="bi bi-house-door me-1"></i>In-House
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=affiliate"
-             class="btn {% if is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
+          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=affiliate{{ vehicle_filter_qs }}"
+             class="board-keeps-vehicle btn {% if is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
             <i class="bi bi-people me-1"></i>Affiliates
           </a>
         </div>
@@ -1150,9 +1200,38 @@
             {% endfor %}
           </select>
           {% if driver_filter %}
-            <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}"
-               class="btn btn-sm btn-outline-secondary" title="Show every driver again"><i class="bi bi-x-lg"></i></a>
+            <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}{{ vehicle_filter_qs }}"
+               class="board-keeps-vehicle btn btn-sm btn-outline-secondary" title="Show every driver again"><i class="bi bi-x-lg"></i></a>
           {% endif %}
+        </div>
+        {% endif %}
+        {% comment %}
+          Filter the Unassigned row by vehicle type. Tick one or more types and
+          every other backlog chip drops out of that row. Driver lanes, counts
+          and the axis stay put, so a filtered board still reads as the day it
+          is. Unlike the driver filter this survives the board switch: a van is
+          a van on either board. The hiding is done in the browser off each
+          chip's data-vehicle.
+        {% endcomment %}
+        {% if board_vehicle_options %}
+        <div class="board-vehicle-filter" id="boardVehicleFilter" data-focus-leg="{{ focus_leg_id|default:'' }}">
+          <button type="button" class="board-vehicle-btn{% if vehicle_filter %} is-active{% endif %}" id="boardVehicleBtn"
+                  aria-haspopup="true" aria-expanded="false" aria-controls="boardVehicleMenu"
+                  aria-label="Filter the board by vehicle type"
+                  title="Show only certain vehicle types in the Unassigned row">
+            <i class="bi bi-car-front{% if vehicle_filter %}-fill{% endif %}" aria-hidden="true"></i>
+            <span class="board-vehicle-count" id="boardVehicleCount"{% if not vehicle_filter %} hidden{% endif %}>{{ vehicle_filter|length }}</span>
+          </button>
+          <div class="board-vehicle-menu" id="boardVehicleMenu" hidden>
+            {% for opt in board_vehicle_options %}
+              <label>
+                <input type="checkbox" value="{{ opt.key }}"{% if opt.key in vehicle_filter %} checked{% endif %}>
+                <span class="bvf-name">{{ opt.label }}</span>
+                <span class="bvf-cnt">{{ opt.count }}</span>
+              </label>
+            {% endfor %}
+            <div class="bvf-foot"><a href="#" id="boardVehicleClear">Show every vehicle</a></div>
+          </div>
         </div>
         {% endif %}
       </div>
@@ -1183,7 +1262,7 @@
         <i class="bi bi-funnel-fill"></i>
         Showing <strong>{{ filtered_driver_name }}</strong> only — {{ filtered_driver_legs }} job{{ filtered_driver_legs|pluralize }}.
         Every other driver's lane is hidden; Unassigned still shows the whole day.
-        <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}">Show all drivers</a>
+        <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}{{ vehicle_filter_qs }}" class="board-keeps-vehicle">Show all drivers</a>
       </div>
     {% elif driver_filter_dropped %}
       <div class="board-focus-note board-focus-dropped">
@@ -1191,6 +1270,17 @@
         <strong>{{ driver_filter_dropped }}</strong> has no lane on {{ selected_date|date:"M j" }} — showing every driver.
       </div>
     {% endif %}
+
+    {% comment %}
+      Vehicle filter read-out. Filled in by the script that does the hiding;
+      stays hidden until a type is ticked. Same shape as the driver note so a
+      filtered backlog never reads as an empty one.
+    {% endcomment %}
+    <div class="board-focus-note" id="boardVehicleNote" hidden>
+      <i class="bi bi-car-front-fill"></i>
+      <span id="boardVehicleNoteText"></span>
+      <a href="#" id="boardVehicleNoteClear">Show every vehicle</a>
+    </div>
 
     {% comment %}
       Landed here from the passenger search. Says whose trip is ringed — and,
@@ -2079,8 +2169,9 @@
     // Date picker navigation — carries the driver focus across days, same as the
     // prev/next arrows.
     var _boardDriverQS = '{% if driver_filter %}&driver={{ driver_filter }}{% endif %}';
+    var _boardVehicleQS = '{{ vehicle_filter_qs|escapejs }}';
     document.getElementById('boardDatePicker').addEventListener('change', function(){
-      window.location.href = '?date=' + this.value + '&view={{ board_view }}' + _boardDriverQS;
+      window.location.href = '?date=' + this.value + '&view={{ board_view }}' + _boardDriverQS + _boardVehicleQS;
     });
 
     // Filter by driver
@@ -2089,9 +2180,103 @@
       _boardDriverFilter.addEventListener('change', function(){
         var url = '?date={{ selected_date|date:"Y-m-d" }}&view={{ board_view }}';
         if (this.value) { url += '&driver=' + encodeURIComponent(this.value); }
-        window.location.href = url;
+        window.location.href = url + _boardVehicleQS;
       });
     }
+
+    // Filter the Unassigned row by vehicle type. Browser-side on purpose: it
+    // hides backlog chips only — driver lanes are never touched — so nothing
+    // about the board's shape or counts changes. The choice is written back
+    // into the URL so a refresh, the date arrows and the board switch all keep it.
+    (function(){
+      var wrap = document.getElementById('boardVehicleFilter');
+      if (!wrap) return;
+      var btn = document.getElementById('boardVehicleBtn');
+      var icon = btn.querySelector('.bi');
+      var menu = document.getElementById('boardVehicleMenu');
+      var countEl = document.getElementById('boardVehicleCount');
+      var note = document.getElementById('boardVehicleNote');
+      var noteText = document.getElementById('boardVehicleNoteText');
+      var focusLeg = wrap.dataset.focusLeg || '';
+      var boxes = Array.prototype.slice.call(menu.querySelectorAll('input[type="checkbox"]'));
+      var labels = {};
+      boxes.forEach(function(b){ labels[b.value] = b.parentNode.querySelector('.bvf-name').textContent; });
+
+      function chosen(){
+        return boxes.filter(function(b){ return b.checked; }).map(function(b){ return b.value; });
+      }
+      function sayList(keys){
+        var names = keys.map(function(k){ return labels[k] || k; });
+        if (names.length < 2) return names.join('');
+        return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+      }
+      function setOpen(open){
+        menu.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      function syncUrl(keys){
+        _boardVehicleQS = keys.length ? '&vehicle=' + encodeURIComponent(keys.join(',')) : '';
+        document.querySelectorAll('a.board-keeps-vehicle').forEach(function(a){
+          var href = (a.getAttribute('href') || '').replace(/&vehicle=[^&]*/, '');
+          a.setAttribute('href', href + _boardVehicleQS);
+        });
+        try {
+          var url = new URL(window.location.href);
+          if (keys.length) { url.searchParams.set('vehicle', keys.join(',')); }
+          else { url.searchParams.delete('vehicle'); }
+          window.history.replaceState(null, '', url.toString());
+        } catch (e) {}
+      }
+      function apply(){
+        var keys = chosen();
+        var on = keys.length > 0;
+        var shown = 0, total = 0;
+        document.querySelectorAll('.dnd-unassigned-row .timeline-slot[data-vehicle]').forEach(function(el){
+          total += 1;
+          var k = el.dataset.vehicle || 'none';
+          // The trip the passenger search landed on is never hidden — that
+          // ring is the whole reason the dispatcher is here.
+          var hide = on && keys.indexOf(k) === -1 && String(el.dataset.legId) !== focusLeg;
+          el.classList.toggle('bvf-hidden', hide);
+          if (!hide) shown += 1;
+        });
+        btn.classList.toggle('is-active', on);
+        icon.className = on ? 'bi bi-car-front-fill' : 'bi bi-car-front';
+        countEl.hidden = !on;
+        countEl.textContent = String(keys.length);
+        if (on) {
+          noteText.textContent = '';
+          noteText.appendChild(document.createTextNode('Unassigned shows '));
+          var strong = document.createElement('strong');
+          strong.textContent = sayList(keys);
+          noteText.appendChild(strong);
+          noteText.appendChild(document.createTextNode(
+            ' only \u2014 ' + shown + ' of ' + total + ' backlog job' + (total === 1 ? '' : 's') +
+            '. Driver lanes and the counts above are still the whole day.'));
+        }
+        note.hidden = !on;
+        syncUrl(keys);
+        // The backlog's "N more" hint measures what is in view; let it re-count.
+        window.dispatchEvent(new Event('resize'));
+      }
+      function clearAll(e){
+        if (e) e.preventDefault();
+        boxes.forEach(function(b){ b.checked = false; });
+        apply();
+        setOpen(false);
+      }
+
+      btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });
+      menu.addEventListener('click', function(e){ e.stopPropagation(); });
+      document.addEventListener('click', function(){ if (!menu.hidden) setOpen(false); });
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && !menu.hidden) { setOpen(false); btn.focus(); }
+      });
+      boxes.forEach(function(b){ b.addEventListener('change', apply); });
+      document.getElementById('boardVehicleClear').addEventListener('click', clearAll);
+      document.getElementById('boardVehicleNoteClear').addEventListener('click', clearAll);
+      apply();
+    })();
 
     // Click to navigate to Legs Dashboard with highlight
     // Track drag state to avoid navigating after a drag operation
