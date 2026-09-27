@@ -1,0 +1,210 @@
+{% extends "main.html" %}
+{% load static %}
+{% block title %}Add a driver{% endblock %}
+
+{% block extra_css %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+  <style>
+    {% include "drivers/_comms_admin_palette.html" %}
+    body { background: var(--gt-bg) !important; }
+    .new-page { background: radial-gradient(900px 340px at 12% -8%, rgba(201,162,39,0.10), transparent 62%), var(--gt-bg);
+      color: var(--gt-text); min-height: calc(100vh - 80px); padding: 2rem 0 4rem;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .new-page .container-fluid { max-width: 1100px; }
+    .dir-eyebrow { font-size: .66rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--gt-gold); margin-bottom: .45rem; }
+    .dir-title { font-family: 'Playfair Display', Georgia, serif; font-size: 2.1rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; margin: 0; color: var(--gt-text); }
+    .dir-lede { font-size: .86rem; color: var(--gt-muted); margin-top: .5rem; max-width: 46rem; line-height: 1.55; }
+    .dir-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; padding: .5rem .95rem; border-radius: 8px; text-decoration: none; border: 1px solid var(--gt-border); background: var(--gt-surface-2); color: var(--gt-text); white-space: nowrap; }
+    .dir-btn:hover { color: var(--gt-gold); border-color: rgba(201,162,39,.45); background: rgba(201,162,39,.08); }
+    .dir-btn.gold { background: var(--gt-gold); border-color: var(--gt-gold); color: #0d1117; font-size: .86rem; padding: .7rem 1.2rem; }
+    .dir-btn.gold:hover { background: #d9b33a; border-color: #d9b33a; color: #0d1117; }
+
+    .new-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(280px, 4fr); gap: 1.5rem; align-items: start; }
+    @media (max-width: 900px) { .new-grid { grid-template-columns: 1fr; } }
+    .profile-card { background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 12px; color: var(--gt-text); }
+    .profile-card .card-header { background: var(--gt-surface-2); border-bottom: 1px solid var(--gt-border); color: var(--gt-text); padding: 0.75rem 1.1rem; font-weight: 600; font-size: .9rem; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; }
+    .profile-card .card-body { padding: 1.1rem; }
+    .field-group { margin-bottom: 1rem; }
+    .field-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; margin-bottom: 0.35rem; }
+    .field-label .opt { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--gt-muted); opacity: .8; }
+    .gt-field { width: 100%; background: var(--gt-surface-2); border: 1px solid var(--gt-border); color: var(--gt-text); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.92rem; }
+    .gt-field:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px rgba(201,162,39,.18); }
+    select.gt-field { appearance: auto; }
+    .field-error { color: #f87171; font-size: 0.75rem; margin-top: 0.3rem; }
+    .field-help { color: var(--gt-muted); font-size: 0.74rem; margin-top: 0.3rem; line-height: 1.45; }
+    .form-error-banner { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
+
+    /* Delivery choice — three tiles, one radio each */
+    .send-choice { display: grid; gap: .6rem; }
+    .send-tile { display: flex; gap: .8rem; align-items: flex-start; padding: .85rem 1rem; border: 1px solid var(--gt-border); border-radius: 10px; background: var(--gt-surface-2); cursor: pointer; transition: border-color .15s, background .15s; }
+    .send-tile:hover { border-color: rgba(201,162,39,.45); }
+    .send-tile input { margin-top: .2rem; accent-color: var(--gt-gold); flex: none; }
+    .send-tile:has(input:checked) { border-color: var(--gt-gold); background: rgba(201,162,39,.08); }
+    .send-tile b { display: block; font-size: .9rem; color: var(--gt-text); }
+    .send-tile span { display: block; font-size: .76rem; color: var(--gt-muted); margin-top: .15rem; line-height: 1.45; }
+
+    /* Explainer */
+    .how { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+    .how li { position: relative; padding: 0 0 1rem 2.2rem; font-size: .84rem; color: var(--gt-muted); line-height: 1.5; }
+    .how li b { color: var(--gt-text); font-weight: 600; }
+    .how li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: .05rem; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700; color: #0d1117; background: var(--gt-gold); }
+    .how li:last-child { padding-bottom: 0; }
+    .side-note { font-size: .78rem; color: var(--gt-muted); line-height: 1.5; border-top: 1px solid var(--gt-border); padding-top: .9rem; margin-top: 1rem; }
+  </style>
+{% endblock extra_css %}
+
+{% block footer %}{% endblock footer %}
+{% block newsletter %}{% endblock newsletter %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="new-page">
+    <div class="container-fluid">
+      <header class="d-flex align-items-end justify-content-between gap-3 flex-wrap mb-4">
+        <div>
+          <div class="dir-eyebrow">Driver directory</div>
+          <h1 class="dir-title">Add a driver</h1>
+          <p class="dir-lede">Type their name and mobile, choose how to send the welcome link, and you're done. They set their own password on their phone — nobody reads one out over the phone, and nobody needs to come in.</p>
+        </div>
+        <a href="{% url 'drivers_extend' %}" class="dir-btn"><i class="bi bi-arrow-left"></i>Directory</a>
+      </header>
+
+      <div class="new-grid">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.errors %}
+            <div class="form-error-banner">
+              <strong>Please fix the following:</strong>
+              <ul class="mb-0 mt-1 ps-3">
+                {% for field in form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+                {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          <div class="profile-card mb-3">
+            <div class="card-header"><span><i class="bi bi-person-vcard me-2"></i>Who they are</span></div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.first_name.id_for_label }}">First name</label>
+                    {{ form.first_name }}
+                    {% for e in form.first_name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.last_name.id_for_label }}">Last name</label>
+                    {{ form.last_name }}
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.phone_number.id_for_label }}">Mobile number</label>
+                    {{ form.phone_number }}
+                    {% for e in form.phone_number.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+                    <div class="field-help">The number they carry on the road. Stored as +1 (407) 555-0134 whatever way you type it.</div>
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.email.id_for_label }}">Email <span class="opt">(optional)</span></label>
+                    {{ form.email }}
+                    {% for e in form.email.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-card mb-3">
+            <div class="card-header"><span><i class="bi bi-briefcase me-2"></i>How they work with us</span></div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.driver_type.id_for_label }}">In-house or affiliate</label>
+                    {{ form.driver_type }}
+                    <div class="field-help">In-house drives any car in the fleet. Affiliates bring their own.</div>
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.portal_role.id_for_label }}">What they see in the app</label>
+                    {{ form.portal_role }}
+                    <div class="field-help">Chauffeur for anyone who drives the trip. Operator only for a partner company that hands our jobs to its own drivers.</div>
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.employment_type.id_for_label }}">Full time or part time</label>
+                    {{ form.employment_type }}
+                  </div>
+                </div>
+                <div class="col-sm-6">
+                  <div class="field-group">
+                    <label class="field-label" for="{{ form.hired_on.id_for_label }}">Start date <span class="opt">(optional)</span></label>
+                    {{ form.hired_on }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-card mb-3">
+            <div class="card-header"><span><i class="bi bi-send me-2"></i>Send the welcome link</span></div>
+            <div class="card-body">
+              <div class="send-choice">
+                {% for radio in form.send_via %}
+                  <label class="send-tile">
+                    {{ radio.tag }}
+                    <div>
+                      {% if radio.data.value == 'sms' %}
+                        <b>Text it to their mobile</b>
+                        <span>One tap on their phone. Best for chauffeurs.</span>
+                      {% elif radio.data.value == 'email' %}
+                        <b>Email it</b>
+                        <span>Good for partner companies and anyone at a desk.</span>
+                      {% else %}
+                        <b>Just give me the link</b>
+                        <span>You'll get a link to copy and send from your own phone or WhatsApp.</span>
+                      {% endif %}
+                    </div>
+                  </label>
+                {% endfor %}
+              </div>
+              {% for e in form.send_via.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center">
+            <button type="submit" class="dir-btn gold"><i class="bi bi-person-plus-fill"></i>Add driver and send the link</button>
+            <a href="{% url 'drivers_extend' %}" class="dir-btn">Cancel</a>
+          </div>
+        </form>
+
+        <aside>
+          <div class="profile-card">
+            <div class="card-header"><span><i class="bi bi-lightbulb me-2"></i>What happens next</span></div>
+            <div class="card-body">
+              <ol class="how">
+                <li><b>They get a link</b> by text or email, good for seven days and one use.</li>
+                <li><b>They pick a username and password</b> on their own phone, and can snap their license right there. Nobody else ever knows the password.</li>
+                <li><b>They check their details</b> — mobile, email, home address — and must add a photo of their license before they can save. The number and expiry are read off the card for them to confirm.</li>
+                <li><b>They photograph their chauffeur permit</b> in the app the same way.</li>
+                <li><b>You see it all land</b> on their profile: a checklist ticks off as each piece arrives.</li>
+              </ol>
+              <p class="side-note">Already have a driver with no login, or one who forgot their password? Open their profile and use <b>Send a welcome link</b> — same link, same page.</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+{% endblock %}

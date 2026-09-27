@@ -1,101 +1,74 @@
-{% extends 'main.html' %}
-{% load static %}
+{% extends 'users/auth_base.html' %}
+{% block title %}{% if page == 'register' %}Create an account{% else %}Sign in{% endif %}{% endblock %}
+{% block brand_eyebrow %}Staff &amp; chauffeur sign-in{% endblock %}
 
-{% block content %}
-  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+{% block card %}
+  {% if page == 'login' %}
+    <p class="auth-kicker">Welcome back</p>
+    <h1 class="auth-title">Sign in to <em>your day.</em></h1>
+    <p class="auth-lede">Dispatch, the schedule board and the driver app all start here.</p>
 
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-6 col-lg-4">
-        <div class="form-container">
-          {% if page == 'login' %}
-            <div id="login-form">
-              <p class="title">Welcome Back!</p>
-              <form class="form" method="POST">
-                {% csrf_token %}
-                <div class="input-group">
-                  <label for="username">Username</label>
-                  <input type="text" name="username" id="username" class="input" placeholder="Enter username" />
-                </div>
-                <div class="input-group">
-                  <label for="password">Password</label>
-                  <input type="password" name="password" id="password" class="input" placeholder="Enter password" />
-                  <div class="forgot">
-                    <a href="#">Forgot Password?</a>
-                  </div>
-                </div>
-                <div class="button-wrapper">
-                  <button>
-                    Log In<div class="arrow-wrapper">
-                      <div class="arrow"></div>
-                    </div>
-                  </button>
-                </div>
-              </form>
+    {% include 'users/_auth_messages.html' %}
 
-              <p class="signup">
-                Don't have an account?
-                <a href="{% url 'register' %}">Sign up</a>
-              </p>
-            </div>
-          {% endif %}
-
-          {% if page == 'register' %}
-            <div id="register-form">
-              <p class="title">Create an Account</p>
-              <form class="form" method="POST">
-                {% csrf_token %}
-                {% for field in form %}
-                  <div class="input-group">
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}
-                      <div class="alert alert-danger">
-                        {% for error in field.errors %}
-                          {{ error }}
-                          <br />
-                        {% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-                {% endfor %}
-                <div class="button-wrapper">
-                  <button>
-                    Sign Up<div class="arrow-wrapper">
-                      <div class="arrow"></div>
-                    </div>
-                  </button>
-                </div>
-              </form>
-
-              <div class="social-message">
-                <div class="line"></div>
-                <p class="message">Use Google Instead</p>
-                <div class="line"></div>
-              </div>
-              <div class="social-icons">
-                <button aria-label="Log in with Google" class="icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" class="w-5 h-5 fill-current">
-                    <path d="M16.318 13.714v5.484h9.078c-0.37 2.354-2.745 6.901-9.078 6.901-5.458 0-9.917-4.521-9.917-10.099s4.458-10.099 9.917-10.099c3.109 0 5.193 1.318 6.38 2.464l4.339-4.182c-2.786-2.599-6.396-4.182-10.719-4.182-8.844 0-16 7.151-16 16s7.156 16 16 16c9.234 0 15.365-6.49 15.365-15.635 0-1.052-0.115-1.854-0.255-2.651z"></path>
-                  </svg>
-                </button>
-              </div>
-
-              <p class="signup">
-                Already have an account?
-                <a href="{% url 'login' %}">Log in</a>
-              </p>
-            </div>
-          {% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+      <div class="a-field">
+        <label class="a-label" for="username">Username or email</label>
+        <div class="a-input-wrap">
+          <input class="a-input" type="text" name="username" id="username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required value="{{ request.POST.username|default:'' }}" />
         </div>
       </div>
+      <div class="a-field">
+        <label class="a-label" for="password">
+          <span>Password</span>
+          <a href="{% url 'password_reset' %}" tabindex="-1">Reset password</a>
+        </label>
+        <div class="a-input-wrap">
+          <input class="a-input" type="password" name="password" id="password" autocomplete="current-password" required />
+        </div>
+      </div>
+      <div class="a-actions">
+        <button class="a-btn" type="submit">Sign in <i class="bi bi-arrow-right"></i></button>
+      </div>
+    </form>
+
+    <div class="auth-links">
+      <p>New chauffeur? Your welcome text or email has a link that sets up your login. No link yet? <a href="tel:407-212-7190">Call the office</a>.</p>
+      <p>Forgot your password? <a href="{% url 'password_reset' %}">Reset it by email</a>, or ask dispatch to text you a fresh login link.</p>
+      <p>Travel advisor? <a href="{% url 'agent_login' %}">Sign in to the agent portal</a>.</p>
     </div>
-  </div>
-{% endblock %}
+  {% endif %}
 
-{% block footer %}
+  {% if page == 'register' %}
+    <p class="auth-kicker">Create an account</p>
+    <h1 class="auth-title">A few <em>details.</em></h1>
+    <p class="auth-lede">Chauffeurs: you don't need this page — your welcome link sets everything up.</p>
 
-{% endblock %}
-{% block newsletter %}
+    {% include 'users/_auth_messages.html' %}
 
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="a-field">
+          <label class="a-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          <div class="a-input-wrap">
+            <input class="a-input{% if field.errors %} is-invalid{% endif %}"
+                   type="{% if 'password' in field.name %}password{% elif field.name == 'email' %}email{% else %}text{% endif %}"
+                   name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                   value="{% if 'password' not in field.name %}{{ field.value|default:'' }}{% endif %}"
+                   {% if field.field.required %}required{% endif %} />
+          </div>
+          {% for error in field.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+      <div class="a-actions">
+        <button class="a-btn" type="submit">Create account <i class="bi bi-arrow-right"></i></button>
+      </div>
+    </form>
+
+    <div class="auth-links">
+      <p>Already have one? <a href="{% url 'login' %}">Sign in</a>.</p>
+    </div>
+  {% endif %}
 {% endblock %}

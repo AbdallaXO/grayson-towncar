@@ -1,0 +1,10 @@
+Hi {{ first_name }},
+
+Welcome to Grayson Towncar. Open this link on your phone to set up your driver app login — you'll pick a username and password, then see your trips:
+
+{{ link }}
+
+The link works once, until {{ expires_at|date:"l, F j" }}. If it stops working, call the office and we'll send a new one.
+
+Grayson Towncar
+{{ company_phone }}

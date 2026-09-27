@@ -177,6 +177,10 @@
             </li>
             {% if request.user.is_superuser %}
             <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_new' %}active{% endif %}"
+                 href="{% url 'driver_new' %}"><i class="bi bi-person-plus-fill me-2"></i>Add a Driver</a>
+            </li>
+            <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'payroll_run' %}active{% endif %}"
                  href="{% url 'payroll_run' %}"><i class="bi bi-check2-square me-2"></i>Payroll Run</a>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_payment_management' %}active{% endif %}"

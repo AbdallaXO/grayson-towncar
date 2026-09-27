@@ -1,6 +1,7 @@
 {% extends "main.html" %}
 {% load static %}
 {% load humanize %}
+{% load phone_tags %}
 
 {% block title %}Driver directory{% endblock %}
 
@@ -142,6 +143,8 @@
     .mini-badge.affiliate { background: rgba(167,139,250,.16); color: #a78bfa; }
     .mini-badge.operator { background: rgba(232,213,183,.14); color: #E8D5B7; }
     .mini-badge.inactive { background: rgba(248,113,113,.16); color: var(--dir-red); }
+    .mini-badge.nologin { background: rgba(251,191,36,.16); color: var(--dir-amber); }
+    .mini-badge.invited { background: rgba(201,162,39,.16); color: var(--gt-gold); }
     .drv-sub { display: flex; align-items: center; gap: .5rem; color: var(--gt-muted); font-size: .7rem; margin-top: .15rem; }
     .timing-toggle { cursor: pointer; font-size: .85rem; }
     .drv-know { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: .4rem; }
@@ -266,7 +269,12 @@
             &middot; {{ today|date:"l, F j" }}
           </div>
         </div>
-        <a href="{% url 'dashboard' %}" class="dir-btn"><i class="bi bi-arrow-left"></i>Dashboard</a>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="{% url 'dashboard' %}" class="dir-btn"><i class="bi bi-arrow-left"></i>Dashboard</a>
+          {% if can_manage %}
+            <a href="{% url 'driver_new' %}" class="dir-btn gold"><i class="bi bi-person-plus-fill"></i>Add a driver</a>
+          {% endif %}
+        </div>
       </header>
 
       {# ── Paperwork band: who has sent what, and the five filters ─────── #}
@@ -379,6 +387,11 @@
                       {% if not driver.is_active %}
                         <span class="mini-badge inactive" title="Marked inactive — hidden from the planner, board, and vehicle assignment. Listed here only.">Inactive</span>
                       {% endif %}
+                      {% if driver.is_active and driver.login_state == 'none' %}
+                        <span class="mini-badge nologin" title="{{ driver.display_first }} can't sign in to the driver app yet. Open the profile to send a welcome link.">No login</span>
+                      {% elif driver.is_active and driver.login_state == 'invited' %}
+                        <span class="mini-badge invited" title="A welcome link is out and hasn't been opened yet.">Link sent</span>
+                      {% endif %}
                     </div>
                     <div class="drv-sub">
                       <span>@{{ driver.profile.username }}</span>
@@ -428,7 +441,7 @@
 
                   <td data-label="Contact">
                     {% if driver.phone_number %}
-                      <a href="tel:{{ driver.phone_number }}" class="contact-link"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a>
+                      <a href="tel:{{ driver.phone_number|tel }}" class="contact-link"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number|phone }}</a>
                     {% else %}
                       <span class="no-phone" title="No phone number on this driver's profile"><i class="bi bi-telephone-x"></i>No phone on file</span>
                     {% endif %}

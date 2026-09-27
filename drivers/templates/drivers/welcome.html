@@ -1,0 +1,91 @@
+{% extends 'users/auth_base.html' %}
+{% block title %}{% if returning %}Set a new password{% else %}Welcome aboard{% endif %}{% endblock %}
+{% block brand_eyebrow %}{% if returning %}Your login{% else %}Welcome to the team{% endif %}{% endblock %}
+{% block brand_title %}Good to have you <em>with us.</em>{% endblock %}
+{% block brand_copy %}Pick a username and password for the driver app. Then it's your trips, your schedule and the guest's details — all on your phone.{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelectorAll('.a-file-input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var btn = input.closest('.a-file-btn');
+        var label = btn.querySelector('[data-file-label]');
+        if (input.files && input.files.length) {
+          label.textContent = input.files[0].name + ' — attached';
+          btn.classList.add('has-file');
+        } else {
+          label.textContent = 'Add a photo of your license';
+          btn.classList.remove('has-file');
+        }
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block card %}
+  <p class="auth-kicker">{% if returning %}Set a new password{% else %}Welcome, {{ first_name }}{% endif %}</p>
+  <h1 class="auth-title">{% if returning %}Choose a <em>new password.</em>{% else %}Set up your <em>driver login.</em>{% endif %}</h1>
+  <p class="auth-lede">
+    {% if returning %}
+      This link came from the office. Choose a password below and you'll be signed straight in.
+    {% else %}
+      Two things and you're in: a username you'll remember, and a password. The office already has your name and number.
+    {% endif %}
+  </p>
+
+  <div class="a-facts">
+    <div class="a-fact"><span>Name</span><span>{{ driver.profile.get_full_name|default:driver.profile.username }}</span></div>
+    {% if driver.phone_number %}<div class="a-fact"><span>Mobile</span><span>{{ driver.phone_display }}</span></div>{% endif %}
+    {% if driver.profile.email %}<div class="a-fact"><span>Email</span><span>{{ driver.profile.email }}</span></div>{% endif %}
+  </div>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="a-note error"><i class="bi bi-exclamation-circle-fill"></i><div>{% for e in form.non_field_errors %}{{ e }}{% endfor %}</div></div>
+    {% endif %}
+    <div class="a-field">
+      <label class="a-label" for="{{ form.username.id_for_label }}"><span>Username</span><span class="a-hint">what you'll type to sign in</span></label>
+      <div class="a-input-wrap">
+        <input class="a-input{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}"
+               value="{{ form.username.value|default:'' }}" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+      </div>
+      {% for error in form.username.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="a-field">
+      <label class="a-label" for="{{ form.new_password1.id_for_label }}">Password</label>
+      <div class="a-input-wrap">
+        <input class="a-input{% if form.new_password1.errors %} is-invalid{% endif %}" type="password" name="{{ form.new_password1.html_name }}" id="{{ form.new_password1.id_for_label }}" autocomplete="new-password" required />
+      </div>
+      {% for error in form.new_password1.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+      <p class="a-help">At least 8 characters. Not just numbers, and not your name.</p>
+    </div>
+    <div class="a-field">
+      <label class="a-label" for="{{ form.new_password2.id_for_label }}">Once more</label>
+      <div class="a-input-wrap">
+        <input class="a-input{% if form.new_password2.errors %} is-invalid{% endif %}" type="password" name="{{ form.new_password2.html_name }}" id="{{ form.new_password2.id_for_label }}" autocomplete="new-password" required />
+      </div>
+      {% for error in form.new_password2.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+    </div>
+    {% if not returning and not driver.license_scan %}
+      <div class="a-field a-file">
+        <label class="a-label"><span>Driver's license</span><span class="a-hint">optional, saves a step later</span></label>
+        <label class="a-file-btn">
+          <i class="bi bi-camera"></i>
+          <span data-file-label>Add a photo of your license</span>
+          {{ form.license_scan }}
+        </label>
+        <p class="a-help">Front of the card. We'll read the number and expiry off it for you to check. You can also do this later in the app.</p>
+        {% for error in form.license_scan.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    <div class="a-actions">
+      <button class="a-btn gold" type="submit">{% if returning %}Save and sign in{% else %}Open the driver app{% endif %} <i class="bi bi-arrow-right"></i></button>
+    </div>
+  </form>
+
+  <div class="auth-links">
+    <p>Not {{ first_name }}? Don't go any further — <a href="tel:{{ company_phone }}">call the office</a>.</p>
+    <p>This link works until {{ expires_at|date:"l, F j" }} and only once.</p>
+  </div>
+{% endblock %}

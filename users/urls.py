@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.partner, name="partner"),
     path("login/", views.loginUser, name="login"),
     path("logout/", views.logoutUser, name="logout"),
+    path("after-login/", views.after_login, name="after_login"),
     path("register/", views.registerUser, name="register"),
     path("thank-you/", views.thankYou, name="thankyou"),
     path("contact-grayson-towncar/", views.contact, name="contact"),
@@ -130,7 +131,12 @@ urlpatterns = [
     ),
     path(
         "password-reset/",
-        auth_views.PasswordResetView.as_view(template_name="users/password_reset.html"),
+        auth_views.PasswordResetView.as_view(
+            template_name="users/password_reset.html",
+            email_template_name="users/password_reset_email.txt",
+            html_email_template_name="users/password_reset_email.html",
+            subject_template_name="users/password_reset_subject.txt",
+        ),
         name="password_reset",
     ),
     path(
@@ -145,7 +151,8 @@ urlpatterns = [
         auth_views.PasswordResetConfirmView.as_view(
             template_name="users/password_reset_confirm.html",
             post_reset_login=True,
-            success_url=reverse_lazy("agent_dashboard"),  # Redirect
+            # Signed in by the reset itself; after_login sends each role home.
+            success_url=reverse_lazy("after_login"),
         ),
         name="password_reset_confirm",
     ),

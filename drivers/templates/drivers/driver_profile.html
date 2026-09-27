@@ -1,5 +1,6 @@
 {% extends "main.html" %}
 {% load static %}
+{% load phone_tags %}
 
 {% block extra_css %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -177,6 +178,37 @@
       color: #f87171; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem;
     }
     .edit-toggle-btn.btn-cancel:hover { background: var(--gt-border); color: var(--gt-text); border-color: var(--gt-border); }
+
+    /* ── Account & login ── */
+    .login-pill { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; }
+    .login-pill.ok { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
+    .login-pill.invited { background: rgba(201,162,39,0.15); color: var(--gt-gold); border: 1px solid rgba(201,162,39,0.4); }
+    .login-pill.none { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.35); }
+    .invite-link { display: flex; gap: .5rem; align-items: center; margin-top: .6rem; }
+    .invite-link input { flex: 1; min-width: 0; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .74rem; }
+    .invite-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+    .invite-actions form { display: inline; }
+    .profile-page .btn.btn-sm { padding: .3rem .65rem; font-size: .78rem; }
+    .profile-page .btn.btn-danger-ghost:hover { background: rgba(248,113,113,0.18); color: #f87171; border-color: rgba(248,113,113,0.4); }
+    .account-note { font-size: .78rem; color: var(--gt-muted); margin-top: .6rem; line-height: 1.5; }
+
+    /* ── Onboarding checklist ── */
+    .check-meter { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; }
+    .check-meter .bar { flex: 1; height: 7px; border-radius: 4px; background: var(--gt-surface-2); overflow: hidden; }
+    .check-meter .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--gt-gold), #E8D5B7); border-radius: 4px; }
+    .check-meter .fig { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .8rem; font-weight: 700; color: var(--gt-gold); }
+    .check-list { list-style: none; margin: 0; padding: 0; }
+    .check-item { display: flex; gap: .65rem; align-items: flex-start; padding: .5rem 0; border-top: 1px solid var(--gt-border); font-size: .85rem; }
+    .check-item:first-child { border-top: 0; }
+    .check-item i { flex: none; margin-top: .1rem; }
+    .check-item.done i { color: #4ade80; }
+    .check-item.partial i { color: #fbbf24; }
+    .check-item.missing i { color: var(--gt-muted); }
+    .check-item .lbl { font-weight: 600; color: var(--gt-text); }
+    .check-item.done .lbl { color: var(--gt-muted); font-weight: 500; }
+    .check-item .det { display: block; font-size: .74rem; color: var(--gt-muted); margin-top: .1rem; }
+    .check-item.missing .det { color: #fbbf24; }
+    .check-done { display: flex; gap: .6rem; align-items: center; font-size: .85rem; color: #4ade80; }
   </style>
 {% endblock extra_css %}
 
@@ -347,6 +379,112 @@
         {# ── Left column: Contact + Vehicle + Schedule ── #}
         <div class="col-lg-5">
 
+          {# ── Account & login ── #}
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-phone me-2"></i>Driver App Login</span>
+              {% if has_login %}
+                <span class="login-pill ok"><i class="bi bi-check-circle-fill"></i>Can sign in</span>
+              {% elif invite %}
+                <span class="login-pill invited"><i class="bi bi-send-check"></i>Link sent</span>
+              {% else %}
+                <span class="login-pill none"><i class="bi bi-exclamation-circle"></i>No login yet</span>
+              {% endif %}
+            </div>
+            <div class="card-body">
+              <div class="info-row">
+                <span class="info-label">Username</span>
+                <span class="info-value">{{ driver.profile.username }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Last signed in</span>
+                <span class="info-value">{% if driver.profile.last_login %}{{ driver.profile.last_login|date:"M j, Y g:i A" }}{% else %}<span class="text-muted-dark">Never</span>{% endif %}</span>
+              </div>
+              {% if invite %}
+                <div class="info-row">
+                  <span class="info-label">Welcome link</span>
+                  <span class="info-value">
+                    {% if invite.last_sent_at %}
+                      {{ invite.get_sent_via_display }}{% if invite.sent_to %} to {{ invite.sent_to }}{% endif %} &middot; {{ invite.last_sent_at|date:"M j, g:i A" }}
+                    {% else %}Created {{ invite.created_at|date:"M j" }}{% endif %}
+                    <span class="text-muted-dark">&middot; expires {{ invite.expires_at|date:"M j" }}</span>
+                  </span>
+                </div>
+              {% elif latest_invite %}
+                <div class="info-row">
+                  <span class="info-label">Last welcome link</span>
+                  <span class="info-value">
+                    {% if latest_invite.accepted_at %}Opened {{ latest_invite.accepted_at|date:"M j, Y" }}{% elif latest_invite.revoked_at %}Cancelled {{ latest_invite.revoked_at|date:"M j" }}{% else %}Expired {{ latest_invite.expires_at|date:"M j" }} unopened{% endif %}
+                  </span>
+                </div>
+              {% endif %}
+
+              {% if can_edit %}
+                {% if invite %}
+                  <div class="invite-link">
+                    <input type="text" class="gt-field" id="inviteUrl" value="{{ invite_url }}" readonly aria-label="Welcome link">
+                    <button type="button" class="btn btn-sm btn-primary-action" id="copyInviteBtn" data-url="{{ invite_url }}"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                  </div>
+                {% endif %}
+                <div class="invite-actions">
+                  <form method="post" action="{% url 'driver_invite' driver.id %}">{% csrf_token %}<input type="hidden" name="action" value="sms">
+                    <button type="submit" class="btn btn-sm" {% if not driver.phone_number %}disabled title="No mobile number on file"{% endif %}><i class="bi bi-chat-dots me-1"></i>{% if invite %}Text it again{% else %}Text a welcome link{% endif %}</button>
+                  </form>
+                  <form method="post" action="{% url 'driver_invite' driver.id %}">{% csrf_token %}<input type="hidden" name="action" value="email">
+                    <button type="submit" class="btn btn-sm" {% if not driver.profile.email %}disabled title="No email on file"{% endif %}><i class="bi bi-envelope me-1"></i>{% if invite %}Email it again{% else %}Email a welcome link{% endif %}</button>
+                  </form>
+                  {% if not invite %}
+                    <form method="post" action="{% url 'driver_invite' driver.id %}">{% csrf_token %}<input type="hidden" name="action" value="link">
+                      <button type="submit" class="btn btn-sm"><i class="bi bi-link-45deg me-1"></i>Make a link to copy</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{% url 'driver_invite' driver.id %}">{% csrf_token %}<input type="hidden" name="action" value="revoke">
+                      <button type="submit" class="btn btn-sm btn-danger-ghost"><i class="bi bi-x-circle me-1"></i>Cancel link</button>
+                    </form>
+                  {% endif %}
+                </div>
+                <div class="account-note">
+                  {% if has_login %}
+                    A welcome link also works as a password reset: {{ driver.profile.first_name|default:"they" }} opens it, picks a new password, and is signed straight in.
+                  {% else %}
+                    {{ driver.profile.first_name|default:"They" }} opens the link on their phone, picks a username and password, confirms their details and lands in the driver app. Links work once, for seven days.
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# ── Onboarding checklist ── #}
+          {% if not driver.is_operator %}
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-clipboard-check me-2"></i>Onboarding</span>
+              <span class="text-muted-dark" style="font-size:.75rem;">{{ checklist.done }} of {{ checklist.total }} on file</span>
+            </div>
+            <div class="card-body">
+              {% if checklist.complete %}
+                <div class="check-done"><i class="bi bi-patch-check-fill"></i>Everything the office needs is on file.</div>
+              {% else %}
+                <div class="check-meter">
+                  <div class="bar"><span style="width: {{ checklist.pct }}%;"></span></div>
+                  <span class="fig">{{ checklist.pct }}%</span>
+                </div>
+                <ul class="check-list">
+                  {% for item in checklist.items %}
+                    <li class="check-item {{ item.state }}">
+                      {% if item.state == 'done' %}<i class="bi bi-check-circle-fill"></i>{% elif item.state == 'partial' %}<i class="bi bi-exclamation-circle-fill"></i>{% else %}<i class="bi bi-circle"></i>{% endif %}
+                      <div>
+                        <span class="lbl">{{ item.label }}</span>
+                        {% if item.detail %}<span class="det">{{ item.detail }}</span>{% endif %}
+                      </div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
           {% if edit_mode %}
           {# Edit-in-place: Contact & Vehicle + Licensing & Credentials + Notes become one form. #}
           <form method="post" enctype="multipart/form-data" action="{% url 'driver_profile' driver.id %}">
@@ -403,6 +541,24 @@
                     <div class="field-group form-check-inline">
                       {{ driver_form.is_active }}
                       <label for="{{ driver_form.is_active.id_for_label }}">Active</label>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="field-group mb-1" style="text-transform:uppercase; font-size:0.68rem; letter-spacing:0.04em; color: var(--gt-muted); font-weight:600; border-top:1px solid var(--gt-border); padding-top:0.75rem;">
+                      Personal details
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.hired_on.id_for_label }}">Start Date</label>
+                      {{ driver_form.hired_on }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.home_address.id_for_label }}">Home Address</label>
+                      {{ driver_form.home_address }}
                     </div>
                   </div>
                 </div>
@@ -548,7 +704,7 @@
                 <span class="info-label">Phone</span>
                 <span class="info-value">
                   {% if driver.phone_number %}
-                    <a href="tel:{{ driver.phone_number }}"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a>
+                    <a href="tel:{{ driver.phone_number|tel }}"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number|phone }}</a>
                   {% else %}<span class="text-muted-dark">—</span>{% endif %}
                 </span>
               </div>
@@ -578,6 +734,17 @@
                 <span class="info-label">Employment</span>
                 <span class="info-value">{{ driver.get_employment_type_display|default:"—" }}</span>
               </div>
+              <div class="info-row">
+                <span class="info-label">Start Date</span>
+                <span class="info-value">{% if driver.hired_on %}{{ driver.hired_on|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Home Address</span>
+                <span class="info-value">{{ driver.home_address|default:"—" }}</span>
+              </div>
+              {% if driver.details_confirmed_at %}
+                <div class="account-note" style="margin-top:.5rem;">{{ driver.profile.first_name|default:"The driver" }} confirmed these in the app on {{ driver.details_confirmed_at|date:"M j, Y" }}.</div>
+              {% endif %}
             </div>
           </div>
 
@@ -805,3 +972,27 @@
     </div>
   </div>
 {% endblock content %}
+
+{% block extra_js %}
+  <script>
+    (function () {
+      var btn = document.getElementById('copyInviteBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var url = btn.getAttribute('data-url');
+        var done = function () {
+          btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Copied';
+          setTimeout(function () { btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy'; }, 2000);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done, function () { fallback(); });
+        } else { fallback(); }
+        function fallback() {
+          var input = document.getElementById('inviteUrl');
+          input.focus(); input.select();
+          try { document.execCommand('copy'); done(); } catch (e) { /* user can select + copy */ }
+        }
+      });
+    })();
+  </script>
+{% endblock extra_js %}

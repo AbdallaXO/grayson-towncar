@@ -1,0 +1,8 @@
+{% if messages %}
+  {% for message in messages %}
+    <div class="a-note {{ message.extra_tags|default:message.tags }}" role="status">
+      {% if 'danger' in message.tags or 'error' in message.tags %}<i class="bi bi-exclamation-circle-fill"></i>{% elif 'success' in message.tags %}<i class="bi bi-check-circle-fill"></i>{% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+      <div>{{ message }}</div>
+    </div>
+  {% endfor %}
+{% endif %}

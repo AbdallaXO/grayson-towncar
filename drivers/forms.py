@@ -1,10 +1,14 @@
 from django import forms
+from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth.models import User
+from django.core.validators import RegexValidator
 from django.core.files.uploadedfile import UploadedFile
 from django.db.models import Q
 
 from rates.models import Vehicle
 
-from .document_uploads import prepare_document_upload
+from . import phones
+from .document_uploads import prepare_document_upload, sniff_and_validate
 from .models import Driver
 
 
@@ -29,6 +33,7 @@ class DriverProfileForm(forms.ModelForm):
         fields = [
             "phone_number", "vehicle", "payment_method", "night_bonus",
             "employment_type", "is_active", "notes",
+            "hired_on", "home_address",
             "license_number", "license_state", "license_class",
             "license_expiration", "license_scan",
             "license_full_name", "license_date_of_birth", "license_address",
@@ -43,6 +48,8 @@ class DriverProfileForm(forms.ModelForm):
             "license_date_of_birth": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "chauffeur_permit_expiration": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "dot_medical_card_expiration": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "hired_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "phone_number": forms.TextInput(attrs={"type": "tel", "autocomplete": "tel", "placeholder": "407-555-0134"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -84,6 +91,9 @@ class DriverProfileForm(forms.ModelForm):
         # FORM field only — the model field (and the admin) keep it.
         for field in self.fields.values():
             field.help_text = ""
+
+    def clean_phone_number(self):
+        return clean_phone(self.cleaned_data.get("phone_number"), required=False)
 
     def _clean_scan(self, field_name):
         """Route a newly-uploaded scan through the same content-sniffing /
@@ -181,3 +191,206 @@ class DriverPermitDetailsForm(forms.ModelForm):
             "chauffeur_permit_fdl_number": "FDL# on the card — the driver's-license "
                                            "number printed on the permit.",
         }
+
+
+# ── Onboarding ──────────────────────────────────────────────────────────────
+
+def clean_phone(raw, *, required):
+    """Shared validator: blank is fine unless required; anything else must parse
+    to E.164 (drivers/phones.py) and is returned in that form."""
+    raw = (raw or "").strip()
+    if not raw:
+        if required:
+            raise forms.ValidationError("A mobile number is required.")
+        return ""
+    normalized = phones.normalize(raw)
+    if not normalized:
+        raise forms.ValidationError(phones.INVALID_MESSAGE)
+    return normalized
+
+
+_username_validator = RegexValidator(
+    r"^[a-z0-9._-]{3,30}$",
+    "3–30 characters: lowercase letters, numbers, dots, dashes or underscores.",
+)
+
+
+class NewDriverForm(forms.Form):
+    """Staff side of "Add a driver": the handful of facts needed to create the
+    account and send the welcome link. Everything else is filled in later — by
+    the driver on My details / My documents, or by staff on the profile."""
+
+    SEND_CHOICES = [
+        ("sms", "Text the link to their mobile"),
+        ("email", "Email the link"),
+        ("link", "Just give me the link to send myself"),
+    ]
+
+    first_name = forms.CharField(max_length=60)
+    last_name = forms.CharField(max_length=60, required=False)
+    phone_number = forms.CharField(
+        max_length=25, required=False,
+        widget=forms.TextInput(attrs={"type": "tel", "autocomplete": "off", "placeholder": "407-555-0134"}),
+    )
+    email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"autocomplete": "off"}))
+    driver_type = forms.ChoiceField(choices=Driver.DRIVER_TYPE_CHOICES, initial="inhouse")
+    portal_role = forms.ChoiceField(choices=Driver.PORTAL_ROLE_CHOICES, initial="driver")
+    employment_type = forms.ChoiceField(
+        choices=[("", "Not sure yet")] + Driver.EMPLOYMENT_TYPE_CHOICES, required=False,
+    )
+    hired_on = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
+    send_via = forms.ChoiceField(choices=SEND_CHOICES, initial="sms", widget=forms.RadioSelect)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            if name == "send_via":
+                continue
+            field.widget.attrs.setdefault("class", "gt-field")
+
+    def clean_phone_number(self):
+        number = clean_phone(self.cleaned_data.get("phone_number"), required=False)
+        if number:
+            twin = Driver.objects.filter(phone_number=number).select_related("profile").first()
+            if twin:
+                raise forms.ValidationError(
+                    f"{twin} already has this number. Open their profile to send a welcome link instead."
+                )
+        return number
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("Someone already has an account with this email address.")
+        return email
+
+    def clean(self):
+        data = super().clean()
+        via = data.get("send_via")
+        if via == "sms" and not data.get("phone_number") and "phone_number" not in self.errors:
+            self.add_error("phone_number", "Enter their mobile number to text the link.")
+        if via == "email" and not data.get("email") and "email" not in self.errors:
+            self.add_error("email", "Enter their email address to email the link.")
+        return data
+
+
+class DriverWelcomeForm(SetPasswordForm):
+    """What a new chauffeur fills in when they open their welcome link: a
+    username they will remember, and a password (twice)."""
+
+    username = forms.CharField(
+        max_length=30, validators=[_username_validator],
+        widget=forms.TextInput(attrs={"autocomplete": "username", "autocapitalize": "none", "spellcheck": "false"}),
+    )
+    # Optional: a photo of the license while they have the phone in hand. Not a
+    # model field — the view stores it through the same read-and-confirm step
+    # as My Documents. Never required here: the login must not fail because a
+    # photo did.
+    license_scan = forms.FileField(
+        required=False,
+        widget=forms.FileInput(attrs={
+            "accept": "image/jpeg,image/png,image/heic,image/heif,application/pdf",
+            "class": "a-file-input",
+        }),
+    )
+
+    field_order = ["username", "new_password1", "new_password2", "license_scan"]
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(user, *args, **kwargs)
+        self.fields["username"].initial = user.username
+        self.fields["new_password1"].widget.attrs.update({"autocomplete": "new-password"})
+        self.fields["new_password2"].widget.attrs.update({"autocomplete": "new-password"})
+        for f in self.fields.values():
+            f.help_text = ""
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip().lower()
+        clash = User.objects.filter(username__iexact=username).exclude(pk=self.user.pk)
+        if clash.exists():
+            raise forms.ValidationError("That username is taken — try adding a number.")
+        return username
+
+    def clean_license_scan(self):
+        upload = self.cleaned_data.get("license_scan")
+        if not upload:
+            return None
+        _, error = sniff_and_validate(upload)
+        if error:
+            raise forms.ValidationError(error)
+        return upload
+
+
+class DriverMyDetailsForm(forms.ModelForm):
+    """The chauffeur's own view of their contact details, in the driver app.
+    Name and email live on the User row; the rest on Driver."""
+
+    first_name = forms.CharField(max_length=60)
+    last_name = forms.CharField(max_length=60, required=False)
+    email = forms.EmailField(required=False)
+    # Not a model field on purpose: the photo is stored by the view through
+    # the same scan-and-confirm step My Documents uses, not by form.save().
+    license_scan = forms.FileField(
+        required=False, label="Driver's license photo",
+        widget=forms.FileInput(attrs={
+            "accept": "image/jpeg,image/png,image/heic,image/heif,application/pdf",
+            "class": "scan-input",
+        }),
+    )
+
+    class Meta:
+        model = Driver
+        fields = ["phone_number", "home_address"]
+        widgets = {
+            "phone_number": forms.TextInput(attrs={"type": "tel", "autocomplete": "tel", "placeholder": "407-555-0134"}),
+            "home_address": forms.TextInput(attrs={"autocomplete": "street-address", "placeholder": "Street, city, state, ZIP"}),
+        }
+
+    def __init__(self, *args, require_license=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.require_license = require_license
+        user = self.instance.profile
+        self.fields["first_name"].initial = user.first_name
+        self.fields["last_name"].initial = user.last_name
+        self.fields["email"].initial = user.email
+        for f in self.fields.values():
+            f.widget.attrs.setdefault("class", "gt-input")
+            f.help_text = ""
+
+    def clean_license_scan(self):
+        upload = self.cleaned_data.get("license_scan")
+        if not upload:
+            if self.require_license:
+                raise forms.ValidationError(
+                    "Please add a photo of your driver's license — the office needs it on file before your first trip."
+                )
+            return None
+        _, error = sniff_and_validate(upload)
+        if error:
+            raise forms.ValidationError(error)
+        return upload
+
+    def clean_phone_number(self):
+        return clean_phone(self.cleaned_data.get("phone_number"), required=True)
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if email and User.objects.filter(email__iexact=email).exclude(pk=self.instance.profile.pk).exists():
+            raise forms.ValidationError("Another account already uses this email address.")
+        return email
+
+    def save(self, commit=True):
+        from django.utils import timezone
+
+        driver = super().save(commit=False)
+        driver.details_confirmed_at = timezone.now()
+        user = driver.profile
+        user.first_name = self.cleaned_data["first_name"].strip()
+        user.last_name = (self.cleaned_data.get("last_name") or "").strip()
+        user.email = self.cleaned_data.get("email") or ""
+        if commit:
+            user.save(update_fields=["first_name", "last_name", "email"])
+            driver.save()
+        return driver
