@@ -284,6 +284,12 @@ class DriverWelcomeForm(SetPasswordForm):
         max_length=30, validators=[_username_validator],
         widget=forms.TextInput(attrs={"autocomplete": "username", "autocapitalize": "none", "spellcheck": "false"}),
     )
+    # Asked for while they have the phone in hand, never a reason the login
+    # fails. Deliberately not labelled "optional" on the page.
+    email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={"autocomplete": "email", "autocapitalize": "none", "spellcheck": "false"}),
+    )
     # Optional: a photo of the license while they have the phone in hand. Not a
     # model field — the view stores it through the same read-and-confirm step
     # as My Documents. Never required here: the login must not fail because a
@@ -296,11 +302,12 @@ class DriverWelcomeForm(SetPasswordForm):
         }),
     )
 
-    field_order = ["username", "new_password1", "new_password2", "license_scan"]
+    field_order = ["username", "email", "new_password1", "new_password2", "license_scan"]
 
     def __init__(self, user, *args, **kwargs):
         super().__init__(user, *args, **kwargs)
         self.fields["username"].initial = user.username
+        self.fields["email"].initial = user.email
         self.fields["new_password1"].widget.attrs.update({"autocomplete": "new-password"})
         self.fields["new_password2"].widget.attrs.update({"autocomplete": "new-password"})
         for f in self.fields.values():
@@ -312,6 +319,12 @@ class DriverWelcomeForm(SetPasswordForm):
         if clash.exists():
             raise forms.ValidationError("That username is taken — try adding a number.")
         return username
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if email and User.objects.filter(email__iexact=email).exclude(pk=self.user.pk).exists():
+            raise forms.ValidationError("Another account already uses this email address.")
+        return email
 
     def clean_license_scan(self):
         upload = self.cleaned_data.get("license_scan")
@@ -352,8 +365,9 @@ class DriverMyDetailsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.require_license = require_license
         # The welcome flow is the one time the driver has the phone in hand and
-        # is expecting to fill things in, so it asks for everything the office
-        # would otherwise have to chase later. Ordinary edits stay lenient.
+        # is expecting to fill things in, so it insists on last name and home
+        # address. Email and the license photo are asked for but never block:
+        # a driver must be able to finish without them. Ordinary edits stay lenient.
         self.onboarding = onboarding
         user = self.instance.profile
         self.fields["first_name"].initial = user.first_name
@@ -362,10 +376,6 @@ class DriverMyDetailsForm(forms.ModelForm):
         if onboarding:
             self.fields["last_name"].required = True
             self.fields["last_name"].error_messages["required"] = "Please add your last name."
-            self.fields["email"].required = True
-            self.fields["email"].error_messages["required"] = (
-                "Please add an email — it's where pay statements and documents go."
-            )
             self.fields["home_address"].required = True
             self.fields["home_address"].error_messages["required"] = (
                 "Please add your home address — the office needs it on file."

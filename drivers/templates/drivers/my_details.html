@@ -96,7 +96,7 @@
           <div class="field-hint">The number dispatch texts and calls.</div>
         </div>
         <div class="field-wrap">
-          <label for="{{ form.email.id_for_label }}">Email{% if not welcome %} <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span>{% endif %}</label>
+          <label for="{{ form.email.id_for_label }}">Email</label>
           {{ form.email }}
           {% for e in form.email.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
           {% if welcome %}<div class="field-hint">Where your pay statements and documents go.</div>{% endif %}
@@ -110,7 +110,7 @@
 
         {% if needs_license %}
           <p class="det-section later" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>Driver's license</span><span class="lic-required">Required</span>
+            <span>Driver's license</span><span class="lic-required">Saves a step later</span>
           </p>
           <p class="field-hint" style="margin:0 0 10px;">
             Take a photo of the front of your license, or pick one from your photos. We'll read the

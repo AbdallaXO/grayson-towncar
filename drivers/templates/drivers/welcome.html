@@ -29,7 +29,7 @@
     {% if returning %}
       This link came from the office. Choose a password below and you'll be signed straight in.
     {% else %}
-      Two things and you're in: a username you'll remember, and a password. The office already has your name and number.
+      A username you'll remember, your email, and a password, and you're in. The office already has your name and number.
     {% endif %}
   </p>
 
@@ -53,6 +53,14 @@
       {% for error in form.username.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
     </div>
     <div class="a-field">
+      <label class="a-label" for="{{ form.email.id_for_label }}"><span>Email</span><span class="a-hint">where pay statements go</span></label>
+      <div class="a-input-wrap">
+        <input class="a-input{% if form.email.errors %} is-invalid{% endif %}" type="email" name="{{ form.email.html_name }}" id="{{ form.email.id_for_label }}"
+               value="{{ form.email.value|default:'' }}" autocomplete="email" autocapitalize="none" spellcheck="false" inputmode="email" />
+      </div>
+      {% for error in form.email.errors %}<p class="a-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="a-field">
       <label class="a-label" for="{{ form.new_password1.id_for_label }}">Password</label>
       <div class="a-input-wrap">
         <input class="a-input{% if form.new_password1.errors %} is-invalid{% endif %}" type="password" name="{{ form.new_password1.html_name }}" id="{{ form.new_password1.id_for_label }}" autocomplete="new-password" required />
@@ -69,7 +77,7 @@
     </div>
     {% if not returning and not driver.license_scan %}
       <div class="a-field a-file">
-        <label class="a-label"><span>Driver's license</span><span class="a-hint">optional, saves a step later</span></label>
+        <label class="a-label"><span>Driver's license</span><span class="a-hint">saves a step later</span></label>
         <label class="a-file-btn">
           <i class="bi bi-camera"></i>
           <span data-file-label>Add a photo of your license</span>

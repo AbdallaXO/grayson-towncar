@@ -133,7 +133,10 @@ def driver_welcome(request, token):
     if request.method == "POST":
         form = DriverWelcomeForm(user, request.POST, request.FILES)
         if form.is_valid():
-            user = invites.accept(invite, form.cleaned_data["new_password1"], form.cleaned_data["username"])
+            user = invites.accept(
+                invite, form.cleaned_data["new_password1"], form.cleaned_data["username"],
+                email=form.cleaned_data.get("email"),
+            )
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             request.session["login_type"] = "main"
             if driver.is_operator:
@@ -171,12 +174,12 @@ def my_details(request):
     driver = get_object_or_404(Driver.objects.select_related("profile"), profile=request.user)
     welcome = request.GET.get("welcome") == "1"
     # A license photo is part of the form until one is on file. Once it is,
-    # the field disappears and replacing it lives on My Documents.
+    # the field disappears and replacing it lives on My Documents. It is asked
+    # for, never required: a driver must be able to finish without it.
     needs_license = not (driver.license_scan or driver.license_number)
 
     if request.method == "POST":
-        form = DriverMyDetailsForm(request.POST, request.FILES, instance=driver,
-                                   require_license=needs_license, onboarding=welcome)
+        form = DriverMyDetailsForm(request.POST, request.FILES, instance=driver, onboarding=welcome)
         if form.is_valid():
             form.save()
             upload = form.cleaned_data.get("license_scan")
@@ -197,7 +200,7 @@ def my_details(request):
             return redirect("driver_my_details")
         messages.error(request, "Please check the highlighted fields.")
     else:
-        form = DriverMyDetailsForm(instance=driver, require_license=needs_license, onboarding=welcome)
+        form = DriverMyDetailsForm(instance=driver, onboarding=welcome)
 
     summary = paperwork.summarize(driver, with_urls=False)
     return render(request, "drivers/my_details.html", {

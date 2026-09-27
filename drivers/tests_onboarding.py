@@ -246,6 +246,25 @@ class WelcomePageTests(TestCase):
         self.assertEqual(resp.status_code, 410)
         self.assertContains(resp, "already used", status_code=410)
 
+    def test_email_on_the_welcome_page_is_saved_but_never_required(self):
+        resp = self.client.get(self.url)
+        self.assertContains(resp, 'name="email"')
+        self.assertNotContains(resp, "optional")
+        # Without an email the login still goes through.
+        resp = self.client.post(self.url, {
+            "username": "neuma.silva", "new_password1": "orlando-mco-2026", "new_password2": "orlando-mco-2026",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(User.objects.get(pk=self.driver.profile.pk).email, "")
+        # With one, it lands on the account.
+        invite = invites.create(self.driver)
+        resp = self.client.post(reverse("driver_welcome", args=[invite.token]), {
+            "username": "neuma.silva", "email": "Neuma@Example.com",
+            "new_password1": "orlando-mco-2026", "new_password2": "orlando-mco-2026",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(User.objects.get(pk=self.driver.profile.pk).email, "neuma@example.com")
+
     def test_operator_lands_on_their_board(self):
         self.driver.portal_role = "operator"
         self.driver.save()
@@ -307,7 +326,7 @@ class WelcomePageTests(TestCase):
     def test_welcome_page_offers_the_photo_but_never_requires_it(self):
         resp = self.client.get(self.url)
         self.assertContains(resp, "Add a photo of your license")
-        self.assertContains(resp, "optional")
+        self.assertContains(resp, "saves a step later")
         bad = SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain")
         resp = self.client.post(self.url, {
             "username": "neuma", "new_password1": "orlando-mco-2026", "new_password2": "orlando-mco-2026",
@@ -335,20 +354,18 @@ class MyDetailsTests(TestCase):
         data.update(extra)
         return data
 
-    def test_license_photo_is_required_until_one_is_on_file(self):
+    def test_license_photo_is_asked_for_but_never_blocks(self):
         resp = self.client.get(reverse("driver_my_details"))
         self.assertContains(resp, "Take or upload license photo")
+        self.assertNotContains(resp, ">Required<")
+        # Saving without a photo works, in and out of the welcome flow.
         resp = self.client.post(reverse("driver_my_details"), self._details())
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "photo of your driver")
-        self.driver.refresh_from_db()
-        self.assertIsNone(self.driver.details_confirmed_at)
-        # Once a license is on file the field is gone and saving works without it.
+        self.assertRedirects(resp, reverse("driver_my_details"))
+        self.assertIsNotNone(Driver.objects.get(pk=self.driver.pk).details_confirmed_at)
+        # Once a license is on file the field is gone.
         Driver.objects.filter(pk=self.driver.pk).update(license_number="D123")
         resp = self.client.get(reverse("driver_my_details"))
         self.assertNotContains(resp, "Take or upload license photo")
-        resp = self.client.post(reverse("driver_my_details"), self._details())
-        self.assertRedirects(resp, reverse("driver_my_details"))
 
     def test_photo_goes_through_the_read_and_confirm_step(self):
         from drivers.license_ocr import LicenseScanResult
@@ -395,24 +412,26 @@ class MyDetailsTests(TestCase):
         })
         self.assertRedirects(resp, reverse("driver_my_documents"), fetch_redirect_response=False)
 
-    def test_welcome_flow_asks_for_everything_the_office_needs(self):
+    def test_welcome_flow_insists_on_last_name_and_address_but_never_email_or_license(self):
         # Onboarding is the one time the driver is expecting to fill things in,
-        # so last name, email and home address are required there. Outside
-        # the welcome flow they stay optional so a phone fix isn't blocked.
-        Driver.objects.filter(pk=self.driver.pk).update(license_number="D123")
+        # so last name and home address are required there. Email and the
+        # license photo are asked for but never block, and nothing on the page
+        # is labelled optional. Outside the welcome flow a phone fix isn't blocked.
         url = reverse("driver_my_details") + "?welcome=1"
         resp = self.client.get(url)
-        self.assertNotContains(resp, "(optional)")
+        self.assertNotContains(resp, "optional")
         resp = self.client.post(url, {"first_name": "Neuma", "phone_number": "4075550134"})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Please add your last name.")
-        self.assertContains(resp, "Please add an email")
         self.assertContains(resp, "Please add your home address")
+        self.assertNotContains(resp, "Please add an email")
         self.assertIsNone(Driver.objects.get(pk=self.driver.pk).details_confirmed_at)
-        # Same post without the welcome flag saves fine.
+        resp = self.client.post(url, {"first_name": "Neuma", "last_name": "Silva",
+                                      "phone_number": "4075550134", "home_address": "1 Main St"})
+        self.assertRedirects(resp, reverse("driver_my_documents"), fetch_redirect_response=False)
+        # Same minimal post without the welcome flag saves fine.
         resp = self.client.post(reverse("driver_my_details"), {"first_name": "Neuma", "phone_number": "4075550134"})
         self.assertRedirects(resp, reverse("driver_my_details"))
-        self.assertContains(self.client.get(reverse("driver_my_details")), "(optional)")
 
     def test_bad_phone_is_rejected(self):
         resp = self.client.post(reverse("driver_my_details"), {"first_name": "Neuma", "phone_number": "555"})

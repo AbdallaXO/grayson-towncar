@@ -4,7 +4,7 @@
     ok, err = invites.deliver(invite, "sms")          # or "email" / "link"
     ...
     invite = invites.lookup(token)                     # None unless open
-    invites.accept(invite, password, username)         # sets the password
+    invites.accept(invite, password, username, email)  # sets the password
 
 Nothing here is automated: every send is a person pressing a button on the
 driver's profile, so it is deliberately NOT behind OUTBOUND_AUTOMATION_ENABLED.
@@ -160,12 +160,14 @@ def _friendly_sms_error(err):
 
 # ── Acceptance ───────────────────────────────────────────────────────────────
 
-def accept(invite, password, username=None):
-    """Set the driver's password (and optionally their username), mark the
-    invite used, and return the User ready to be logged in."""
+def accept(invite, password, username=None, email=None):
+    """Set the driver's password (and optionally their username and email),
+    mark the invite used, and return the User ready to be logged in."""
     user = invite.driver.profile
     if username and username != user.username:
         user.username = username
+    if email:
+        user.email = email
     user.set_password(password)
     user.is_active = True
     user.save()
