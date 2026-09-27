@@ -348,13 +348,28 @@ class DriverMyDetailsForm(forms.ModelForm):
             "home_address": forms.TextInput(attrs={"autocomplete": "street-address", "placeholder": "Street, city, state, ZIP"}),
         }
 
-    def __init__(self, *args, require_license=False, **kwargs):
+    def __init__(self, *args, require_license=False, onboarding=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.require_license = require_license
+        # The welcome flow is the one time the driver has the phone in hand and
+        # is expecting to fill things in, so it asks for everything the office
+        # would otherwise have to chase later. Ordinary edits stay lenient.
+        self.onboarding = onboarding
         user = self.instance.profile
         self.fields["first_name"].initial = user.first_name
         self.fields["last_name"].initial = user.last_name
         self.fields["email"].initial = user.email
+        if onboarding:
+            self.fields["last_name"].required = True
+            self.fields["last_name"].error_messages["required"] = "Please add your last name."
+            self.fields["email"].required = True
+            self.fields["email"].error_messages["required"] = (
+                "Please add an email — it's where pay statements and documents go."
+            )
+            self.fields["home_address"].required = True
+            self.fields["home_address"].error_messages["required"] = (
+                "Please add your home address — the office needs it on file."
+            )
         for f in self.fields.values():
             f.widget.attrs.setdefault("class", "gt-input")
             f.help_text = ""

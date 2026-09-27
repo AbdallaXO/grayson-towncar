@@ -56,7 +56,7 @@
       {% if welcome %}
         <div class="welcome-band">
           <h2>Welcome aboard, {{ driver.profile.first_name|default:"there" }}.</h2>
-          <p>Your login is set. Check the details below are right{% if needs_license %}, add a photo of your license,{% endif %} and hit save. After that, one more photo — your chauffeur permit — and you're done.</p>
+          <p>Your login is set. Fill in everything below{% if needs_license %}, add a photo of your license,{% endif %} and hit save. It's all the office would otherwise have to chase you for later. After that, one more photo — your chauffeur permit — and you're done.</p>
           <div class="steps" aria-hidden="true"><span class="step done"></span><span class="step now"></span><span class="step"></span></div>
         </div>
       {% endif %}
@@ -96,14 +96,16 @@
           <div class="field-hint">The number dispatch texts and calls.</div>
         </div>
         <div class="field-wrap">
-          <label for="{{ form.email.id_for_label }}">Email <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></label>
+          <label for="{{ form.email.id_for_label }}">Email{% if not welcome %} <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span>{% endif %}</label>
           {{ form.email }}
           {% for e in form.email.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          {% if welcome %}<div class="field-hint">Where your pay statements and documents go.</div>{% endif %}
         </div>
         <div class="field-wrap">
           <label for="{{ form.home_address.id_for_label }}">Home address</label>
           {{ form.home_address }}
           {% for e in form.home_address.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          {% if welcome %}<div class="field-hint">Street, city, state and ZIP.</div>{% endif %}
         </div>
 
         {% if needs_license %}

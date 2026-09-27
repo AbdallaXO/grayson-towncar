@@ -175,7 +175,8 @@ def my_details(request):
     needs_license = not (driver.license_scan or driver.license_number)
 
     if request.method == "POST":
-        form = DriverMyDetailsForm(request.POST, request.FILES, instance=driver, require_license=needs_license)
+        form = DriverMyDetailsForm(request.POST, request.FILES, instance=driver,
+                                   require_license=needs_license, onboarding=welcome)
         if form.is_valid():
             form.save()
             upload = form.cleaned_data.get("license_scan")
@@ -196,7 +197,7 @@ def my_details(request):
             return redirect("driver_my_details")
         messages.error(request, "Please check the highlighted fields.")
     else:
-        form = DriverMyDetailsForm(instance=driver, require_license=needs_license)
+        form = DriverMyDetailsForm(instance=driver, require_license=needs_license, onboarding=welcome)
 
     summary = paperwork.summarize(driver, with_urls=False)
     return render(request, "drivers/my_details.html", {

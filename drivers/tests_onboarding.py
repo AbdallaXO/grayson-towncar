@@ -356,7 +356,8 @@ class MyDetailsTests(TestCase):
                                    confidence={"license_number": 99.0, "license_state": 99.0})
         with mock.patch("drivers.views.scan_license", return_value=result):
             resp = self.client.post(reverse("driver_my_details") + "?welcome=1",
-                                    self._details(home_address="1 Main St", license_scan=_license_photo()))
+                                    self._details(last_name="Silva", email="neuma@example.com",
+                                                  home_address="1 Main St", license_scan=_license_photo()))
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.context["confirming_license"])
         self.assertEqual(resp.context["details_form"].initial["license_number"], "D123-456")
@@ -389,9 +390,29 @@ class MyDetailsTests(TestCase):
     def test_welcome_flow_continues_to_documents(self):
         Driver.objects.filter(pk=self.driver.pk).update(license_number="D123")
         resp = self.client.post(reverse("driver_my_details") + "?welcome=1", {
-            "first_name": "Neuma", "phone_number": "4075550134",
+            "first_name": "Neuma", "last_name": "Silva", "email": "neuma@example.com",
+            "phone_number": "4075550134", "home_address": "1 Main St, Orlando, FL 32801",
         })
         self.assertRedirects(resp, reverse("driver_my_documents"), fetch_redirect_response=False)
+
+    def test_welcome_flow_asks_for_everything_the_office_needs(self):
+        # Onboarding is the one time the driver is expecting to fill things in,
+        # so last name, email and home address are required there. Outside
+        # the welcome flow they stay optional so a phone fix isn't blocked.
+        Driver.objects.filter(pk=self.driver.pk).update(license_number="D123")
+        url = reverse("driver_my_details") + "?welcome=1"
+        resp = self.client.get(url)
+        self.assertNotContains(resp, "(optional)")
+        resp = self.client.post(url, {"first_name": "Neuma", "phone_number": "4075550134"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Please add your last name.")
+        self.assertContains(resp, "Please add an email")
+        self.assertContains(resp, "Please add your home address")
+        self.assertIsNone(Driver.objects.get(pk=self.driver.pk).details_confirmed_at)
+        # Same post without the welcome flag saves fine.
+        resp = self.client.post(reverse("driver_my_details"), {"first_name": "Neuma", "phone_number": "4075550134"})
+        self.assertRedirects(resp, reverse("driver_my_details"))
+        self.assertContains(self.client.get(reverse("driver_my_details")), "(optional)")
 
     def test_bad_phone_is_rejected(self):
         resp = self.client.post(reverse("driver_my_details"), {"first_name": "Neuma", "phone_number": "555"})
