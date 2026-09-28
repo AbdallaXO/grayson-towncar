@@ -104,3 +104,65 @@ class PasswordResetTests(TestCase):
         resp = self.client.get(reverse("agent_login"))
         self.assertContains(resp, "agent portal")
         self.assertContains(resp, reverse("password_reset"))
+
+
+class AgentSignInTests(TestCase):
+    """Five real agents hold two accounts one capital apart ("JamieTodd" and
+    "jamietodd"). The agent sign-in looked the name up with a .get() that
+    raised MultipleObjectsReturned — a 500 on every attempt, for both."""
+
+    def agent(self, username, password, email=""):
+        from users.models import TravelAgent
+        user = User.objects.create_user(username=username, email=email, password=password)
+        TravelAgent.objects.create(user=user, agent_name=username, agency_name="Test Travel",
+                                   phone="4075550100", payment_method="check", payment_info="x")
+        return user
+
+    def test_two_accounts_one_capital_apart_can_both_sign_in(self):
+        self.agent("JamieTodd", "pw-old-1")
+        self.agent("jamietodd", "pw-new-1")
+        for typed, password in (("JamieTodd", "pw-old-1"), ("jamietodd", "pw-new-1"),
+                                ("JAMIETODD", "pw-new-1"), ("jamieTodd", "pw-old-1")):
+            self.client.logout()
+            resp = self.client.post(reverse("agent_login"), {"username": typed, "password": password})
+            self.assertRedirects(resp, reverse("agent_dashboard"), fetch_redirect_response=False,
+                                 msg_prefix=f"{typed} / {password}")
+
+    def test_wrong_password_on_a_duplicated_name_is_a_message_not_a_500(self):
+        self.agent("JamieTodd", "pw-old-1")
+        self.agent("jamietodd", "pw-new-1")
+        resp = self.client.post(reverse("agent_login"), {"username": "jamietodd", "password": "nope"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Invalid credentials")
+
+    def test_the_main_page_also_survives_the_duplicate(self):
+        self.agent("JamieTodd", "pw-old-1")
+        self.agent("jamietodd", "pw-new-1")
+        resp = self.client.post(reverse("login"), {"username": "jamietodd", "password": "pw-new-1"})
+        self.assertRedirects(resp, reverse("agent_login"), fetch_redirect_response=False)
+
+    def test_agent_can_sign_in_with_their_email(self):
+        self.agent("keato", "pw-keato-1", email="Keato@Example.com")
+        resp = self.client.post(reverse("agent_login"), {"username": "keato@example.com", "password": "pw-keato-1"})
+        self.assertRedirects(resp, reverse("agent_dashboard"), fetch_redirect_response=False)
+
+    def test_a_form_missing_a_field_is_not_a_500(self):
+        self.assertEqual(self.client.post(reverse("agent_login"), {}).status_code, 200)
+        self.assertEqual(self.client.post(reverse("agent_login"), {"username": "x"}).status_code, 200)
+
+    def test_registration_refuses_a_name_one_capital_away(self):
+        self.agent("JamieTodd", "pw-old-1", email="jamie@example.com")
+        resp = self.client.post(reverse("register_agent"), {
+            "username": "jamietodd", "email": "other@example.com", "agent_name": "J",
+            "agency_name": "T", "phone": "1", "payment_info": "x", "payment_method": "check",
+            "password1": "pw-x-12345", "password2": "pw-x-12345"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(User.objects.filter(username__iexact="jamietodd").count(), 1)
+
+    def test_registration_refuses_an_email_in_different_case(self):
+        self.agent("JamieTodd", "pw-old-1", email="jamie@example.com")
+        self.client.post(reverse("register_agent"), {
+            "username": "someoneelse", "email": "Jamie@Example.com", "agent_name": "J",
+            "agency_name": "T", "phone": "1", "payment_info": "x", "payment_method": "check",
+            "password1": "pw-x-12345", "password2": "pw-x-12345"})
+        self.assertFalse(User.objects.filter(username="someoneelse").exists())

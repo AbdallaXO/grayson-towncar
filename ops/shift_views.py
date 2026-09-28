@@ -32,6 +32,7 @@ from .models import (
 )
 from .staff import office_staff_qs
 from .views import _is_staff, _is_superuser
+from business.datefmt import strf
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -110,8 +111,8 @@ def _gate_tiles(checklist):
             late = bool(target and stamped_at > target)
             return {
                 "label": label, "state": "late" if late else "ok", "pct": 100,
-                "target": timezone.localtime(target).strftime("%-I:%M") if target else "",
-                "value": timezone.localtime(stamped_at).strftime("%-I:%M %p"),
+                "target": strf(timezone.localtime(target), "%-I:%M") if target else "",
+                "value": strf(timezone.localtime(stamped_at), "%-I:%M %p"),
                 "note": "past target" if late else "on time",
                 "basis_note": basis_note,
             }
@@ -128,14 +129,14 @@ def _gate_tiles(checklist):
             hrs, mins = divmod(minutes, 60)
             left = f"{hrs}h {mins}m" if hrs else f"{mins} min"
             return {"label": label, "state": "running",
-                    "target": timezone.localtime(target).strftime("%-I:%M"),
+                    "target": strf(timezone.localtime(target), "%-I:%M"),
                     "value": left, "note": "left", "pct": pct,
                     "basis_note": basis_note}
         over = abs(minutes)
         hrs, mins = divmod(over, 60)
         late = f"{hrs}h {mins}m" if hrs else f"{mins} min"
         return {"label": label, "state": "late",
-                "target": timezone.localtime(target).strftime("%-I:%M"),
+                "target": strf(timezone.localtime(target), "%-I:%M"),
                 "value": late, "note": "over", "pct": 100,
                 "basis_note": basis_note}
 

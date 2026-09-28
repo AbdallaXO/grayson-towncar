@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from django.db.models import Count, F, Min, Q
 from django.urls import reverse
 from django.utils import timezone
+from business.datefmt import strf
 
 from .models import (
     CHECK_CONFLICTS,
@@ -129,7 +130,7 @@ def _guest(leg):
 
 
 def _fmt(t):
-    return t.strftime("%-I:%M %p") if t else ""
+    return strf(t, "%-I:%M %p") if t else ""
 
 
 #: Inside this many minutes, a pickup that still has nobody on it is worth

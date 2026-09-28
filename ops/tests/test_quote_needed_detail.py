@@ -7,6 +7,7 @@ date and how soon, the vehicle they chose with what it holds, the quotes on
 file, what automation already sent, and a calculator link prefilled with the
 route — and a manual task with no lead behind it is untouched.
 """
+from business.datefmt import strf
 import json
 from datetime import timedelta
 from decimal import Decimal
@@ -328,7 +329,7 @@ class AutomationContextTests(TestCase):
         ctx = self._ctx()
         up = ctx["qn_upcoming"]
         self.assertEqual([u["step"] for u in up], [3, 4])
-        self.assertEqual(up[0]["body"], f"Hey Angeline — still looking for a ride on {self.lead.pickup_date.strftime('%B %-d')}?")
+        self.assertEqual(up[0]["body"], f"Hey Angeline — still looking for a ride on {strf(self.lead.pickup_date, '%B %-d')}?")
         self.assertFalse(up[0]["skipped"])
         self.assertTrue(up[1]["skipped"])
         self.assertIn("quotes a website price and there is none", up[1]["why"])

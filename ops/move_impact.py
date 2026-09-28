@@ -76,7 +76,10 @@ def _clock(t):
     """12-hour time the way the board writes it."""
     if t is None:
         return ""
-    return t.strftime("%-I:%M %p")
+    # strf, not strftime: "%-I" is glibc-only and raises "Invalid format
+    # string" on Windows, which blanked the board's moved-from labels locally.
+    from business.datefmt import strf
+    return strf(t, "%-I:%M %p")
 
 
 @dataclass

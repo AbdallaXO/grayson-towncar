@@ -281,18 +281,38 @@ def _safe_next(request):
     return ""
 
 
-def _find_user(identifier):
-    """Match a typed username OR email, case-insensitively. Email wins only when
-    exactly one account carries it."""
+def _candidate_users(identifier):
+    """Every account a typed username OR email could mean, best match first.
+
+    Usernames are NOT unique case-insensitively here: agent registration used
+    to check case-sensitively, so some people hold two accounts — "HannahWarren"
+    and "hannahwarren" — and a ``.get(username__iexact=...)`` on those raised
+    MultipleObjectsReturned, a 500 on every sign-in attempt. So: an exact
+    username match first, then any case-insensitive ones, then accounts
+    carrying that email. The password decides between them.
+    """
     identifier = (identifier or "").strip()
     if not identifier:
-        return None
-    user = User.objects.filter(username__iexact=identifier).first()
-    if user is None and "@" in identifier:
-        by_email = list(User.objects.filter(email__iexact=identifier)[:2])
-        if len(by_email) == 1:
-            user = by_email[0]
-    return user
+        return []
+    exact = list(User.objects.filter(username=identifier))
+    loose = list(User.objects.filter(username__iexact=identifier).exclude(username=identifier)
+                 .order_by("-last_login", "-id"))
+    by_email = []
+    if "@" in identifier:
+        by_email = list(User.objects.filter(email__iexact=identifier)
+                        .exclude(username__iexact=identifier).order_by("-last_login", "-id")[:5])
+    return exact + loose + by_email
+
+
+def _authenticate_identifier(request, identifier, password):
+    """(the account this username/email + password signs in to, or None;
+    every account the identifier could mean)."""
+    candidates = _candidate_users(identifier)
+    for candidate in candidates:
+        user = authenticate(request, username=candidate.username, password=password)
+        if user is not None:
+            return user, candidates
+    return None, candidates
 
 
 def loginUser(request):
@@ -306,10 +326,8 @@ def loginUser(request):
         identifier = request.POST.get("username", "")
         password = request.POST.get("password", "")
 
-        user_obj = _find_user(identifier)
-        user = None
-        if user_obj is not None:
-            user = authenticate(request, username=user_obj.username, password=password)
+        user, candidates = _authenticate_identifier(request, identifier, password)
+        user_obj = candidates[0] if candidates else None
 
         if user is not None:
             if TravelAgent.objects.filter(user=user).exists():
@@ -431,12 +449,18 @@ def register_agent(request):
             messages.error(request, "Passwords do not match.")
             return render(request, "users/register_agent.html", error_context)
 
-        # Check for existing accounts
-        if User.objects.filter(username=form_data["username"]).exists():
+        # Check for existing accounts — case-insensitively. The exact-match
+        # check this replaced let "JamieTodd" register again as "jamietodd",
+        # and two accounts one capital apart broke agent sign-in for both.
+        if not form_data["username"] or not form_data["email"]:
+            messages.error(request, "Enter a username and an email.")
+            return render(request, "users/register_agent.html", error_context)
+
+        if User.objects.filter(username__iexact=form_data["username"].strip()).exists():
             messages.error(request, "Username already exists.")
             return render(request, "users/register_agent.html", error_context)
 
-        if User.objects.filter(email=form_data["email"]).exists():
+        if User.objects.filter(email__iexact=form_data["email"].strip()).exists():
             messages.error(request, "Email already exists.")
             return render(request, "users/register_agent.html", error_context)
 
@@ -481,16 +505,13 @@ def agent_login(request):
             logout(request)
 
     if request.method == "POST":
-        username = request.POST["username"]
-        password = request.POST["password"]
-
-        # Try to find user with case-insensitive lookup
-        try:
-            user_obj = User.objects.get(username__iexact=username)
-            # Use the actual username from database for authentication
-            user = authenticate(request, username=user_obj.username, password=password)
-        except User.DoesNotExist:
-            user = None
+        # .get(), not [...]: a form posted without a field is a wrong answer,
+        # not a 500. And the shared lookup, not .get(username__iexact=...),
+        # which raised MultipleObjectsReturned for the agents who hold two
+        # accounts differing only by case — locking them out entirely.
+        username = request.POST.get("username", "")
+        password = request.POST.get("password", "")
+        user, _candidates = _authenticate_identifier(request, username, password)
 
         if user is not None:
             try:

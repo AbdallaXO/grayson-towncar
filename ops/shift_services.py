@@ -17,6 +17,7 @@ from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from business.datefmt import strf
 from . import shift_checks
 from .models import (
     HUMAN_ROW_LABELS,
@@ -513,7 +514,7 @@ def reopen_checklist(checklist, user, now=None):
 # ── The pasteable summary ─────────────────────────────────────────────
 
 def _clock(dt):
-    return timezone.localtime(dt).strftime("%-I:%M %p") if dt else ""
+    return strf(timezone.localtime(dt), "%-I:%M %p") if dt else ""
 
 
 def build_summary(checklist):
