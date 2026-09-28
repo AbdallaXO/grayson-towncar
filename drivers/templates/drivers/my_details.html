@@ -1,0 +1,184 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "drivers/_driver_head.html" %}
+    <title>My Details — Grayson Towncar</title>
+    <style>
+      .det-hint { font-size:0.8125rem; color:var(--gt-text-secondary); line-height:1.5; margin:0 0 12px; }
+      .det-card { padding:16px; margin-bottom:14px; }
+      .det-section { font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--gt-text-secondary); margin:0 0 10px; }
+      .det-section.later { border-top:1px solid var(--gt-border); padding-top:14px; margin-top:6px; }
+      .field-wrap { margin-bottom:12px; }
+      .field-wrap label { display:block; font-size:0.8125rem; font-weight:600; margin-bottom:5px; }
+      .field-wrap .gt-input { width:100%; }
+      .field-err { color:var(--gt-red); font-size:0.75rem; margin-top:4px; }
+      .field-hint { font-size:0.72rem; color:var(--gt-text-secondary); margin-top:4px; }
+      .welcome-band {
+        background:linear-gradient(135deg, rgba(184,146,60,0.16) 0%, rgba(184,146,60,0.06) 100%);
+        border:1px solid rgba(184,146,60,0.35); border-radius:var(--gt-radius); padding:14px 16px; margin-bottom:14px;
+      }
+      .welcome-band h2 { font-size:1rem; font-weight:700; margin:0 0 4px; }
+      .welcome-band p { margin:0; font-size:0.8125rem; color:var(--gt-text-secondary); line-height:1.5; }
+      .steps { display:flex; gap:6px; margin-top:10px; }
+      .step { flex:1; height:4px; border-radius:2px; background:var(--gt-border); }
+      .step.done { background:var(--gt-green); }
+      .step.now { background:#B8923C; }
+      .scan-btn { width:100%; cursor:pointer; margin:0; position:relative; }
+      .scan-btn:focus-within { outline:2px solid var(--gt-blue); outline-offset:2px; }
+      .scan-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+      .scan-chosen { font-size:0.8125rem; color:var(--gt-green); font-weight:600; margin-top:8px; word-break:break-all; }
+      .lic-required { font-size:0.6875rem; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:0.04em; }
+      [data-theme="dark"] .lic-required { color:#fbbf24; background:rgba(245,158,11,0.2); }
+      .doc-line { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--gt-border-light); font-size:0.8125rem; }
+      .doc-line:first-of-type { border-top:0; }
+      .doc-state { font-size:0.72rem; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+      .doc-state.on_file { background:rgba(16,185,129,0.12); color:#047857; }
+      .doc-state.missing { background:rgba(107,114,128,0.12); color:var(--gt-text-secondary); }
+      .doc-state.photo_only, .doc-state.expiring { background:rgba(245,158,11,0.14); color:#b45309; }
+      .doc-state.expired { background:rgba(239,68,68,0.12); color:#b91c1c; }
+      [data-theme="dark"] .doc-state.on_file { background:rgba(16,185,129,0.2); color:#34d399; }
+      [data-theme="dark"] .doc-state.expired { background:rgba(239,68,68,0.2); color:#f87171; }
+      [data-theme="dark"] .doc-state.photo_only, [data-theme="dark"] .doc-state.expiring { background:rgba(245,158,11,0.2); color:#fbbf24; }
+    </style>
+  </head>
+
+  <body>
+    {% include "drivers/navbar.html" %}
+
+    <div class="container-fluid" style="max-width:720px; padding:16px 12px;">
+
+      <h1 style="font-size:1.375rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;">My Details</h1>
+      <p class="det-hint">
+        How dispatch reaches you. Keep it current — this is the number the office texts when a trip changes.
+      </p>
+
+      {% if welcome %}
+        <div class="welcome-band">
+          <h2>Welcome aboard, {{ driver.profile.first_name|default:"there" }}.</h2>
+          <p>Your login is set. Fill in everything below{% if needs_license %}, add a photo of your license,{% endif %} and hit save. It's all the office would otherwise have to chase you for later. After that, one more photo — your chauffeur permit — and you're done.</p>
+          <div class="steps" aria-hidden="true"><span class="step done"></span><span class="step now"></span><span class="step"></span></div>
+        </div>
+      {% endif %}
+
+      {% if messages %}
+        {% for m in messages %}
+          <div class="gt-card mb-2" style="padding:10px 14px;border-left:3px solid {% if m.tags == 'error' %}var(--gt-red){% elif m.tags == 'warning' %}var(--gt-yellow){% else %}var(--gt-green){% endif %};font-size:0.875rem;">
+            {{ m }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" class="gt-card det-card" action="{% url 'driver_my_details' %}{% if welcome %}?welcome=1{% endif %}" novalidate>
+        {% csrf_token %}
+
+        <p class="det-section">About you</p>
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="field-wrap">
+              <label for="{{ form.first_name.id_for_label }}">First name</label>
+              {{ form.first_name }}
+              {% for e in form.first_name.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="field-wrap">
+              <label for="{{ form.last_name.id_for_label }}">Last name</label>
+              {{ form.last_name }}
+              {% for e in form.last_name.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="field-wrap">
+          <label for="{{ form.phone_number.id_for_label }}">Mobile number</label>
+          {{ form.phone_number }}
+          {% for e in form.phone_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          <div class="field-hint">The number dispatch texts and calls.</div>
+        </div>
+        <div class="field-wrap">
+          <label for="{{ form.email.id_for_label }}">Email</label>
+          {{ form.email }}
+          {% for e in form.email.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          {% if welcome %}<div class="field-hint">Where your pay statements and documents go.</div>{% endif %}
+        </div>
+        <div class="field-wrap">
+          <label for="{{ form.home_address.id_for_label }}">Home address</label>
+          {{ form.home_address }}
+          {% for e in form.home_address.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          {% if welcome %}<div class="field-hint">Street, city, state and ZIP.</div>{% endif %}
+        </div>
+
+        {% if needs_license %}
+          <p class="det-section later" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Driver's license</span><span class="lic-required">Saves a step later</span>
+          </p>
+          <p class="field-hint" style="margin:0 0 10px;">
+            Take a photo of the front of your license, or pick one from your photos. We'll read the
+            number and expiry off it for you to check on the next screen.
+          </p>
+          <label class="gt-btn {% if form.license_scan.errors %}gt-btn-warning{% else %}gt-btn-primary{% endif %} gt-btn-block scan-btn">
+            <i class="bi bi-camera-fill me-1" aria-hidden="true"></i> Take or upload license photo
+            {{ form.license_scan }}
+          </label>
+          <div class="scan-chosen" data-chosen hidden></div>
+          {% for e in form.license_scan.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+        {% endif %}
+
+        <button type="submit" class="gt-btn gt-btn-dark gt-btn-block mt-3">
+          <i class="bi bi-check-lg"></i> {% if welcome %}Save and continue{% else %}Save my details{% endif %}
+        </button>
+        {% if driver.details_confirmed_at %}
+          <div class="field-hint" style="text-align:center;margin-top:8px;">Last confirmed {{ driver.details_confirmed_at|date:"M j, Y" }}</div>
+        {% endif %}
+      </form>
+
+      <div class="gt-card det-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <p class="det-section" style="margin:0;">Your account</p>
+          <a href="{% url 'driver_my_password' %}" class="gt-btn gt-btn-outline gt-btn-sm"><i class="bi bi-key"></i> Change password</a>
+        </div>
+        <div class="doc-line" style="border-top:0;">
+          <span style="color:var(--gt-text-secondary);">Username</span>
+          <span style="font-weight:600;">{{ driver.profile.username }}</span>
+        </div>
+        <div class="doc-line">
+          <span style="color:var(--gt-text-secondary);">Signed in on this device</span>
+          <a href="{% url 'logout' %}" style="color:var(--gt-red);font-weight:600;text-decoration:none;">Sign out</a>
+        </div>
+        <p class="field-hint" style="margin-top:8px;">Forgot your password on another phone? Use "Reset password" on the sign-in page, or ask dispatch to text you a fresh login link.</p>
+      </div>
+
+      <div class="gt-card det-card">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <p class="det-section" style="margin:0;">Paperwork on file</p>
+          <a href="{% url 'driver_my_documents' %}" class="gt-btn gt-btn-outline gt-btn-sm">Documents</a>
+        </div>
+        {% for d in docs %}
+          <div class="doc-line">
+            <span>{{ d.label }}{% if d.detail %} <span style="color:var(--gt-text-secondary);">&middot; {{ d.detail }}</span>{% endif %}</span>
+            <span class="doc-state {{ d.state }}">{% if d.state == 'on_file' %}On file{% elif d.state == 'missing' %}Not sent{% elif d.state == 'photo_only' %}Being checked{% elif d.state == 'expiring' %}Expiring{% else %}Expired{% endif %}</span>
+          </div>
+        {% endfor %}
+        {% if docs_owed %}
+          <p class="field-hint" style="margin-top:10px;">Still needed: {{ docs_owed|join:" and " }}. Tap Documents and take a photo — it takes a minute.</p>
+        {% endif %}
+      </div>
+
+    </div>
+
+    {% include "drivers/_driver_scripts.html" %}
+    <script>
+      // Echo the chosen file name under the camera button; the form submits with Save.
+      document.querySelectorAll('.scan-input').forEach(function (input) {
+        input.addEventListener('change', function () {
+          var note = input.closest('form').querySelector('[data-chosen]');
+          if (!note) return;
+          if (input.files && input.files.length) {
+            note.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>' + input.files[0].name + ' — attached, hit Save';
+            note.hidden = false;
+          } else { note.hidden = true; }
+        });
+      });
+    </script>
+  </body>
+</html>

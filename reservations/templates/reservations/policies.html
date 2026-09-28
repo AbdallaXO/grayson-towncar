@@ -1,0 +1,376 @@
+{% extends 'main.html' %}
+
+{% block title %}Reservation Policies | Grayson Towncar{% endblock title %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Grayson Towncar policies in plain English: airport wait time, pickup grace period, cancellations and refunds, the free Publix grocery stop, extra stops, and fees." />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/policies/" />
+{% endblock %}
+
+{% block extra_css %}
+  <style>
+    /* Reservation Policies — a plain, single-column page inside the normal site
+       navbar and footer. Scoped under .pol so nothing bleeds. */
+
+    .pol {
+      background: #fff;
+      color: #1f2937;
+      padding: 3.5rem 0 5rem;
+    }
+    .pol .pol-wrap {
+      max-width: 760px;
+    }
+
+    /* Intro */
+    .pol .pol-eyebrow {
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8a8472;
+      margin: 0 0 0.75rem;
+    }
+    .pol h1 {
+      font-weight: 700;
+      font-size: clamp(2rem, 4vw, 2.75rem);
+      line-height: 1.15;
+      margin: 0 0 1rem;
+      color: #0a1428;
+    }
+    .pol .pol-lead {
+      font-size: 1.15rem;
+      line-height: 1.65;
+      color: #4b5563;
+      margin: 0;
+    }
+
+    /* Short version */
+    .pol .pol-quick {
+      margin: 2.5rem 0 3rem;
+      padding: 1.5rem 1.75rem;
+      background: var(--gtc-cream, #F8F6F0);
+      border-radius: 0.75rem;
+    }
+    .pol .pol-quick-title {
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin: 0 0 1rem;
+      font-weight: 600;
+    }
+    .pol .pol-quick-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem 2rem;
+    }
+    .pol .pol-quick-list a {
+      color: #1f2937;
+      text-decoration: none;
+      line-height: 1.5;
+    }
+    .pol .pol-quick-list a:hover { color: #785A28; }
+    .pol .pol-quick-list b {
+      color: #785A28;
+      font-weight: 700;
+      margin-right: 0.35rem;
+    }
+
+    /* Sections */
+    .pol .pol-section {
+      padding: 2.25rem 0;
+      border-top: 1px solid #e5e7eb;
+      scroll-margin-top: 90px;
+    }
+    .pol .pol-section h2 {
+      font-weight: 700;
+      font-size: 1.45rem;
+      color: #0a1428;
+      margin: 0 0 0.75rem;
+    }
+    .pol .pol-section p {
+      font-size: 1.02rem;
+      line-height: 1.7;
+      margin: 0 0 1rem;
+    }
+    .pol .pol-section p:last-child { margin-bottom: 0; }
+    .pol .pol-section a {
+      color: #785A28;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .pol .pol-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .pol .pol-list li {
+      position: relative;
+      padding-left: 1.4rem;
+      margin-bottom: 0.9rem;
+      font-size: 1.02rem;
+      line-height: 1.7;
+    }
+    .pol .pol-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.72em;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gtc-gold, #C9A227);
+    }
+    .pol .pol-list li:last-child { margin-bottom: 0; }
+    .pol .pol-list b { color: #0a1428; }
+
+    /* Refund table */
+    .pol .pol-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1rem;
+    }
+    .pol .pol-table th,
+    .pol .pol-table td {
+      padding: 0.7rem 0;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 1.02rem;
+      vertical-align: top;
+      text-align: left;
+    }
+    .pol .pol-table th { font-weight: 500; padding-right: 1rem; }
+    .pol .pol-table td {
+      font-weight: 700;
+      color: #785A28;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    /* Publix tip */
+    .pol .pol-tip {
+      margin-top: 1.25rem;
+      padding: 1.25rem 1.5rem;
+      background: var(--gtc-cream, #F8F6F0);
+      border-left: 4px solid var(--gtc-gold, #C9A227);
+      border-radius: 0.5rem;
+      font-size: 1.02rem;
+      line-height: 1.7;
+    }
+    .pol .pol-tip b { color: #0a1428; }
+    .pol .pol-btn {
+      display: inline-block;
+      margin-top: 0.9rem;
+      background: #0a1428;
+      color: #fff !important;
+      text-decoration: none !important;
+      font-weight: 600;
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.4rem;
+    }
+    .pol .pol-btn:hover { background: #1b2c45; color: #fff; }
+
+    .pol .pol-questions { border-top: 1px solid #e5e7eb; }
+
+    @media (max-width: 576px) {
+      .pol { padding: 2.5rem 0 4rem; }
+      .pol .pol-quick { padding: 1.25rem 1.25rem; }
+      .pol .pol-quick-list { grid-template-columns: 1fr; }
+      .pol .pol-section { padding: 1.75rem 0; }
+      .pol .pol-table th, .pol .pol-table td { font-size: 0.95rem; }
+      .pol .pol-btn { display: block; text-align: center; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<main class="pol">
+  <div class="container pol-wrap">
+
+    <header class="pol-intro">
+      <p class="pol-eyebrow">Updated {{ effective_date|date:"F j, Y" }}</p>
+      <h1>Our policies, in plain English</h1>
+      <p class="pol-lead">
+        No legal wall of text. Here's what to expect on the day, and what it costs if things
+        run long. All of this is in your confirmation email too.
+      </p>
+    </header>
+
+    <section class="pol-quick" aria-label="The short version">
+      <h2 class="pol-quick-title">The short version</h2>
+      <ul class="pol-quick-list">
+        <li><a href="#arrivals"><b>60 min</b> grace period after your flight lands, then a wait fee</a></li>
+        <li><a href="#pickups"><b>10 min</b> grace period at hotel and home pickups, then a wait fee</a></li>
+        <li><a href="#cancellations"><b>48 hrs</b> notice for a full refund</a></li>
+        <li><a href="#publix"><b>20 min</b> Publix stop, included when booked ahead</a></li>
+        <li><a href="#stops"><b>Extra stops</b> are an additional charge, ask us ahead</a></li>
+        <li><a href="#fees"><b>$20</b> for pickups between 10 PM and 6 AM</a></li>
+      </ul>
+    </section>
+
+    <section class="pol-section" id="arrivals">
+      <h2>Landing at the airport</h2>
+      <p>
+        Your chauffeur tracks your flight and meets you inside baggage claim with a name sign.
+        Flight delayed? We adjust on our end. No need to call.
+      </p>
+      <ul class="pol-list">
+        <li>
+          <b>After your flight lands, we give you a 60-minute grace period to get picked up.</b>
+          Most guests are with their chauffeur within 30 to 40 minutes, so that's plenty of room
+          for bags and customs.
+        </li>
+        <li>
+          <b>Past 60 minutes there's a wait fee: $100 for the next hour,</b> and $100 for each
+          hour after that, on the card on file. The airport limits how long we can wait and bills us
+          past that, so this one is firm. Lost bags and customs holds count too, sorry.
+        </li>
+        <li>
+          <b>If we can't reach you after 60 minutes,</b> your chauffeur has to leave for his
+          next guest. That counts as a no-show and the fare isn't refunded.
+        </li>
+        <li>
+          <b>Turn airplane mode off when you land.</b> Your chauffeur will text you.
+        </li>
+      </ul>
+    </section>
+
+    <section class="pol-section" id="pickups">
+      <h2>Pickup from your hotel or home</h2>
+      <p>
+        A 4:00 PM pickup means you're in the vehicle at 4:00 PM, with everyone and all the bags.
+      </p>
+      <ul class="pol-list">
+        <li>
+          <b>We give you a 10-minute grace period.</b> If your chauffeur is late, the clock
+          starts when he gets there, not before.
+        </li>
+        <li>
+          <b>Running behind?</b> We can hold the car up to 15 more minutes for $30 on the
+          card on file. Just say yes when we call or text.
+        </li>
+        <li>
+          <b>At 25 minutes the car has to go.</b> Someone else is waiting on it. That counts
+          as a no-show and the fare isn't refunded. Still need a ride? Call us and we'll see
+          what's open.
+        </li>
+      </ul>
+    </section>
+
+    <section class="pol-section" id="cancellations">
+      <h2>Cancelling</h2>
+      <table class="pol-table" aria-label="Refund by notice given">
+        <tbody>
+          <tr><th scope="row">48 or more hours before pickup</th><td>Full refund</td></tr>
+          <tr><th scope="row">24 to 48 hours before pickup</th><td>50% refund</td></tr>
+          <tr><th scope="row">Less than 24 hours before pickup</th><td>No refund</td></tr>
+          <tr><th scope="row">No-show</th><td>Full fare</td></tr>
+          <tr><th scope="row">Airline cancelled your flight</th><td>We make it right</td></tr>
+        </tbody>
+      </table>
+      <p>
+        If your airline cancelled on you, send us the notice and we'll sort it out. To cancel,
+        reply to your confirmation email or text <a href="sms:+14072127190">407-212-7190</a>.
+      </p>
+    </section>
+
+    <section class="pol-section" id="publix">
+      <h2>The Publix stop</h2>
+      <p>
+        Airport pickups can include a 20-minute stop at Publix, 9930 Universal Blvd.
+      </p>
+      <ul class="pol-list">
+        <li>
+          <b>Add it ahead of time.</b> Ask when you book, or text us by the day before you
+          land. Same-day requests usually don't fit around other reservations, and when one
+          does, there's an additional stop charge.
+        </li>
+        <li>
+          <b>The 20 minutes run from when the car pulls in to when it pulls out.</b>
+          Past 20 minutes there is a $30 fee, plus $1 for every extra minute.
+        </li>
+        <li>
+          <b>If your flight is more than two hours late</b> we may have to skip the stop so
+          your chauffeur can make his next pickup. We'll text you before you land. Instacart
+          delivers to every resort and works well as a backup.
+        </li>
+      </ul>
+      <div class="pol-tip">
+        <b>Best move: pre-order for curbside pickup.</b> Order before you fly and set
+        pickup for about an hour after you land. You pull up, the groceries come out, done.
+        <a href="https://www.publix.com/locations/1191-lake-cay-commons"
+           class="btn pol-btn"
+           target="_blank"
+           rel="noopener noreferrer">Pre-order at Publix</a>
+      </div>
+    </section>
+
+
+    <section class="pol-section" id="stops">
+      <h2>Extra stops</h2>
+      <p>
+        Any stop that isn't on your reservation is an additional charge. Text or call us
+        ahead of time and we'll check the schedule and tell you the price before the
+        chauffeur heads there.
+      </p>
+      <ul class="pol-list">
+        <li>
+          <b>Your chauffeur can't add a stop himself.</b> He'll ask you to call the office.
+        </li>
+        <li>
+          <b>A stop is something on the way.</b> Somewhere else you're going is a second ride,
+          and we'll book it as one.
+        </li>
+        <li>
+          <b>Stops that weren't cleared with us still get billed.</b>
+        </li>
+      </ul>
+    </section>
+
+    <section class="pol-section" id="fees">
+      <h2>Late nights, car seats, and messes</h2>
+      <ul class="pol-list">
+        <li>
+          <b>Pickups between 10 PM and 6 AM have a flat $20 after-hours fee.</b> It's in
+          your total when you book online. If a flight delay pushes your pickup into those
+          hours, we charge the $20 and email you.
+        </li>
+        <li>
+          <b>Car seats are free.</b> Infant, convertible, and booster, installed by your
+          chauffeur. A seat that gets soiled can't be reused, so it's a flat $250 to replace.
+        </li>
+        <li>
+          <b>We detail the car between every guest.</b> A serious mess inside, including
+          getting sick, is a $200 cleaning fee.
+        </li>
+      </ul>
+    </section>
+
+    <section class="pol-section" id="charges">
+      <h2>If we charge your card</h2>
+      <p>
+        Anything above goes on the card you booked with and shows up as Grayson Towncar.
+        You get an email the same day with the amount and the GPS times. Think we got it
+        wrong? Reply to that email or call <a href="tel:+14072127190">407-212-7190</a> and a
+        manager will look at it.
+      </p>
+    </section>
+
+    <section class="pol-section pol-questions" id="questions">
+      <h2>Questions?</h2>
+      <p>
+        Call or text <a href="tel:+14072127190">407-212-7190</a>, or email
+        <a href="mailto:reservations@graysontowncar.com">reservations@graysontowncar.com</a>.
+        A real person answers.
+      </p>
+    </section>
+
+  </div>
+</main>
+{% endblock %}

@@ -69,6 +69,7 @@
         <form method="post" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
           {% csrf_token %}
           <input type="hidden" name="action" value="confirm_license">
+          {% if confirm_next %}<input type="hidden" name="next" value="{{ confirm_next }}">{% endif %}
           <div class="doc-head">
             <h2 class="doc-title"><i class="bi bi-card-heading me-2"></i>Check your license details</h2>
           </div>

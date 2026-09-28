@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck, DriverInvite
 from .models import (
     FleetSyncState, VehicleDayReading, VehicleDowntime, VehicleFault, VehicleIssue,
     VehicleServiceRecord, VehicleServiceSchedule,
@@ -90,6 +90,9 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "notes",
                     "payment_method",
                     "night_bonus",
+                    "hired_on",
+                    "home_address",
+                    "details_confirmed_at",
                 ),
                 "description": "Uncheck \"Is active\" to hide a driver from the dispatcher directory "
                                "(e.g. when they leave the company or go on extended leave). "
@@ -1310,6 +1313,21 @@ class DriverWakeupCheckAdmin(admin.ModelAdmin):
                 ack_check(check, source="admin")
                 done += 1
         self.message_user(request, f"{done} check(s) marked confirmed.")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(DriverInvite)
+class DriverInviteAdmin(admin.ModelAdmin):
+    """Read-mostly: the driver profile page is where invites are sent and
+    cancelled. This is for answering "did the link ever go out?"."""
+    list_display = ["driver", "status", "sent_via", "sent_to", "last_sent_at", "expires_at", "accepted_at", "created_by"]
+    list_filter = ["sent_via"]
+    search_fields = ["driver__profile__username", "driver__profile__first_name", "driver__profile__last_name", "sent_to"]
+    readonly_fields = ["token", "created_at", "created_by", "send_count", "last_sent_at", "accepted_at"]
+    autocomplete_fields = ["driver"]
+    date_hierarchy = "created_at"
 
     def has_add_permission(self, request):
         return False

@@ -130,6 +130,25 @@ class Driver(models.Model):
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
     )
 
+    # ── Onboarding & personal details ─────────────────────────────────────────
+    # What the office needs on file for every person who drives for us, beyond
+    # the licence and permit above. A new chauffeur fills these in themselves on
+    # the "My details" page the welcome link lands them on; staff can edit them
+    # on the profile page. All optional — the onboarding checklist on the
+    # profile is what says which are still missing.
+    hired_on = models.DateField(
+        null=True, blank=True,
+        help_text="First day with us. Drives tenure on the profile; nothing else reads it yet.",
+    )
+    home_address = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Where they actually live now — the licence address is often stale.",
+    )
+    details_confirmed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Last time the chauffeur reviewed their own contact details in the driver app.",
+    )
+
     # ── Licensing & credentials ───────────────────────────────────────────────
     # Centralizes what used to live off-system (paper files, spreadsheets). All
     # optional — filled in as staff collect them, not required at driver creation.
@@ -452,6 +471,31 @@ class Driver(models.Model):
             if getattr(v, "requires_certification", False):
                 labels.append("Sprinter" if v.vehicle_type == "Van(14 Pax)" else str(v))
         return labels
+
+    def save(self, *args, **kwargs):
+        # Store every phone number the same way (E.164). A value that does not
+        # parse is kept as typed rather than dropped — see drivers/phones.py.
+        from drivers import phones
+
+        if self.phone_number:
+            self.phone_number = phones.normalize(self.phone_number) or self.phone_number
+        super().save(*args, **kwargs)
+
+    @property
+    def phone_display(self):
+        from drivers import phones
+        return phones.pretty(self.phone_number)
+
+    def has_login(self):
+        """True when this person can actually sign in: an active account with a
+        password they set (a freshly invited driver has an unusable one)."""
+        user = self.profile
+        return bool(user and user.is_active and user.has_usable_password())
+
+    def open_invite(self):
+        """The welcome link that is still live for this driver, if any."""
+        from drivers.invites import open_invite
+        return open_invite(self)
 
     def preferred_vehicle_label(self):
         """Combined soft vehicle preference: type(s) and/or specific unit(s),
@@ -1232,6 +1276,72 @@ class DriverWakeupCheck(models.Model):
 
     def __str__(self):
         return f"Wake-up {self.driver} {self.date} ({self.status})"
+
+
+class DriverInvite(models.Model):
+    """A one-tap welcome link that lets a new chauffeur set their own password.
+
+    Until now a driver account meant the founder typing a password into /admin
+    and reading it out over the phone, or the driver sitting next to him. Now
+    staff add the driver (name, mobile, type) and the app texts or emails a link;
+    the driver opens it on their phone, chooses a password, confirms their
+    details and lands in the driver app.
+
+    The raw token is stored (not a hash) so the profile page can keep showing a
+    copyable link for as long as the invite is open — a dispatcher who texted it
+    from their own phone needs to see it again. Links are single-use, expire
+    after LIFETIME, and unlock nothing but a driver-portal login, so that is an
+    acceptable trade. Creating a new invite revokes any other open one.
+    """
+
+    LIFETIME = timedelta(days=7)
+
+    VIA_CHOICES = [
+        ("sms", "Text message"),
+        ("email", "Email"),
+        ("link", "Copied link"),
+    ]
+
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="invites")
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    sent_via = models.CharField(max_length=10, choices=VIA_CHOICES, default="link")
+    sent_to = models.CharField(
+        max_length=150, blank=True, default="",
+        help_text="The number or address the link was last sent to.",
+    )
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    send_count = models.PositiveSmallIntegerField(default=0)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Invite for {self.driver} ({self.status})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_open(self):
+        return not self.accepted_at and not self.revoked_at and not self.is_expired
+
+    @property
+    def status(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.revoked_at:
+            return "revoked"
+        if self.is_expired:
+            return "expired"
+        return "open"
 
 
 class DriverPayRate(models.Model):

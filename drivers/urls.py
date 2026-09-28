@@ -1,5 +1,5 @@
 from django.urls import path
-from . import comms_views, operator_views, views
+from . import comms_views, onboarding_views, operator_views, views
 
 
 urlpatterns = [
@@ -140,4 +140,10 @@ urlpatterns = [
     path("time-off/<int:override_id>/cancel/", views.cancel_timeoff, name="driver_cancel_timeoff"),
     # Licensing documents (driver self-serve)
     path("my-documents/", views.my_documents, name="driver_my_documents"),
+    # Onboarding: add a driver, welcome links, the driver's own details
+    path("new/", onboarding_views.driver_new, name="driver_new"),
+    path("<int:driver_id>/invite/", onboarding_views.driver_invite, name="driver_invite"),
+    path("welcome/<str:token>/", onboarding_views.driver_welcome, name="driver_welcome"),
+    path("my-details/", onboarding_views.my_details, name="driver_my_details"),
+    path("my-details/password/", onboarding_views.my_password, name="driver_my_password"),
 ]

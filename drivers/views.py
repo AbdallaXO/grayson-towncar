@@ -1034,7 +1034,9 @@ def extend(request):
         drivers = drivers.filter(driver_type=driver_type_filter)
 
     if search_query:
-        drivers = drivers.filter(
+        from drivers import phones
+
+        match = (
             Q(profile__first_name__icontains=search_query)
             | Q(profile__last_name__icontains=search_query)
             | Q(profile__username__icontains=search_query)
@@ -1042,6 +1044,12 @@ def extend(request):
             | Q(phone_number__icontains=search_query)
             | Q(vehicle__icontains=search_query)
         )
+        # Numbers are stored as +14075550134, so "555-0134" or "(407) 555"
+        # has to be matched on its digits alone.
+        digits = phones.digits_only(search_query)
+        if len(digits) >= 3:
+            match |= Q(phone_number__icontains=digits)
+        drivers = drivers.filter(match)
 
     today = timezone.localdate()
     next_week = today + timedelta(days=7)
@@ -1098,8 +1106,18 @@ def extend(request):
         ).select_related("reservation__customer").order_by("pickup_time"),
         to_attr="todays_legs",
     )
+    # One open welcome link per driver at most (creating one revokes the rest),
+    # so this prefetch is what tells the row "link sent, not opened yet".
+    from drivers.models import DriverInvite
+    open_invites_prefetch = Prefetch(
+        "invites",
+        queryset=DriverInvite.objects.filter(
+            accepted_at__isnull=True, revoked_at__isnull=True, expires_at__gt=timezone.now(),
+        ),
+        to_attr="open_invites",
+    )
     drivers = drivers.prefetch_related(
-        today_legs_prefetch,
+        today_legs_prefetch, open_invites_prefetch,
         "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
     )
 
@@ -1108,6 +1126,13 @@ def extend(request):
         driver.vehicle_display = driver.get_vehicle_display()
         driver.is_operator_row = driver.portal_role == "operator"
         driver.display_first = paperwork.first_name_for(driver)
+        # Login state, from the row already loaded: a password nobody has set
+        # yet is "unusable" on the User; an open invite means the link is out.
+        driver.login_state = (
+            "ok" if driver.has_login()
+            else "invited" if driver.open_invites
+            else "none"
+        )
 
         # Plain-language default shift preference (e.g. "Prefers mornings")
         driver.shift_pref_label = format_shift_preference({
@@ -1199,6 +1224,7 @@ def extend(request):
         empty_message = "No drivers match these filters."
 
     context = {
+        "can_manage": request.user.is_superuser,
         "drivers": drivers_list,
         "driver_type_filter": driver_type_filter,
         "active_tab": active_tab,
@@ -1354,11 +1380,19 @@ def driver_profile(request, driver_id):
             comms_metrics.comms_stats(driver, comms_start, comms_end)
         )
 
+    from drivers import invites, onboarding
+
+    invite = invites.open_invite(driver)
     context = {
         "driver": driver,
         "driver_form": driver_form,
         "edit_mode": edit_mode,
         "can_edit": can_edit,
+        "checklist": onboarding.checklist(driver, today),
+        "has_login": driver.has_login(),
+        "invite": invite,
+        "invite_url": invites.url(invite) if invite else "",
+        "latest_invite": None if invite else invites.latest_invite(driver),
         "today": today,
         "horizon": horizon,
         "todays_legs": todays_legs,
@@ -2145,6 +2179,73 @@ def my_timeoff_requests(request):
     )
 
 
+def license_scan_confirm_response(request, driver, upload, next_url=""):
+    """Store a (pre-validated) license photo, read it, and render the confirm
+    step. Shared by My Documents, My Details and the welcome page so every
+    path behaves identically. Caller has already run sniff_and_validate.
+    ``next_url`` (local path) is where the confirm form sends the driver
+    afterwards instead of My Documents — the welcome flow uses it to carry on
+    to My Details.
+
+    Scanning needs the ORIGINAL bytes (Textract AnalyzeID only reads
+    JPEG/PNG); prepare_document_upload() recompresses to WebP for storage
+    AFTER the scan so compression can never interfere with OCR. The photo is
+    saved unconditionally — a failed or unavailable scan never loses it.
+    """
+    result = scan_license(upload)
+
+    prepared, upload_error = prepare_document_upload(upload)
+    if upload_error:
+        messages.error(request, upload_error)
+        return redirect("driver_my_documents")
+    driver.license_scan = prepared
+    driver.save(update_fields=["license_scan"])
+
+    if not result.ok:
+        messages.error(request, result.error)
+        return render(request, "drivers/my_documents.html", {
+            "driver": driver,
+            "details_form": DriverLicenseDetailsForm(instance=driver),
+            "confirming_license": True,
+            "confirm_next": next_url,
+        })
+
+    # Pre-fill, never auto-commit — a misread digit is a compliance
+    # problem, so a human confirms before anything is written.
+    initial = {**model_to_dict(driver, fields=DriverLicenseDetailsForm.Meta.fields),
+               **result.fields}
+    expiration = result.fields.get("license_expiration")
+    if expiration and not is_expiration_plausible(expiration):
+        messages.warning(
+            request,
+            "That expiration date looks unusual — please double-check it before saving.",
+        )
+    dob = result.fields.get("license_date_of_birth")
+    if dob and not is_date_of_birth_plausible(dob):
+        messages.warning(
+            request,
+            "That date of birth looks unusual — please double-check it before saving.",
+        )
+    messages.success(request, "Photo saved. Check the details we read, then save.")
+    return render(request, "drivers/my_documents.html", {
+        "driver": driver,
+        "details_form": DriverLicenseDetailsForm(initial=initial, instance=driver),
+        "confirming_license": True,
+        "scanned_fields": sorted(result.fields.keys()),
+        "confirm_next": next_url,
+    })
+
+
+def _local_next(request):
+    """A ``next`` value from the confirm form, only when it stays on this site."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return target
+    return ""
+
+
 @login_required(login_url="login")
 def my_documents(request):
     """Driver self-service for their own licensing documents.
@@ -2171,12 +2272,13 @@ def my_documents(request):
             if details_form.is_valid():
                 details_form.save()
                 messages.success(request, "License details saved. Thank you!")
-                return redirect("driver_my_documents")
+                return redirect(_local_next(request) or "driver_my_documents")
             messages.error(request, "Please check the license details below.")
             return render(request, "drivers/my_documents.html", {
                 "driver": driver,
                 "details_form": details_form,
                 "confirming_license": True,
+                "confirm_next": _local_next(request),
             })
 
         # Step 2 of the permit flow, mirroring confirm_license above.
@@ -2220,47 +2322,7 @@ def my_documents(request):
             if upload_error:
                 messages.error(request, upload_error)
                 return redirect("driver_my_documents")
-
-            result = scan_license(upload)
-
-            prepared, upload_error = prepare_document_upload(upload)
-            if upload_error:
-                messages.error(request, upload_error)
-                return redirect("driver_my_documents")
-            driver.license_scan = prepared
-            driver.save(update_fields=["license_scan"])
-
-            if not result.ok:
-                messages.error(request, result.error)
-                return render(request, "drivers/my_documents.html", {
-                    "driver": driver,
-                    "details_form": DriverLicenseDetailsForm(instance=driver),
-                    "confirming_license": True,
-                })
-
-            # Pre-fill, never auto-commit — a misread digit is a compliance
-            # problem, so a human confirms before anything is written.
-            initial = {**model_to_dict(driver, fields=DriverLicenseDetailsForm.Meta.fields),
-                       **result.fields}
-            expiration = result.fields.get("license_expiration")
-            if expiration and not is_expiration_plausible(expiration):
-                messages.warning(
-                    request,
-                    "That expiration date looks unusual — please double-check it before saving.",
-                )
-            dob = result.fields.get("license_date_of_birth")
-            if dob and not is_date_of_birth_plausible(dob):
-                messages.warning(
-                    request,
-                    "That date of birth looks unusual — please double-check it before saving.",
-                )
-            messages.success(request, "Photo saved. Check the details we read, then save.")
-            return render(request, "drivers/my_documents.html", {
-                "driver": driver,
-                "details_form": DriverLicenseDetailsForm(initial=initial, instance=driver),
-                "confirming_license": True,
-                "scanned_fields": sorted(result.fields.keys()),
-            })
+            return license_scan_confirm_response(request, driver, upload)
 
         if action == "upload_permit":
             # Same shape as the license flow above: validate BEFORE scanning

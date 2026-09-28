@@ -1,5 +1,6 @@
 {% extends 'main.html' %}
 {% load static %}
+{% load phone_tags %}
 
 {% block title %}Time-Off Requests | Grayson Dispatch{% endblock %}
 
@@ -440,8 +441,8 @@
           <div class="to-driver">
             {{ o.driver }}
             {% if o.driver.phone_number %}
-              <a href="tel:{{ o.driver.phone_number }}" class="to-driver-phone" title="Call driver">
-                <i class="bi bi-telephone-fill"></i>{{ o.driver.phone_number }}
+              <a href="tel:{{ o.driver.phone_number|tel }}" class="to-driver-phone" title="Call driver">
+                <i class="bi bi-telephone-fill"></i>{{ o.driver.phone_number|phone }}
               </a>
             {% endif %}
             {% if o.duplicate_count %}

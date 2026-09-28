@@ -1,0 +1,27 @@
+{% extends 'users/auth_base.html' %}
+{% block title %}This link has expired{% endblock %}
+{% block brand_eyebrow %}Welcome link{% endblock %}
+{% block brand_title %}Nearly <em>there.</em>{% endblock %}
+{% block brand_copy %}Welcome links are single-use and work for a week. Dispatch can send a fresh one in seconds.{% endblock %}
+
+{% block card %}
+  <div class="a-mark error"><i class="bi bi-link-45deg"></i></div>
+  {% if reason == 'accepted' %}
+    <h1 class="auth-title">This link was <em>already used.</em></h1>
+    <p class="auth-lede">Your login is set up, so you don't need it any more — just sign in with the username and password you chose.</p>
+    <div class="a-actions"><a class="a-btn" href="{% url 'login' %}">Sign in <i class="bi bi-arrow-right"></i></a></div>
+    <div class="auth-links"><p>Forgotten the password already? <a href="tel:{{ company_phone }}">Call the office</a> and dispatch will send you a new link.</p></div>
+  {% elif reason == 'expired' %}
+    <h1 class="auth-title">This link has <em>expired.</em></h1>
+    <p class="auth-lede">Welcome links work for seven days. Ask dispatch to send a new one — it takes them a moment.</p>
+    <div class="a-actions"><a class="a-btn" href="tel:{{ company_phone }}"><i class="bi bi-telephone"></i> Call the office</a></div>
+  {% elif reason == 'revoked' %}
+    <h1 class="auth-title">This link was <em>replaced.</em></h1>
+    <p class="auth-lede">The office sent you a newer one — check your latest text or email from us and open that instead.</p>
+    <div class="auth-links"><p>Can't find it? <a href="tel:{{ company_phone }}">Call the office</a>.</p></div>
+  {% else %}
+    <h1 class="auth-title">This link isn't <em>quite right.</em></h1>
+    <p class="auth-lede">It may have been cut off when it was copied. Try tapping it again straight from the message we sent, or ask dispatch for a new one.</p>
+    <div class="a-actions"><a class="a-btn" href="tel:{{ company_phone }}"><i class="bi bi-telephone"></i> Call the office</a></div>
+  {% endif %}
+{% endblock %}

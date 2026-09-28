@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Welcome to Grayson Towncar</title></head>
+<body style="margin:0;padding:0;background:#F2EBDB;font-family:Montserrat,'Helvetica Neue',Arial,sans-serif;color:#14202F;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F2EBDB;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FAF6EA;border-radius:16px;overflow:hidden;">
+        <tr><td style="background:#0F1B2D;padding:26px 32px;">
+          <span style="font-family:Georgia,'Times New Roman',serif;font-size:20px;color:#F5EEDC;letter-spacing:.01em;">Grayson Towncar</span>
+        </td></tr>
+        <tr><td style="padding:32px 32px 8px;">
+          <p style="margin:0 0 8px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#7A5E1F;font-weight:600;">Welcome to the team</p>
+          <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-weight:500;font-size:26px;line-height:1.15;color:#0F1B2D;">Hi {{ first_name }}, let's set up your driver login</h1>
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.55;color:#5A6470;">
+            Open the button below on your phone. You'll pick a username and a password, confirm your contact details, and then you'll see your trips in the driver app.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 22px;"><tr><td style="background:#B8923C;border-radius:12px;">
+            <a href="{{ link }}" style="display:inline-block;padding:15px 26px;color:#0F1B2D;text-decoration:none;font-weight:600;font-size:15px;">Set up my login &rarr;</a>
+          </td></tr></table>
+          <p style="margin:0 0 6px;font-size:13px;line-height:1.55;color:#8A8472;">
+            If the button doesn't work, copy this into your browser:<br />
+            <a href="{{ link }}" style="color:#7A5E1F;word-break:break-all;">{{ link }}</a>
+          </p>
+          <p style="margin:14px 0 18px;font-size:13px;line-height:1.55;color:#8A8472;">
+            The link works once, until {{ expires_at|date:"l, F j" }}. If it stops working, call the office and we'll send a new one.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;border-top:1px solid rgba(15,27,45,.08);font-size:12px;color:#8A8472;line-height:1.5;">
+          Grayson Towncar &middot; Orlando &middot; <a href="tel:{{ company_phone }}" style="color:#7A5E1F;text-decoration:none;">{{ company_phone }}</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

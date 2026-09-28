@@ -404,6 +404,19 @@ def tos(request):
     return render(request, "reservations/tos_wrapper.html")
 
 
+def policies(request):
+    """Public reservation policies: wait time, grace periods, cancellations,
+    the Publix stop, additional stops, and fees. Linked from every guest email
+    and the site footer so the numbers a guest is charged against are always
+    one click away."""
+    from datetime import date
+    return render(
+        request,
+        "reservations/policies.html",
+        {"effective_date": date(2026, 9, 27)},
+    )
+
+
 def privacy(request):
     return render(request, "reservations/privacy_wrapper.html")
 

@@ -19,6 +19,7 @@ from django.db import transaction
 from django.db.models import Sum, Q, Count, Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
 from django.http import Http404, HttpResponse, JsonResponse
@@ -247,49 +248,99 @@ def registerUser(request):
     )
 
 
-def loginUser(request):
-    """Handle user login for admins and drivers only."""
-    if request.method == "POST":
-        username = request.POST["username"]
-        password = request.POST["password"]
+def post_login_destination(user):
+    """Where this person's day starts. Shared by the sign-in page, the
+    password-reset landing and the welcome link so every route in agrees.
 
-        # Try to find user with case-insensitive lookup
-        try:
-            user_obj = User.objects.get(username__iexact=username)
-            # Use the actual username from database for authentication
+    Superusers → dispatch dashboard. Fleet manager → Fleet desk. Anyone with
+    a Driver row → their trips (the schedule view hands operators to their own
+    board). Other staff → dispatch dashboard. Travel agents → agent dashboard.
+    Everyone else → the public site.
+    """
+    if user.is_superuser:
+        return "dashboard"
+    profile = getattr(user, "profile", None)
+    if profile is not None and getattr(profile, "is_fleet_manager", False):
+        return "fleet_desk"
+    if TravelAgent.objects.filter(user=user).exists():
+        return "agent_dashboard"
+    if hasattr(user, "driver"):
+        return "schedule"
+    if user.is_staff:
+        return "dashboard"
+    return "home"
+
+
+def _safe_next(request):
+    """The ?next= target, only when it points back into this site."""
+    target = request.POST.get("next") or request.GET.get("next") or ""
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    return ""
+
+
+def _find_user(identifier):
+    """Match a typed username OR email, case-insensitively. Email wins only when
+    exactly one account carries it."""
+    identifier = (identifier or "").strip()
+    if not identifier:
+        return None
+    user = User.objects.filter(username__iexact=identifier).first()
+    if user is None and "@" in identifier:
+        by_email = list(User.objects.filter(email__iexact=identifier)[:2])
+        if len(by_email) == 1:
+            user = by_email[0]
+    return user
+
+
+def loginUser(request):
+    """Sign-in for staff and chauffeurs. Travel agents are sent to their own page."""
+    next_url = _safe_next(request)
+
+    if request.method == "GET" and request.user.is_authenticated:
+        return redirect(next_url or post_login_destination(request.user))
+
+    if request.method == "POST":
+        identifier = request.POST.get("username", "")
+        password = request.POST.get("password", "")
+
+        user_obj = _find_user(identifier)
+        user = None
+        if user_obj is not None:
             user = authenticate(request, username=user_obj.username, password=password)
-        except User.DoesNotExist:
-            user = None
 
         if user is not None:
-            # Check if this user is a travel agent
-            try:
-                TravelAgent.objects.get(user=user)
-                messages.info(
-                    request, "Travel agents should use the dedicated agent login."
-                )
+            if TravelAgent.objects.filter(user=user).exists():
+                messages.info(request, "Travel agents sign in on their own page — you're in the right place now.")
                 return redirect("agent_login")
-            except TravelAgent.DoesNotExist:
-                pass  # Not an agent, continue with normal flow
 
             login(request, user)
             request.session["login_type"] = "main"
-            messages.success(request, "Successfully logged in", extra_tags="success")
+            return redirect(next_url or post_login_destination(user))
 
-            # Role-based redirection for non-agents. The fleet manager's home
-            # is the Fleet desk; a founder who is also flagged keeps the dashboard.
-            if user.is_superuser:
-                return redirect("dashboard")
-            _profile = getattr(user, "profile", None)
-            if _profile is not None and getattr(_profile, "is_fleet_manager", False):
-                return redirect("fleet_desk")
-            return redirect("schedule")
+        if user_obj is not None and not user_obj.is_active:
+            messages.error(
+                request,
+                "This account has been switched off. Call the office if that's a surprise.",
+                extra_tags="danger",
+            )
         else:
             messages.error(
-                request, "Please Enter Valid Credentials", extra_tags="danger"
+                request,
+                "That username or password isn't right. Check both and try again.",
+                extra_tags="danger",
             )
 
-    return render(request, "users/login_register.html", {"page": "login"})
+    return render(request, "users/login_register.html", {"page": "login", "next": next_url})
+
+
+@login_required(login_url="login")
+def after_login(request):
+    """Role-based landing used after a password reset (Django's reset view can
+    only redirect to one fixed place)."""
+    return redirect(post_login_destination(request.user))
 
 
 @login_required(login_url="login")

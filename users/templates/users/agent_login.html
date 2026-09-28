@@ -1,76 +1,40 @@
-{% extends 'main.html' %}
-{% load static %}
-{% block title %}Travel Agent Login | Grayson Towncar{% endblock %}
+{% extends 'users/auth_base.html' %}
+{% block title %}Travel advisor sign-in{% endblock %}
+{% block brand_eyebrow %}Travel advisor portal{% endblock %}
+{% block brand_title %}Your bookings, <em>your commissions.</em>{% endblock %}
+{% block brand_copy %}Every reservation you send us, its status, and what you've earned — in one place.{% endblock %}
 
-{% block content %}
-  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+{% block card %}
+  <p class="auth-kicker">Travel advisors</p>
+  <h1 class="auth-title">Sign in to the <em>agent portal.</em></h1>
+  <p class="auth-lede">Reservations, confirmations and commission statements.</p>
 
-  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+  {% include 'users/_auth_messages.html' %}
 
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-6 col-lg-4">
-        <div class="form-container">
-          <div id="login-form">
-            <p class="title">Travel Agent Portal</p>
-            <p class="text-center text-muted mb-4">Access your reservations and commissions</p>
-
-            <form class="form" method="POST">
-              {% csrf_token %}
-              <div class="input-group">
-                <label for="username">Username</label>
-                <input type="text"
-                       name="username"
-                       id="username"
-                       class="input"
-                       placeholder="Enter username"
-                       required />
-              </div>
-              <div class="input-group">
-                <label for="password">Password</label>
-                <input type="password"
-                       name="password"
-                       id="password"
-                       class="input"
-                       placeholder="Enter password"
-                       required />
-              </div>
-              <div class="button-wrapper">
-                <button type="submit">
-                  Log In
-                  <div class="arrow-wrapper">
-                    <div class="arrow"></div>
-                  </div>
-                </button>
-              </div>
-            </form>
-            <div class="auth__action mt-4">
-              <p>
-                Forgot your password? <a href="{% url 'password_reset' %}">Reset it here</a>
-              </p>
-            </div>
-            <p class="signup mt-4 text-center">
-              New agent?
-              <a href="{% url 'register_agent' %}">Create an account</a>
-            </p>
-
-            <p class="text-center mt-2">
-              <a href="{% url 'login' %}" class="text-muted">Staff login</a>
-            </p>
-          </div>
-        </div>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="a-field">
+      <label class="a-label" for="username">Username</label>
+      <div class="a-input-wrap">
+        <input class="a-input" type="text" name="username" id="username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required value="{{ request.POST.username|default:'' }}" />
       </div>
     </div>
+    <div class="a-field">
+      <label class="a-label" for="password">
+        <span>Password</span>
+        <a href="{% url 'password_reset' %}" tabindex="-1">Reset password</a>
+      </label>
+      <div class="a-input-wrap">
+        <input class="a-input" type="password" name="password" id="password" autocomplete="current-password" required />
+      </div>
+    </div>
+    <div class="a-actions">
+      <button class="a-btn" type="submit">Sign in <i class="bi bi-arrow-right"></i></button>
+    </div>
+  </form>
+
+  <div class="auth-links">
+    <p>New to the program? <a href="{% url 'register_agent' %}">Create your advisor account</a>.</p>
+    <p>Grayson staff or chauffeur? <a href="{% url 'login' %}">Use the team sign-in</a>.</p>
   </div>
-  <footer style="text-align: center;
-                 padding: 20px 0;
-                 margin-top: 40px;
-                 border-top: 1px solid #e5e7eb">
-    <p style="margin: 0; color: #6b7280; font-size: 14px;">
-      Questions? Call us at <a href="tel:407-212-7190" style="color: #3b82f6; text-decoration: none">407-212-7190</a>
-    </p>
-    <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px;">©{% now 'Y' %}Grayson Towncar. All rights reserved.</p>
-  </footer>
 {% endblock %}
-{% block footer %}{% endblock %}
-{% block newsletter %}{% endblock %}
