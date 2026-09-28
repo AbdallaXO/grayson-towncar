@@ -1,19 +1,20 @@
-"""Folding travel agents' duplicate accounts, and the index that stops new ones.
+"""Folding travel agents' duplicate logins (users 0036), and the index that
+stops new ones.
 
 Run:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test users.tests_merge_agents
 """
+import importlib
 from datetime import date
 from decimal import Decimal
-from io import StringIO
-from unittest.mock import patch
 
+from django.apps import apps
 from django.contrib.auth.models import User
-from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from users.models import CommissionPayout, TravelAgent
+
+migration = importlib.import_module("users.migrations.0036_username_unique_ignoring_case")
 
 
 class UsernameIndexTests(TestCase):
@@ -27,58 +28,65 @@ class UsernameIndexTests(TestCase):
         User.objects.create_user("jamie2", password="y")
 
 
-class MergeCommandTests(TestCase):
+class MergePairsTests(TestCase):
+    """The migration's merge, run with test pairs. The index forbids a real
+    case-duplicate pair here, and the merge does not care about case, so the
+    pair is simply two differently named logins."""
+
     def setUp(self):
         self.keep_user = User.objects.create_user("keeper", email="k@example.com", password="k")
         self.old_user = User.objects.create_user("oldone", email="o@example.com", password="o")
         self.keep = TravelAgent.objects.create(user=self.keep_user, agent_name="Keeper",
-                                               agency_name="", payment_method="venmo")
+                                               agency_name="", payment_method="venmo",
+                                               unpaid_commissions=Decimal("19.50"))
         self.old = TravelAgent.objects.create(user=self.old_user, agent_name="Old",
-                                              agency_name="Old Travel", payment_method="check")
+                                              agency_name="Old Travel", payment_method="check",
+                                              unpaid_commissions=Decimal("4.00"))
         # A fresh instance holds the float default; the payout signal adds a
-        # Decimal to it. Loaded from the database (as in production) it is a
-        # Decimal, so reload before the payout is created.
+        # Decimal to it. Loaded from the database it is a Decimal.
         self.old.refresh_from_db()
         CommissionPayout.objects.create(agent=self.old, total_amount=Decimal("10.50"),
                                         payout_period_start=date(2026, 1, 1),
                                         payout_period_end=date(2026, 1, 31))
-        self.pairs = [(self.keep_user.id, "keeper", self.old_user.id, "oldone", "test")]
+        self.pairs = [(self.keep_user.id, "keeper", self.old_user.id, "oldone")]
 
-    def run_cmd(self, *args):
-        out = StringIO()
-        with patch("users.management.commands.merge_duplicate_agents.PAIRS", self.pairs):
-            call_command("merge_duplicate_agents", *args, stdout=out)
-        return out.getvalue()
+    def merge(self, pairs=None):
+        migration.merge_pairs(apps, None, pairs=pairs if pairs is not None else self.pairs,
+                              log=lambda *_: None)
 
-    def test_dry_run_changes_nothing(self):
-        out = self.run_cmd()
-        self.assertIn("DRY RUN", out)
-        self.assertIn("moved   1 x users.CommissionPayout.agent", out)
-        self.old_user.refresh_from_db()
-        self.assertEqual(self.old_user.username, "oldone")
-        self.assertTrue(self.old_user.is_active)
-        self.assertEqual(CommissionPayout.objects.get().agent, self.old)
-
-    def test_apply_moves_the_rows_and_retires_the_old_login(self):
-        self.run_cmd("--apply")
+    def test_rows_move_and_the_old_login_is_retired(self):
+        self.merge()
         self.assertEqual(CommissionPayout.objects.get().agent, self.keep)
         self.old_user.refresh_from_db()
         self.assertFalse(self.old_user.is_active)
         self.assertEqual(self.old_user.username, f"oldone.merged-{self.keep_user.id}")
         self.old.refresh_from_db()
         self.assertFalse(self.old.is_active)
+        self.assertEqual(self.old.total_paid_commission, Decimal("0"))
+        self.assertEqual(self.old.unpaid_commissions, Decimal("0"))
         self.keep.refresh_from_db()
-        self.assertEqual(self.keep.total_paid_commission, Decimal("10.50"))   # recomputed
+        self.assertEqual(self.keep.total_paid_commission, Decimal("10.50"))  # from the payouts
+        self.assertEqual(self.keep.unpaid_commissions, Decimal("23.50"))     # carried with the rows
         self.assertEqual(self.keep.agency_name, "Old Travel")                # blank filled
         self.assertEqual(self.keep.payment_method, "venmo")                  # set one kept
 
-    def test_running_it_twice_is_harmless(self):
-        self.run_cmd("--apply")
-        out = self.run_cmd("--apply")
-        self.assertIn("already merged", out)
+    def test_the_old_login_can_no_longer_sign_in_but_the_kept_one_can(self):
+        self.merge()
+        self.assertFalse(self.client.login(username="oldone", password="o"))
+        self.assertTrue(self.client.login(username="keeper", password="k"))
 
-    def test_an_unexpected_account_aborts_everything(self):
-        self.pairs = self.pairs + [(self.keep_user.id, "keeper", self.old_user.id, "someone-else", "x")]
-        with self.assertRaises(CommandError):
-            self.run_cmd("--apply")
-        self.assertEqual(CommissionPayout.objects.get().agent, self.old)      # first pair rolled back
+    def test_running_it_twice_is_harmless(self):
+        self.merge()
+        self.merge()
+        self.assertEqual(User.objects.filter(username__startswith="oldone").count(), 1)
+
+    def test_a_pair_that_does_not_match_exactly_is_left_alone(self):
+        self.merge([(self.keep_user.id, "keeper", self.old_user.id, "someone-else")])
+        self.old_user.refresh_from_db()
+        self.assertEqual(self.old_user.username, "oldone")
+        self.assertTrue(self.old_user.is_active)
+
+    def test_the_real_pairs_are_a_no_op_on_a_fresh_database(self):
+        self.merge(migration.PAIRS)
+        self.old_user.refresh_from_db()
+        self.assertTrue(self.old_user.is_active)
