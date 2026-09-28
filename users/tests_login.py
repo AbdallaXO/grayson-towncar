@@ -109,7 +109,16 @@ class PasswordResetTests(TestCase):
 class AgentSignInTests(TestCase):
     """Five real agents hold two accounts one capital apart ("JamieTodd" and
     "jamietodd"). The agent sign-in looked the name up with a .get() that
-    raised MultipleObjectsReturned — a 500 on every attempt, for both."""
+    raised MultipleObjectsReturned — a 500 on every attempt, for both.
+
+    The database now refuses such a pair (users 0036), so these tests drop
+    that index to recreate the accounts that already exist in production;
+    TestCase rolls the drop back after each test."""
+
+    def setUp(self):
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("DROP INDEX IF EXISTS auth_user_username_lower_uniq")
 
     def agent(self, username, password, email=""):
         from users.models import TravelAgent
