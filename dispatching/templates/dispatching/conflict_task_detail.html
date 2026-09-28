@@ -544,6 +544,7 @@ draws, so it shares the rail's stylesheet rather than carrying a second copy.{% 
 {% endblock content %}
 
 {% block extra_js %}
+<script src="{% static 'js/booking-prompt.js' %}"></script>
 <script>
 (function(){
   function cookie(n){ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
@@ -590,7 +591,12 @@ draws, so it shares the rail's stylesheet rather than carrying a second copy.{% 
       if(isFarm && !confirm('Farm this leg out to ' + dname + '? This costs margin.')) return;
       var orig = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Working…';
-      post('{% url "update_leg_assignment" %}', {leg_id:leg, field:'driver', value:did}).then(function(d){
+      // Fleet may have booked the chauffeur's car while this trip runs: a
+      // soft booking asks Continue Anyway / Cancel before anything is written,
+      // a hard one says why and stops — the task stays open either way.
+      window.BookingPrompt.postWithBookingPrompt('{% url "update_leg_assignment" %}',
+          {leg_id:leg, field:'driver', value:did}, {csrfToken: CSRF}).then(function(d){
+        if(d.cancelled){ btn.disabled=false; btn.innerHTML=orig; return; }
         if(!d.success){ btn.disabled=false; btn.innerHTML=orig; alert(d.error||'Failed to assign'); return; }
         var note = (isFarm ? 'Farmed out to ' : 'Reassigned in-house to ') + dname + ' — conflict resolved.';
         return post('{% url "task_complete" %}', {task_id:'{{ task.id }}', notes:note}).then(function(){

@@ -399,6 +399,14 @@ def index(request):
         if a and a.vehicle_id:
             vehicle_taken_map[a.vehicle_id] = str(row["driver"])
 
+    # Fleet's part-day bookings on the cars chauffeurs hold today (one query).
+    # The trip dropdown is where a trip is actually put on a car, so the
+    # booking rides in the option text: "Miguel - #006 · Booked 10a–12p Tire
+    # service". The assign itself still asks (soft) or refuses (hard).
+    from dispatching import fleet_bookings
+    _held_car_bookings = fleet_bookings.bookings_for(
+        selected_date, {a.vehicle_id for a in assignment_map.values() if a.vehicle_id})
+
     inhouse_drivers_list = []
     affiliate_drivers_list = []
     for driver in drivers:
@@ -410,6 +418,9 @@ def index(request):
                 vehicle_number = assignment.vehicle.vehicle_number
                 vehicle_number = vehicle_number.lstrip("#").strip()
                 display_name = f"{display_name} - #{vehicle_number}"
+                for _b in _held_car_bookings.get(assignment.vehicle_id, []):
+                    display_name += (f" · {'Hard-booked' if _b.is_hard else 'Booked'} "
+                                     f"{_b.short_window()} {_b.title()}")
             inhouse_drivers_list.append(driver)
         else:
             affiliate_drivers_list.append(driver)
@@ -476,6 +487,9 @@ def index(request):
             key=_vehicle_sort_key,
         ),
         selected_date,
+        # The chip on each chauffeur's card is its own instance of the car.
+        assigned=[row["assignment"].vehicle for row in inhouse_driver_rows
+                  if row["assignment"] and row["assignment"].vehicle_id],
     )
 
     # Compute real-time dispatch flags for today's legs
@@ -1058,6 +1072,7 @@ def schedule_board(request):
     # any affiliate-held DriverVehicleAssignment as stale), so the vehicle
     # lookup + vehicle-number sort are skipped entirely on that board.
     assignments = {}
+    _car_bookings = {}
     _aff_profiles = {}
     _aff_carded_ids = set()
     if is_affiliate_board:
@@ -1080,6 +1095,12 @@ def schedule_board(request):
                 driver__in=board_drivers, date=selected_date
             ).select_related("vehicle", "vehicle__vehicle_type")
         }
+        # Fleet's part-day bookings on the cars being driven today, one query,
+        # so each row can say "car booked 10–12" beside the unit number.
+        from dispatching import fleet_bookings
+        _car_bookings = fleet_bookings.bookings_for(
+            selected_date,
+            {a.vehicle_id for a in assignments.values() if a.vehicle_id})
         # Sort: vehicle-assigned drivers first by vehicle number, everyone else after.
         # The number is a CharField, so sort it naturally — plain string order puts
         # "10" before "9". Drivers without a vehicle keep the queryset's first-name
@@ -1216,6 +1237,7 @@ def schedule_board(request):
     # Get previous day's last leg per driver (for overnight turnaround display)
     prev_day = selected_date - timedelta(days=1)
     _prev_day_last = {}
+    _prev_day_late = {}   # cleared after 9 PM (or past midnight) — worth a glance for rest
     _prev_legs = (
         Leg.objects.filter(pickup_date=prev_day, driver__in=board_drivers)
         .exclude(status="cancelled")
@@ -1231,12 +1253,15 @@ def schedule_board(request):
             try:
                 _end = estimate_job_end_time(_pl, prev_day)
                 _prev_day_last[_pl.driver_id] = _end.strftime('%I:%M %p').lstrip('0')
+                _prev_day_late[_pl.driver_id] = _end.date() > prev_day or _end.hour >= 21
             except Exception:
                 _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
+                _prev_day_late[_pl.driver_id] = _pl.pickup_time.hour >= 21
 
     # Get previous day's vehicle assignments (in-house only — affiliates never hold one,
     # so on that board this would always be an empty round-trip).
     _sb_prev_day_vehicle = {}
+    _sb_prev_day_unit = {}
     if not is_affiliate_board:
         _sb_prev_assigns = DriverVehicleAssignment.objects.filter(
             date=prev_day, driver__in=board_drivers
@@ -1246,6 +1271,7 @@ def schedule_board(request):
                 _vn = _sbpda.vehicle.vehicle_number or ''
                 _vt = str(_sbpda.vehicle.vehicle_type) if _sbpda.vehicle.vehicle_type else ''
                 _sb_prev_day_vehicle[_sbpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
+                _sb_prev_day_unit[_sbpda.driver_id] = _vn
 
     # Compact preference labels for schedule board badges
     _PREF_SHORT = {
@@ -1302,7 +1328,51 @@ def schedule_board(request):
         vehicle_type_label = ''
         vehicle_notes = ''
         vehicle_oos_label = ''
+        vehicle_bookings = []
         if assignment and assignment.vehicle:
+            _row_bookings = _car_bookings.get(assignment.vehicle_id, [])
+            if _row_bookings:
+                # Measured against the trips drawn on THIS row — the proposed
+                # ones on a held day — on the same stop-aware clock the assign
+                # check uses, from legs already in memory. Worked out on every
+                # load, so a trip that has moved into the booking since it was
+                # assigned (a flight match, an advisor retime) turns the tag
+                # into a conflict here, not only on Fleet → The day.
+                _row_trips = []
+                for _slot in sched.slots:
+                    _row_leg = _leg_by_id_overlay.get(_slot.leg_id)
+                    _row_span = (fleet_bookings.leg_span(_row_leg, selected_date)
+                                 if _row_leg is not None else None)
+                    if _row_span:
+                        _row_trips.append({
+                            "start": _row_span[0], "end": _row_span[1],
+                            "start_label": strf(_row_span[0], "%-I:%M %p"),
+                            "driver": "",   # the row already names the chauffeur
+                        })
+                vehicle_bookings = [fleet_bookings.chip(b, _row_trips, compact=True)
+                                    for b in _row_bookings]
+                # The booking drawn ON the row, between the jobs, on the same
+                # clock the job pills use — a tag beside the name alone was
+                # easy to miss (founder, 2026-09-28).
+                for _chip, _b in zip(vehicle_bookings, _row_bookings):
+                    _bs, _be = fleet_bookings.span(_b)
+                    _l = max(0.0, _mins_from_left(_bs))
+                    _r = min(float(total_display_minutes), _mins_from_left(_be))
+                    if _r > _l:
+                        _chip["left_pct"] = round(_l / total_display_minutes * 100, 2)
+                        _chip["width_pct"] = round((_r - _l) / total_display_minutes * 100, 2)
+                        _chip["band_label"] = (
+                            f"{'Hard booking' if _b.is_hard else 'Soft booking'} · "
+                            f"{_b.title()} · {_b.short_window()}")
+                        # For the block's two lines and its hover card.
+                        _chip["type_label"] = _b.get_booking_type_display()
+                        _chip["type_short"] = fleet_bookings.TYPE_SHORT.get(
+                            _b.booking_type, "Booked")
+                        _chip["reason"] = (_b.reason or "").strip()
+                        _chip["location"] = _b.location
+                        _chip["notes"] = _b.notes
+                        _chip["unit"] = assignment.vehicle.vehicle_number
+                        _chip["short_window"] = _b.short_window()
             vehicle_number = assignment.vehicle.vehicle_number or ''
             vehicle_notes = assignment.vehicle.notes or ''
             # The board is where a dispatcher watches the day run. A driver still
@@ -1496,9 +1566,16 @@ def schedule_board(request):
             'affiliate_vehicle': driver.vehicle or '' if is_affiliate_board else '',
             'vehicle_number': vehicle_number,
             'vehicle_oos_label': vehicle_oos_label,
+            'vehicle_bookings': vehicle_bookings,
             'vehicle_type_label': vehicle_type_label,
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _sb_prev_day_vehicle.get(driver.id, ''),
+            'prev_night_late': _prev_day_late.get(driver.id, False),
+            # Last night's car, only when it isn't today's — otherwise it's noise.
+            'prev_night_unit_changed': (
+                f"#{_sb_prev_day_unit[driver.id]}"
+                if _sb_prev_day_unit.get(driver.id) and _sb_prev_day_unit[driver.id] != vehicle_number
+                else ''),
             'shift_display': _shift_display,
             'shift_type': _stype,
             'shift_start': _sh,
@@ -1530,6 +1607,11 @@ def schedule_board(request):
     # In-house only — affiliates never hold a fleet vehicle, so the split is
     # meaningless there and would put a divider above every row.
     if not is_affiliate_board:
+        # Two drivers on one car: pair the rows, name the partner, and draw when
+        # the car is with the other driver.
+        inhouse_timeline = _attach_car_share(
+            inhouse_timeline, assignments, selected_date,
+            _mins_from_left, total_display_minutes)
         for _row in inhouse_timeline:
             if not _row['has_vehicle']:
                 _row['starts_no_vehicle_group'] = True
@@ -1710,6 +1792,8 @@ def schedule_board(request):
             # A single row has no group above it, so the "Available — no vehicle
             # assigned" divider would be a header over nothing.
             inhouse_timeline[0].pop("starts_no_vehicle_group", None)
+            # A shared car's row stands alone here: close its bracket both ends.
+            inhouse_timeline[0]["share_first"] = inhouse_timeline[0]["share_last"] = True
             filtered_driver_name = str(inhouse_timeline[0]["driver"])
             filtered_driver_legs = inhouse_timeline[0]["total_legs"]
         else:
@@ -3145,6 +3229,23 @@ def update_leg_assignment(request):
                     return JsonResponse(
                         {"success": False, "error": "Driver not found"}, status=404
                     )
+                # The car this chauffeur holds that day may be booked by fleet
+                # across this trip — checked before anything is staged or
+                # written, live or held. Hard: 409, no override (the front door
+                # refuses it on every path that goes through set_leg_driver).
+                # Soft: 409 with can_override until the dispatcher has said
+                # "continue anyway" and the caller resends override_booking.
+                from dispatching import fleet_bookings
+                if leg.driver_id != driver.id:
+                    try:
+                        soft_clash = fleet_bookings.check_assign(leg, driver)
+                    except fleet_bookings.HardBookingRefused as exc:
+                        return JsonResponse(fleet_bookings.refusal(exc.clash), status=409)
+                    except Exception:
+                        soft_clash = None
+                        logger.exception("vehicle-booking check failed for leg %s", leg_id)
+                    if soft_clash and not data.get("override_booking"):
+                        return JsonResponse(fleet_bookings.refusal(soft_clash), status=409)
                 try:
                     mode, draft = set_leg_driver(
                         leg, driver, request.user,
@@ -3159,6 +3260,9 @@ def update_leg_assignment(request):
                         logger.info(
                             f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
                         )
+                except fleet_bookings.HardBookingRefused as exc:
+                    # A hard booking saved between the check above and the write.
+                    return JsonResponse(fleet_bookings.refusal(exc.clash), status=409)
                 except AttributeError as e:
                     logger.error(
                         f"Attribute error: {str(e)} - check if driver has profile attribute"
@@ -3198,6 +3302,9 @@ def update_leg_assignment(request):
                     assign_warnings_list = compute_manual_assign_warnings(leg, driver)
                 except Exception:
                     logger.exception("manual-assign warnings failed for leg %s", leg_id)
+            # No vehicle-booking warning rides back on a write: a soft booking
+            # was already put to the dispatcher (the 409 above) and they chose
+            # to continue — repeating it after the fact is noise.
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
@@ -3320,7 +3427,7 @@ def _gap_turn_slack(prev_slot, next_slot, target_date, prev_leg=None,
                               prev_picked_up_dt=prev_picked_up_dt)
 
 
-def _annotate_vehicle_status(vehicles, on_date):
+def _annotate_vehicle_status(vehicles, on_date, *, assigned=()):
     """Stamp each unit with its out-of-service label and permit rows for a date.
 
     Every surface that renders a vehicle pool goes through here — the legs
@@ -3331,14 +3438,54 @@ def _annotate_vehicle_status(vehicles, on_date):
 
     Resolved per DATE, not "now": these pages are date-scoped, and a unit in the
     shop this week is a normal unit on next week's board.
+
+    ``assigned`` are the separate car instances drawn as the assigned-car chip
+    on a chauffeur's card (``DriverVehicleAssignment.vehicle``). They get the
+    same booking tags out of the same single pass, so a booked car reads the
+    same in the pool and under the name of whoever is holding it.
     """
+    # Fleet's part-day bookings. A booked car stays a normal, draggable card —
+    # soft bookings take nothing off the road — but the booking is printed on
+    # it, so nobody learns about the tyre slot from the warning on the drop.
+    from dispatching import fleet_bookings
+    assigned = [v for v in assigned if v is not None]
+    booking_rows = fleet_bookings.pool_rows(list(vehicles) + assigned, on_date)
+    for vehicle in assigned:
+        vehicle.booking_rows = booking_rows.get(vehicle.id, [])
     for vehicle in vehicles:
+        vehicle.booking_rows = booking_rows.get(vehicle.id, [])
         vehicle.oos_label = vehicle.out_of_service_label(on_date)
         # Soft, non-blocking: the car was expected back by this date and fleet
         # hasn't confirmed it. Usable, but worth a glance before a 4 AM run.
         vehicle.oos_notice = vehicle.downtime_notice(on_date)
         vehicle.permit_rows = vehicle.permits(day=on_date)
     return vehicles
+
+
+def _handover_clashes(pairs, on_date):
+    """``{(driver_id, vehicle_id): driver_clash}`` for a batch of car-to-chauffeur
+    pairs about to be written for a day (copy yesterday's cars, Day Setup).
+
+    The same rule as the single pool drop — ``fleet_bookings.driver_clash``,
+    this chauffeur's own trips against the car's bookings — so the bulk paths
+    can never hand over a car the one-at-a-time drop would refuse. One query
+    when no car in the batch is booked, which is nearly every day; the trips
+    are only measured for the pairs whose car actually is.
+    """
+    from dispatching import fleet_bookings
+    pairs = [(d, v) for d, v in pairs if d is not None and v is not None]
+    if not pairs:
+        return {}
+    booked = fleet_bookings.bookings_for(on_date, {v.id for _, v in pairs})
+    out = {}
+    for driver, vehicle in pairs:
+        key = (driver.id, vehicle.id)
+        if vehicle.id not in booked or key in out:
+            continue
+        clash = fleet_bookings.driver_clash(driver, vehicle, on_date)
+        if clash:
+            out[key] = clash
+    return out
 
 
 def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
@@ -3382,6 +3529,248 @@ def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
             lane_ends.append(right)
         _set(s, 'lane_top', _get(s, 'lane') * (lane_height + gap) + top_pad)
     return max(len(lane_ends), 1)
+
+
+def _share_clock(dt):
+    """~2:35p — a shared car's handoff moment, to the nearest 5 minutes."""
+    mins = int(round((dt.hour * 60 + dt.minute + dt.second / 60) / 5.0) * 5) % (24 * 60)
+    h, m = divmod(mins, 60)
+    suffix = "a" if h < 12 else "p"
+    h12 = h % 12 or 12
+    return f"{h12}{suffix}" if m == 0 else f"{h12}:{m:02d}{suffix}"
+
+
+_TRIP_UNDER_WAY = ("picked-up", "on-location", "completed")
+
+
+def _share_trips(slots, did, target_date):
+    """A driver's schedule slots as car_share.read_unit_day trips."""
+    return [{"leg_id": s.leg_id, "did": did,
+             "pick": datetime.combine(target_date, s.pickup_time),
+             "clear": s.estimated_end_time,
+             "pickup_category": s.pickup_category, "dropoff_category": s.dropoff_category,
+             "movable": (s.status or "") not in _TRIP_UNDER_WAY}
+            for s in slots if s.pickup_time is not None]
+
+
+def _first_name(driver):
+    return (str(driver).split() or [str(driver)])[0]
+
+
+def _drop_share_warnings(leg, driver, target_date, user):
+    """What the board's drag-and-drop asks before ``leg`` goes to ``driver`` when
+    their car is shared today — the SAME reading the board draws
+    (car_share.read_unit_day over the same trips: completed runs included, the
+    held-day draft when this user works in it), so the question matches the
+    picture. Only a problem THIS drop creates is raised. Honours the
+    manual_assign_warnings switch. [] when nothing to say."""
+    from dispatching.assignment import _active_draft_for_date, can_use_sandbox
+    from dispatching.car_share import read_unit_day
+    from dispatching.models import SchedulerSettings
+    from dispatching.scheduler import _make_sim_slot, build_driver_schedules
+
+    if not SchedulerSettings.get_settings().manual_assign_warnings or leg.pickup_time is None:
+        return []
+    rows = list(DriverVehicleAssignment.objects.filter(date=target_date, vehicle__isnull=False)
+                .select_related("vehicle", "driver", "driver__profile"))
+    mine = next((r for r in rows if r.driver_id == driver.id), None)
+    if mine is None:
+        return []
+    partners = {r.driver_id: r.driver for r in rows
+                if r.vehicle_id == mine.vehicle_id and r.driver_id != driver.id}
+    if not partners:
+        return []
+    unit = f"#{mine.vehicle.vehicle_number}" if mine.vehicle.vehicle_number else "this car"
+
+    ids = set(partners) | {driver.id}
+    legs = list(Leg.objects.filter(pickup_date=target_date)
+                .exclude(status="cancelled").exclude(reservation__status="cancelled")
+                .exclude(id=leg.id)
+                .select_related("driver", "reservation", "flight_information", "cruise_information"))
+    draft = _active_draft_for_date(target_date) if can_use_sandbox(user) else None
+    if draft is not None:
+        _apply_draft_overlay(draft, legs, [driver, *partners.values()])
+    legs = [l for l in legs if l.driver_id in ids]
+    schedules = build_driver_schedules(legs, [driver, *partners.values()], target_date)
+    before = [t for did in ids for t in _share_trips(
+        schedules[did].slots if did in schedules else [], did, target_date)]
+    after = before + _share_trips([_make_sim_slot(leg, target_date)], driver.id, target_date)
+
+    was, now = read_unit_day(before), read_unit_day(after)
+    grade = now["grade"].get(leg.id, "")
+    newly_clashing = [lid for lid, g in now["grade"].items()
+                      if g == "clash" and lid != leg.id and was["grade"].get(lid) != "clash"]
+    pick = datetime.combine(target_date, leg.pickup_time)
+
+    def around():
+        """The partner stretch this trip sits in, or the nearest one."""
+        best = None
+        for pid, p in partners.items():
+            for s, e, _i in now["runs"].get(pid, []):
+                gap = 0 if s <= pick <= e else min(abs((pick - s).total_seconds()),
+                                                   abs((pick - e).total_seconds()))
+                if best is None or gap < best[0]:
+                    best = (gap, p, s, e)
+        return best
+
+    near = around()
+    if near is None:
+        return []
+    _gap, p, s, e = near
+    who = str(p)
+    if grade == "clash" and now["why"].get(leg.id) == "overlap":
+        return [f"Shared car {unit}: {who} still has the car then (about {_share_clock(s)}–"
+                f"{_share_clock(e)}) — one car can't do both trips."]
+    if grade == "clash" or newly_clashing:
+        runs = now["runs"].get(p.id, [])
+        hs, he = min(r[0] for r in runs), max(r[1] for r in runs)
+        return [f"Shared car {unit}: {who} has the car before and after this (about "
+                f"{_share_clock(hs)}–{_share_clock(he)}), so it would change hands twice."]
+    if grade == "tight":
+        side = f"until about {_share_clock(e)}" if s < pick else f"from about {_share_clock(s)}"
+        return [f"Shared car {unit}: close hand-over — {who} has the car {side}. "
+                f"Check there's time to get it back."]
+    return []
+
+
+def _attach_car_share(rows, assignments, target_date, mins_from_left, total_minutes):
+    """Mark the schedule board's rows whose drivers share one physical car today.
+
+    With 20+ rows a split car was just two "#17" chips a few lines apart, and a job
+    could go to one driver while the other had the car. Each shared row now gets
+    ``share``: the unit, a chip naming the other driver and the hand-over ("Leo till
+    ~2:35p"), its state ('' / 'tight' / 'clash'), and the other driver's time with
+    the car drawn across this row as "Car with Leo" bands. Trips that can't work
+    get ``slot.share_clash``. The reading is car_share.read_unit_day — the same one
+    the drag-and-drop check asks — so the picture and the question agree.
+
+    The two rows of a unit already sit together (the board sorts by unit number);
+    within the pair, whoever has the car first goes on top so the handoff reads
+    down the board. Returns the reordered rows.
+    """
+    from dispatching.car_share import read_unit_day
+
+    unit_of = {}
+    for row in rows:
+        a = assignments.get(row["driver"].id)
+        if a is not None and a.vehicle_id:
+            unit_of[row["driver"].id] = a.vehicle_id
+    holders = {}
+    for row in rows:
+        vid = unit_of.get(row["driver"].id)
+        if vid is not None:
+            holders.setdefault(vid, []).append(row)
+    shared = {vid: rs for vid, rs in holders.items() if len(rs) > 1}
+    if not shared:
+        return rows
+
+    rank = {"": 0, "tight": 1, "clash": 2}
+    for vid, rs in shared.items():
+        unit = f"#{rs[0]['vehicle_number']}" if rs[0]["vehicle_number"] else "this car"
+        trips = [t for r in rs for t in _share_trips(r["schedule"].slots, r["driver"].id, target_date)]
+        day = read_unit_day(trips)
+        for row in rs:
+            me = row["driver"]
+            my_picks = [t["pick"] for t in trips if t["did"] == me.id]
+            partners = [r["driver"] for r in rs if r["driver"].id != me.id]
+            bands, bits, level = [], [], ""
+            for p in partners:
+                pname = _first_name(p)
+                p_runs = day["runs"].get(p.id, [])
+                for s, e, _ids in p_runs:
+                    left = max(mins_from_left(s), 0.0)
+                    right = min(mins_from_left(e), float(total_minutes))
+                    if right <= left:
+                        continue
+                    # The label sits on the side away from this driver's own trips,
+                    # so the hand-over edge (where their pills end) never hides it.
+                    after_me = bool(my_picks) and s >= sorted(my_picks)[len(my_picks) // 2]
+                    bands.append({
+                        "left_pct": round(left / total_minutes * 100, 2),
+                        "width_pct": round((right - left) / total_minutes * 100, 2),
+                        "label": f"Car with {pname}",
+                        "label_end": after_me,
+                        "title": (f"{unit} is with {p} from about {_share_clock(s)} to "
+                                  f"{_share_clock(e)} — their trips, with the drive out and "
+                                  f"back. A job for {_first_name(me)} in this stretch needs "
+                                  f"the car back first."),
+                    })
+                if not p_runs:
+                    bits.append(f"with {pname}")
+                elif not my_picks:
+                    bits.append(f"{pname} ~{_share_clock(p_runs[0][0])}–{_share_clock(p_runs[-1][1])}"
+                                if len(p_runs) == 1 else f"with {pname}")
+                elif all(s < min(my_picks) for s, _e, _i in p_runs):
+                    bits.append(f"{pname} till ~{_share_clock(p_runs[-1][1])}")
+                elif all(s > max(my_picks) for s, _e, _i in p_runs):
+                    bits.append(f"{pname} from ~{_share_clock(p_runs[0][0])}")
+                else:
+                    bits.append(f"with {pname}")
+
+            for slot in row["schedule"].slots:
+                g = day["grade"].get(slot.leg_id, "")
+                if rank[g] > rank[level]:
+                    level = g
+                if g != "clash":
+                    continue
+                pick = datetime.combine(target_date, slot.pickup_time)
+                # The partner whose time with the car wraps this trip, and that span.
+                around = next(((p, min(r[0] for r in runs), max(r[1] for r in runs))
+                               for p in partners
+                               for runs in [day["runs"].get(p.id, [])]
+                               if runs and min(r[0] for r in runs) <= pick <= max(r[1] for r in runs)),
+                              None)
+                slot.share_clash = True
+                why = day["why"].get(slot.leg_id)
+                if why in ("handback", "handback_either") and around:
+                    slot.share_clash_title = (
+                        f"Shared car {unit}: {around[0]} has the car about "
+                        f"{_share_clock(around[1])}–{_share_clock(around[2])}, so this trip "
+                        f"would make it change hands twice. "
+                        + ("Move this trip." if why == "handback" else
+                           "Move this trip or the other driver's trip next to it."))
+                elif why in ("handback", "handback_either"):
+                    slot.share_clash_title = (
+                        f"Shared car {unit}: this trip would make the car change hands twice. "
+                        + ("Move this trip." if why == "handback" else
+                           "Move this trip or the other driver's trip next to it."))
+                else:
+                    slot.share_clash_title = (
+                        f"Shared car {unit}: this trip starts while "
+                        f"{' / '.join(str(p) for p in partners)} still has the car.")
+            row["share"] = {
+                "unit": unit,
+                "partners": ", ".join(str(p) for p in partners),
+                "chip": " · ".join(bits),
+                "title": (f"{me} and {' & '.join(str(p) for p in partners)} share {unit} "
+                          f"today — one car, two drivers, separate trips."
+                          + (" A trip here can't work as planned (marked on the trip)."
+                             if level == "clash" else
+                             " The hand-over is close — check the drive back."
+                             if level == "tight" else "")),
+                "level": level,
+                "bands": bands,
+                "start": min(my_picks) if my_picks else None,
+            }
+
+    # Whoever has the car first goes on top of the pair.
+    out, i = [], 0
+    while i < len(rows):
+        vid = unit_of.get(rows[i]["driver"].id)
+        j = i + 1
+        if vid in shared:
+            while j < len(rows) and unit_of.get(rows[j]["driver"].id) == vid:
+                j += 1
+            run = sorted(rows[i:j], key=lambda r: (r["share"]["start"] is None,
+                                                   r["share"]["start"] or datetime.min))
+            for k, r in enumerate(run):
+                r["share_first"] = k == 0
+                r["share_last"] = k == len(run) - 1
+            out.extend(run)
+        else:
+            out.append(rows[i])
+        i = j
+    return out
 
 
 def _flight_disruption(leg):
@@ -3860,6 +4249,32 @@ def check_driver_feasibility(request):
 
         preload_timing_cache()
 
+        # Shared car: the other driver on this unit has the car then, or would
+        # have to hand it back twice, or the hand-over is close. These turn the
+        # board's drop target amber and open the Assign Anyway question — read
+        # exactly as the board draws the pair (_drop_share_warnings), so a split
+        # car can't slip by on a busy board. Still advisory: never blocks.
+        share_warnings = []
+        try:
+            share_warnings = _drop_share_warnings(leg, driver, target_date, request.user)
+        except Exception:
+            logger.exception("car-share check failed for leg %s", leg.id)
+
+        # Fleet booked part of this car's day. Soft: its own `booking_warning`
+        # — the sentence the "Continue anyway / Cancel" question leads with,
+        # kept out of `warnings` so it is never shown twice. Hard: not feasible
+        # and it IS the reason — the write would refuse it.
+        booking_clash = None
+        if day_vehicle is not None:
+            try:
+                from dispatching.fleet_bookings import booking_clash as _booking_clash
+                booking_clash = _booking_clash(leg, driver, vehicle=day_vehicle,
+                                               day=target_date)
+            except Exception:
+                logger.exception("vehicle-booking check failed for leg %s", leg.id)
+        booking_hard = bool(booking_clash and booking_clash["hard"])
+        booking_warning = booking_clash["text"] if booking_clash and not booking_hard else None
+
         # Build driver's current schedule (excluding this leg in case of reassignment)
         existing_legs = list(
             Leg.objects.select_related(
@@ -3877,14 +4292,18 @@ def check_driver_feasibility(request):
         if not driver_schedule:
             # No existing schedule — always feasible (modulo availability)
             end_time = estimate_job_end_time(leg, target_date)
-            warnings = list(availability_warnings)
+            warnings = list(availability_warnings) + share_warnings
             if not vehicle_match and vehicle_mismatch_detail:
                 warnings.append(vehicle_mismatch_detail)
             if permit_warning:
                 warnings.append(permit_warning)
-            feasible = not availability_blocks
+            feasible = not availability_blocks and not booking_hard
             reason = "Driver is off this date" if availability_blocks else "No other trips — fully available"
+            if booking_hard:
+                reason = booking_clash["text"]
             return JsonResponse({
+                "hard_block": booking_hard,
+                "booking_warning": booking_warning,
                 "feasible": feasible,
                 "buffer_minutes": 999,
                 "warnings": warnings,
@@ -3925,16 +4344,20 @@ def check_driver_feasibility(request):
         end_time = estimate_job_end_time(leg, target_date)
 
         warnings = list(result.warnings) if result.warnings else []
-        warnings = availability_warnings + warnings
+        warnings = availability_warnings + share_warnings + warnings
         if not vehicle_match and vehicle_mismatch_detail:
             warnings.append(vehicle_mismatch_detail)
         if permit_warning:
             warnings.append(permit_warning)
 
-        feasible = result.feasible and not availability_blocks
+        feasible = result.feasible and not availability_blocks and not booking_hard
         reason = "Driver is off this date" if availability_blocks else result.reason
+        if booking_hard:
+            reason = booking_clash["text"]
 
         return JsonResponse({
+            "hard_block": booking_hard,
+            "booking_warning": booking_warning,
             "feasible": feasible,
             "buffer_minutes": result.buffer_minutes,
             "warnings": warnings,
@@ -3959,6 +4382,14 @@ def check_driver_feasibility(request):
 def update_inhouse_vehicle_assignment(request):
     """
     Update or clear an inhouse driver's vehicle assignment for a specific date.
+
+    Optional ``from_driver_id``: the car is being dragged off another
+    chauffeur's card. Everything is checked for the RECEIVER first (out of
+    service, certification, fleet bookings); only when all of that passes is
+    the donor's row for this car removed and the receiver's saved, in one
+    transaction — so a refused hand-over can never leave the donor stripped.
+    Answers ``cleared_driver_id`` (the donor, or null when the donor no longer
+    held this car).
     """
     if not request.user.is_staff:
         return JsonResponse(
@@ -4007,6 +4438,17 @@ def update_inhouse_vehicle_assignment(request):
         cache.delete(f"capacity_planner_{assignment_date.isoformat()}")
         return JsonResponse({"success": True, "cleared": True})
 
+    # A drag off another chauffeur's card: resolved now, touched only after
+    # every check below has passed for the receiver.
+    donor = None
+    from_driver_id = data.get("from_driver_id")
+    if from_driver_id and str(from_driver_id) != str(driver.id):
+        donor = Driver.objects.filter(id=from_driver_id, driver_type="inhouse").first()
+        if donor is None:
+            return JsonResponse(
+                {"success": False, "error": "Driver not found"}, status=404
+            )
+
     try:
         vehicle = FleetVehicle.objects.select_related("vehicle_type").get(id=vehicle_id)
     except FleetVehicle.DoesNotExist:
@@ -4046,15 +4488,36 @@ def update_inhouse_vehicle_assignment(request):
             status=400,
         )
 
-    assignment, _ = DriverVehicleAssignment.objects.get_or_create(
-        driver=driver, date=assignment_date
-    )
-    assignment.vehicle = vehicle
-    assignment.save()
+    # Fleet has booked part of this car's day and this chauffeur already has
+    # trips inside it. Soft: say so and let the dispatcher decide. Hard: fleet
+    # has said the car cannot run then, and the way through is the booking
+    # itself, not an override here.
+    from dispatching import fleet_bookings
+    clash = fleet_bookings.driver_clash(driver, vehicle, assignment_date)
+    if clash and (clash["hard"] or not data.get("override_booking")):
+        return JsonResponse(
+            fleet_bookings.refusal(clash, vehicle_number=vehicle.vehicle_number),
+            status=409,
+        )
+
+    from django.db import transaction
+    cleared_driver_id = None
+    with transaction.atomic():
+        # Only the donor's row for THIS car goes: a card that changed in
+        # another tab since the drag started is left as it is.
+        if donor is not None and DriverVehicleAssignment.objects.filter(
+                driver=donor, date=assignment_date, vehicle=vehicle).delete()[0]:
+            cleared_driver_id = donor.id
+        assignment, _ = DriverVehicleAssignment.objects.get_or_create(
+            driver=driver, date=assignment_date
+        )
+        assignment.vehicle = vehicle
+        assignment.save()
     cache.delete(f"capacity_planner_{assignment_date.isoformat()}")
 
     return JsonResponse(
-        {"success": True, "vehicle_id": assignment.vehicle_id}
+        {"success": True, "vehicle_id": assignment.vehicle_id,
+         "cleared_driver_id": cleared_driver_id}
     )
 
 
@@ -4067,6 +4530,11 @@ def copy_vehicle_assignments(request):
     Two modes:
     - preview=true: returns what WOULD be copied, with off-day flags, for review modal
     - preview=false (default): performs the copy, respecting exclude_driver_ids
+
+    Fleet bookings follow the single pool drop's rule (``driver_clash``): the
+    preview lists every car booked over its chauffeur's trips on the target day
+    (``booking_notes``); the copy skips a pair that lands inside a HARD booking
+    (``skipped_booking``) and copies a soft one, naming it (``booking_warnings``).
     """
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
@@ -4123,16 +4591,29 @@ def copy_vehicle_assignments(request):
         })
 
     if is_preview:
+        # Said before the dispatcher confirms, not discovered after: the car
+        # fleet has booked over this chauffeur's trips on the day being built.
+        clashes = _handover_clashes(
+            [(a.driver, a.vehicle) for a in prev_assignments], target_date)
         return JsonResponse({
             "success": True,
             "source_date": prev.strftime("%Y-%m-%d"),
             "drivers": drivers_list,
+            "booking_notes": [
+                {"driver_id": driver_id, "text": clash["text"], "hard": clash["hard"]}
+                for (driver_id, _vid), clash in clashes.items()
+            ],
         })
 
     # Perform the copy — respect exclude list
     exclude_ids = set(data.get("exclude_driver_ids", []))
+    clashes = _handover_clashes(
+        [(a.driver, a.vehicle) for a in prev_assignments
+         if a.driver_id not in exclude_ids], target_date)
     copied = 0
     skipped_oos = []
+    skipped_booking = []
+    booking_warnings = []
     result_map = {}
     for a in prev_assignments:
         if a.driver_id in exclude_ids:
@@ -4144,6 +4625,16 @@ def copy_vehicle_assignments(request):
         if a.vehicle and a.vehicle.is_out_of_service_on(target_date):
             skipped_oos.append(f"#{a.vehicle.vehicle_number}")
             continue
+        # Same for a car fleet has HARD-booked across this chauffeur's trips:
+        # the pool drop would refuse it, so the copy does not sneak it through.
+        # Whatever the chauffeur already holds on the target day is left alone.
+        # A soft booking is copied and named, exactly as the drop would ask.
+        clash = clashes.get((a.driver_id, a.vehicle_id))
+        if clash and clash["hard"]:
+            skipped_booking.append(clash["text"])
+            continue
+        if clash:
+            booking_warnings.append(clash["text"])
         obj, created = DriverVehicleAssignment.objects.get_or_create(
             driver=a.driver, date=target_date,
             defaults={"vehicle": a.vehicle},
@@ -4162,6 +4653,8 @@ def copy_vehicle_assignments(request):
         "source_date": prev.strftime("%Y-%m-%d"),
         "assignments": result_map,
         "skipped_out_of_service": skipped_oos,
+        "skipped_booking": skipped_booking,
+        "booking_warnings": booking_warnings,
     })
 
 
@@ -4279,8 +4772,52 @@ def suggest_day_setup_view(request):
                                  solo_first=(None if _solo is None else bool(_solo)),
                                  peak_sizing=(None if _peak is None else bool(_peak)),
                                  force_include=_finc, force_exclude=_fexc)
+    _note_day_setup_bookings(proposal, target_date)
     proposal["success"] = True
     return JsonResponse(proposal)
+
+
+def _note_day_setup_bookings(proposal, target_date):
+    """Print fleet's part-day bookings onto a Day Setup proposal, in place.
+
+    The suggester still picks cars without reading bookings, so what it proposes
+    is annotated here instead: a pair (a row or a second-shift proposal) whose
+    car is booked over that chauffeur's trips carries ``booking_note`` +
+    ``booking_hard`` — the same ``driver_clash`` Apply asks (soft) or refuses
+    (hard) on. Every unit in the pickers carries ``booking`` (the car's
+    bookings that day, or "") so a hand-picked override is never made blind.
+    One query on a day nothing is booked.
+    """
+    from dispatching import fleet_bookings
+    booked = fleet_bookings.bookings_for(target_date)
+    if not booked:
+        return proposal
+    labels = {
+        vid: " · ".join(f"{'Hard-booked' if b.is_hard else 'Booked'} "
+                        f"{b.short_window()} {b.title()}" for b in bookings)
+        for vid, bookings in booked.items()
+    }
+    rows = list(proposal.get("rows") or [])
+    pairs_out = rows + list(proposal.get("mint_proposals") or [])
+    wanted = [p for p in pairs_out
+              if p.get("vehicle_id") in booked and p.get("group") != "off"]
+    if wanted:
+        drivers = Driver.objects.in_bulk({p["driver_id"] for p in wanted})
+        vehicles = FleetVehicle.objects.in_bulk({p["vehicle_id"] for p in wanted})
+        clashes = _handover_clashes(
+            [(drivers.get(p["driver_id"]), vehicles.get(p["vehicle_id"])) for p in wanted],
+            target_date)
+        for p in wanted:
+            clash = clashes.get((p["driver_id"], p["vehicle_id"]))
+            if clash:
+                p["booking_note"] = clash["text"]
+                p["booking_hard"] = clash["hard"]
+    for row in rows:
+        for option in row.get("unit_options") or []:
+            option["booking"] = labels.get(option.get("id"), "")
+    for unit in proposal.get("free_units") or []:
+        unit["booking"] = labels.get(unit.get("id"), "")
+    return proposal
 
 
 @login_required
@@ -4370,6 +4907,9 @@ def apply_day_setup(request):
       Scoped to payload-touched vehicles ONLY: the founder's pre-existing hand-built AM/PM
       shares (~24% of dates) must never make an unrelated Apply fail;
     - snapshot drift (a row changed between preview and Apply) -> 409 naming the row;
+    - a car fleet has booked over that chauffeur's trips -> 409 booking_conflict: hard
+      refuses outright; soft asks (can_override) and passes on a resend with
+      override_booking — nothing is written until it does;
     - idempotent (re-applying the same plan is a no-op); never deletes rows.
     """
     if not request.user.is_staff:
@@ -4501,6 +5041,32 @@ def apply_day_setup(request):
                      "error": f"#{vehicles[vid].vehicle_number} would end up with "
                               f"{n_total} drivers — at most two can share one "
                               f"car per day."}, status=400)
+
+        # FLEET BOOKINGS — the pool drop's rule (driver_clash: this chauffeur's
+        # own trips against the car's bookings) over every pair that actually
+        # hands someone a car; a car he already holds is not a hand-over and is
+        # not re-asked. HARD refuses the whole batch like out-of-service does,
+        # with no override. SOFT is one question for the whole batch, answered
+        # by resending with override_booking. Nothing is written either way.
+        _clashes = _handover_clashes(
+            [(drivers[did], vehicles[vid]) for did, vid, _s, _ps, _pe in clean
+             if not (existing.get(did) and existing[did].vehicle_id == vid)],
+            target_date)
+        if _clashes:
+            _hard = [c for c in _clashes.values() if c["hard"]]
+            if _hard or not data.get("override_booking"):
+                return JsonResponse({
+                    "success": False,
+                    "booking_conflict": True,
+                    "hard": bool(_hard),
+                    "can_override": not _hard,
+                    "error": "\n".join(c["text"] for c in (_hard or _clashes.values())),
+                    "booking_conflicts": [
+                        {"driver_id": did, "vehicle_id": vid,
+                         "text": c["text"], "hard": c["hard"]}
+                        for (did, vid), c in _clashes.items()
+                    ],
+                }, status=409)
 
         # PLANNED WINDOWS (Build 2a): when Apply saves a shared car, BOTH rows get
         # planned_start_hour/planned_end_hour — the plan is written down, not implied.
@@ -12787,6 +13353,8 @@ def capacity_planner(request):
              .select_related("vehicle_type").with_open_downtimes()
              .order_by("vehicle_number")),
         selected_date,
+        # The chip on each chauffeur's card is its own instance of the car.
+        assigned=[a.vehicle for a in assignment_map.values() if a.vehicle_id],
     )
     # Down units sort last but stay in the pool — see the card markup for why.
     inhouse_vehicles.sort(key=lambda v: bool(v.oos_label))
@@ -13795,6 +14363,35 @@ def publish_draft(request):
         touched_ids = [d.leg_id for d in deltas]
         live_now = dict(Leg.objects.filter(id__in=touched_ids).values_list("id", "driver_id"))
 
+        # ── Fleet's vehicle bookings, judged NOW ──
+        # A booking fleet made after a trip was staged — or a staging path that
+        # never asked — would otherwise go live right here. HARD: nothing is
+        # published and `force` does not reach it; the way through is
+        # re-staging the trip or fleet lifting the booking. SOFT: published,
+        # and listed back so the publisher knows.
+        from dispatching.board_validation import booking_verdicts
+        hard_bookings, soft_bookings = booking_verdicts([
+            (d.leg, d.proposed_driver) for d in deltas
+            if d.proposed_driver_id is not None
+            and d.leg.driver_id != d.proposed_driver_id
+            and d.leg.status != "cancelled" and d.leg.reservation.status != "cancelled"
+            and d.leg.pickup_date == draft.schedule_date
+        ])
+        if hard_bookings:
+            booking_conflicts = [{"leg_id": b["leg_id"], "text": b["text"]} for b in hard_bookings]
+            _log_draft_event(draft, ScheduleDraftEvent.EventType.CONFLICT, actor=request.user,
+                             reason="hard_vehicle_booking", booking_conflicts=booking_conflicts)
+            n = len(booking_conflicts)
+            lead = ("Not published — a trip in this draft lands inside a hard vehicle booking."
+                    if n == 1 else
+                    f"Not published — {n} trips in this draft land inside a hard vehicle booking.")
+            return JsonResponse({
+                "success": False,
+                "booking_conflicts": booking_conflicts,
+                "error": " ".join([lead] + [b["text"] for b in booking_conflicts[:3]]
+                                  + ([f"…and {n - 3} more."] if n > 3 else [])),
+            }, status=409)
+
         conflicts = []
         for d in deltas:
             # Baseline = the leg's driver when the draft opened. base_snapshot only
@@ -13889,6 +14486,7 @@ def publish_draft(request):
         "success": True, "applied": applied, "skipped": skipped,
         "affected_driver_count": len(affected),
         "message": f"Published {applied} assignment(s) to drivers.",
+        "booking_warnings": [{"leg_id": b["leg_id"], "text": b["text"]} for b in soft_bookings],
     })
 
 
@@ -14144,11 +14742,34 @@ def auto_assign_drivers(request):
     assigned_count = len(final_assignments)
     remaining = len(unassigned) - assigned_count
 
+    # Fleet's vehicle bookings on the cars these chauffeurs hold. The engine
+    # doesn't read them yet, so every pair it proposes (manual pins included)
+    # is judged here: the preview lists them, and an apply leaves out the HARD
+    # ones — live and staged alike — and discloses the SOFT ones it wrote.
+    from dispatching.board_validation import booking_verdicts
+    _bk_hard, _bk_soft = booking_verdicts([
+        (legs_by_id[lid], drivers_by_id[did]) for lid, did in final_assignments.items()
+        if lid in legs_by_id and did in drivers_by_id and legs_by_id[lid].driver_id != did
+    ])
+    booking_warnings = [
+        {"leg_id": b["leg_id"], "driver_id": b["driver_id"], "text": b["text"], "hard": b["hard"]}
+        for b in _bk_hard + _bk_soft
+    ]
+
     if apply_mode:
         # Filter to selected drivers only if specified
         if apply_driver_ids is not None:
             selected_dids = set(int(d) for d in apply_driver_ids)
             final_assignments = {lid: did for lid, did in final_assignments.items() if did in selected_dids}
+
+        # A HARD booking is never written, not even into a draft: those trips
+        # stay unassigned and are named back to the dispatcher.
+        refused_booking = [{"leg_id": b["leg_id"], "text": b["text"]}
+                           for b in _bk_hard if b["leg_id"] in final_assignments]
+        final_assignments = {lid: did for lid, did in final_assignments.items()
+                             if lid not in {b["leg_id"] for b in refused_booking}}
+        booking_warnings = [w for w in booking_warnings
+                            if not w["hard"] and w["leg_id"] in final_assignments]
 
         # Sandbox gate: if this date is held AND the runner is a granted sandbox
         # user, apply auto-assign results into the draft overlay instead of live.
@@ -14170,6 +14791,8 @@ def auto_assign_drivers(request):
                 "remaining": len(unassigned) - len(final_assignments),
                 "held": True,
                 "message": f"Staged {len(final_assignments)} assignments in the draft for {target_date.isoformat()}.",
+                "refused_booking": refused_booking,
+                "booking_warnings": booking_warnings,
             })
 
         # ── Apply mode (live): save assignments to DB ──
@@ -14210,6 +14833,8 @@ def auto_assign_drivers(request):
             "remaining": len(unassigned) - saved,
             "message": f"Assigned {saved} legs to inhouse drivers.",
             "evict_moves": _evict_moves,
+            "refused_booking": refused_booking,
+            "booking_warnings": booking_warnings,
         })
 
     # ── Preview mode: build proposed schedules without saving ──
@@ -14498,6 +15123,9 @@ def auto_assign_drivers(request):
         "trim_moves": len(_trim_moves),
         "evict_moves": _evict_moves,
         "advisor": advisor_proposals,
+        # Proposed pairs that land on a fleet booking: hard ones Apply will
+        # leave unassigned, soft ones it will write.
+        "booking_warnings": booking_warnings,
     })
 
 
@@ -14727,17 +15355,31 @@ def restore_schedule_snapshot(request):
         assignment_map[entry.leg_id] = entry
 
     # Get all legs for this date
-    all_legs = Leg.objects.filter(pickup_date=snapshot.schedule_date)
+    all_legs = list(Leg.objects.filter(pickup_date=snapshot.schedule_date))
 
     # Held day + granted user: load the snapshot INTO the draft (drivers keep
     # seeing the live board until publish). Otherwise restore live as before.
     draft = _active_draft_for_date(snapshot.schedule_date)
     staging = bool(draft) and can_use_sandbox(request.user)
 
+    # A snapshot can predate a HARD vehicle booking fleet made since. Those
+    # entries are not restored (live or into the draft): the leg is left as it
+    # is and named back, rather than a trip being put on a car fleet has taken.
+    from dispatching.board_validation import booking_verdicts
+    _bk_hard, _bk_soft = booking_verdicts([
+        (leg, assignment_map[leg.id].driver) for leg in all_legs
+        if leg.id in assignment_map and assignment_map[leg.id].driver_id is not None
+        and leg.driver_id != assignment_map[leg.id].driver_id
+    ])
+    skipped_booking = [{"leg_id": b["leg_id"], "text": b["text"]} for b in _bk_hard]
+    skipped_ids = {b["leg_id"] for b in skipped_booking}
+
     restored = 0
     cleared = 0
     for leg in all_legs:
         entry = assignment_map.get(leg.id)
+        if entry and leg.id in skipped_ids:
+            continue
         if entry:
             if staging:
                 _upsert_draft_assignment(draft, leg, entry.driver, request.user, source="snapshot_restore")
@@ -14762,16 +15404,22 @@ def restore_schedule_snapshot(request):
     # Invalidate capacity planner cache so it rebuilds with fresh data
     cache.delete(f"capacity_planner_{snapshot.schedule_date.isoformat()}")
 
+    message = (
+        f"Loaded snapshot into the draft: {restored} assignments staged, {cleared} staged as unassigned."
+        if staging else
+        f"Restored {restored} assignments from snapshot. {cleared} legs cleared."
+    )
+    if skipped_booking:
+        n = len(skipped_booking)
+        message += (f" {n} trip{'s were' if n != 1 else ' was'} left as {'they are' if n != 1 else 'it is'}"
+                    f" — the car is now hard-booked by fleet at that time.")
     return JsonResponse({
         "success": True,
         "restored": restored,
         "cleared": cleared,
         "held": staging,
-        "message": (
-            f"Loaded snapshot into the draft: {restored} assignments staged, {cleared} staged as unassigned."
-            if staging else
-            f"Restored {restored} assignments from snapshot. {cleared} legs cleared."
-        ),
+        "message": message,
+        "skipped_booking": skipped_booking,
     })
 
 
@@ -15026,13 +15674,28 @@ def smart_schedule_builder(request):
         'applied': False,
     }
 
+    new_leg_ids = [
+        s.leg_id for s in result['schedule']
+        if not (existing_schedule and any(es.leg_id == s.leg_id for es in existing_schedule.slots))
+    ]
+    # The builder doesn't read fleet's vehicle bookings yet, so the new legs it
+    # picked are judged against this chauffeur's car here: the preview names
+    # them (hard ones Apply will skip, soft ones it will write).
+    from dispatching.board_validation import booking_verdicts
+    _bk_hard, _bk_soft = booking_verdicts([
+        (leg_map[lid], driver) for lid in new_leg_ids
+        if lid in leg_map and leg_map[lid].driver_id != driver.id
+    ])
+    response['booking_warnings'] = [
+        {"leg_id": b["leg_id"], "driver_id": b["driver_id"], "text": b["text"], "hard": b["hard"]}
+        for b in _bk_hard + _bk_soft
+    ]
+
     # If apply=true, save the new assignments
     if apply_assignments:
+        from dispatching.fleet_bookings import HardBookingRefused
         assigned = 0
-        new_leg_ids = [
-            s.leg_id for s in result['schedule']
-            if not (existing_schedule and any(es.leg_id == s.leg_id for es in existing_schedule.slots))
-        ]
+        refused_booking = []
         staged_any = False
         for lid in new_leg_ids:
             try:
@@ -15044,14 +15707,24 @@ def smart_schedule_builder(request):
                     assigned += 1
             except Leg.DoesNotExist:
                 continue
+            except HardBookingRefused as exc:
+                # The car is hard-booked across this trip: leave it unassigned
+                # and say so, rather than refuse the rest of the day.
+                refused_booking.append({"leg_id": lid, "text": next(
+                    (b["text"] for b in _bk_hard if b["leg_id"] == lid), exc.clash["text"])})
 
         response['applied'] = True
         response['assigned_count'] = assigned
         response['held'] = staged_any
+        response['refused_booking'] = refused_booking
         response['message'] = (
             f"Staged {assigned} new legs for {driver} in the draft." if staged_any
             else f"Assigned {assigned} new legs to {driver}."
         )
+        if refused_booking:
+            n = len(refused_booking)
+            response['message'] += (f" {n} left unassigned — {driver}'s car is hard-booked "
+                                    f"by fleet at {'those times' if n != 1 else 'that time'}.")
         cache.delete(f"capacity_planner_{target_date.isoformat()}")
 
     return JsonResponse(response)
@@ -18017,6 +18690,11 @@ def find_swap_suggestions(request):
     sharer_partners = build_sharer_partners(
         {d.id for d in inhouse_drivers}, target_date)
 
+    # Runs already under way or gone by stay where they are: a swap can't
+    # re-staff the 4 AM job at 4 PM.
+    _now_local = timezone.localtime().replace(tzinfo=None)
+    frozen_leg_ids = {l.id for l in all_legs if _run_gone_by(l, target_date, _now_local)}
+
     # Run swap search
     result = find_swaps(
         target_leg=target_leg,
@@ -18025,6 +18703,7 @@ def find_swap_suggestions(request):
         driver_vtypes=driver_vtypes,
         target_date=target_date,
         sharer_partners=sharer_partners,
+        frozen_leg_ids=frozen_leg_ids,
     )
 
     # One board for every solution — the planning-clock sweep caches onto it,
@@ -18105,6 +18784,82 @@ def _revalidate_swap_feasibility(valid_moves, target_date):
     return revalidate_moves_against_db(valid_moves, target_date)
 
 
+def _vehicle_refusal(leg, driver, driver_vtype):
+    """The plain-words reason ``driver`` can't take ``leg`` in their car that day,
+    or None. A driver serves their own class and smaller; an untyped leg fits any
+    car and a driver with no known car is not judged — the swap search's rules.
+    The search already gates this; the write endpoints check again so a stale page
+    can never put an SUV on a Van job."""
+    from dispatching.scheduler import get_compatible_vehicle_types
+    from rates.models import Vehicle
+
+    need = leg.effective_vehicle_type
+    if not need or not driver_vtype or need in get_compatible_vehicle_types(driver_vtype):
+        return None
+    label = dict(Vehicle.VEHICLE_TYPES)
+
+    def a(word):   # "an SUV", "a Van"
+        return f"an {word}" if word[:1] in "AEIOU" or word.startswith("SUV") else f"a {word}"
+
+    when = leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "this"
+    return (f"{driver} is in {a(label.get(driver_vtype, driver_vtype))} that day — "
+            f"the {when} run needs {a(label.get(need, need))}.")
+
+
+# The driver is at the pickup, has the guest, or is done — the Recovery
+# Advisor's never-move statuses (conflict_advisor._STATUS_NEVER_MOVE) plus done.
+_RUN_UNDER_WAY = ("picked-up", "on-location", "completed")
+
+
+def _run_gone_by(leg, day, now_local):
+    """True once a run can't be re-staffed: it's under way or done (by status),
+    or its pickup moment has passed on the Recovery Advisor's clock — the booked
+    time, or for a tracked arrival the meet time (gate + 10) when that is later.
+    ``now_local`` is naive local time."""
+    from dispatching.conflict_advisor import _effective_pickup_dt
+
+    if (leg.status or "") in _RUN_UNDER_WAY:
+        return True
+    return leg.pickup_time is not None and _effective_pickup_dt(leg, day) <= now_local
+
+
+def _takeback_gate_refusal(leg, driver, day):
+    """Why ``driver`` can't take ``leg`` back right now, in plain words, or None —
+    the Swap Tester's own Take Back gate (swap_optimizer.direct_fit: shared car,
+    turnaround, 15-hour day) re-run on the board as it stands, for a page that
+    was loaded before someone else changed the day."""
+    from dispatching.car_share import build_sharer_partners, sharers_conflict
+    from dispatching.models import SchedulerSettings
+    from dispatching.scheduler import (build_driver_schedules, load_all_driver_vtypes,
+                                       preload_timing_cache)
+    from dispatching.swap_optimizer import direct_fit, receiver_windows
+
+    preload_timing_cache()
+    rostered = set(DriverVehicleAssignment.objects.filter(
+        date=day, driver__driver_type="inhouse").values_list("driver_id", flat=True))
+    partners = build_sharer_partners(rostered | {driver.id}, day)
+    ids = {driver.id} | partners.get(driver.id, set())
+    legs = list(Leg.objects.filter(pickup_date=day, driver_id__in=ids)
+                .exclude(status="cancelled").exclude(reservation__status="cancelled")
+                .exclude(id=leg.id)
+                .select_related("reservation", "reservation__vehicle", "vehicle", "driver",
+                                "flight_information")
+                .prefetch_related("legflight_set__flight", "legstop_set"))
+    schedules = build_driver_schedules(legs, list(Driver.objects.filter(id__in=ids)), day)
+    feas = direct_fit(leg, driver.id, schedules, load_all_driver_vtypes(day), day,
+                      SchedulerSettings.get_settings(),
+                      windows=receiver_windows([driver.id], day), sharer_partners=partners)
+    if feas is not None and feas.feasible:
+        return None
+    if feas is None and sharers_conflict(leg, driver.id, partners, schedules, day):
+        others = " / ".join(str(schedules[p].driver_name) for p in partners.get(driver.id, ())
+                            if p in schedules)
+        return (f"{driver}'s car is with {others or 'the other driver'} then, so this job "
+                f"stays with the affiliate. Refresh the page.")
+    reason = (feas.reason if feas is not None else "") or "it no longer fits their day"
+    return f"{driver} can't take it now — {reason[0].lower()}{reason[1:]}. Refresh the page."
+
+
 @login_required
 def execute_swap(request):
     """Execute an approved swap — update leg driver assignments in a transaction."""
@@ -18145,21 +18900,72 @@ def execute_swap(request):
     if not valid_moves:
         return JsonResponse({"success": False, "error": "No valid moves to apply"}, status=400)
 
+    # Fleet's vehicle bookings, judged for the WHOLE cascade before anything is
+    # staged or written. Hard: the swap is refused, no override. Soft: asked
+    # once, naming every trip it puts on a booked car; the resend carrying
+    # override_booking goes through.
+    from dispatching import fleet_bookings
+    from dispatching.board_validation import booking_verdicts
+    from dispatching.scheduler import load_all_driver_vtypes
+    _move_legs = Leg.objects.in_bulk([lid for lid, _ in valid_moves])
+    _move_drivers = Driver.objects.in_bulk([did for _, did in valid_moves])
+
+    # Vehicle class, for the whole cascade, before anything is staged or written.
+    # And no run that is under way or gone by changes hands — a stale page must
+    # not hand a finished 4 AM job (and its pay) to someone else. An unassigned
+    # late job can still be covered.
+    _dvtypes = load_all_driver_vtypes(target_date)
+    _now_local = timezone.localtime().replace(tzinfo=None)
+    for lid, did in valid_moves:
+        leg, drv = _move_legs.get(lid), _move_drivers.get(did)
+        if leg is None or drv is None or leg.driver_id == did:
+            continue
+        if leg.driver_id and _run_gone_by(leg, leg.pickup_date or target_date, _now_local):
+            when = leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else ""
+            return JsonResponse({"success": False, "leg_id": lid,
+                                 "error": f"Swap rejected — the {when} run is already under way "
+                                          f"or gone by, so it can't change hands. Refresh "
+                                          f"and search again."}, status=409)
+        refusal = _vehicle_refusal(leg, drv, _dvtypes.get(did))
+        if refusal:
+            return JsonResponse({"success": False, "leg_id": lid,
+                                 "error": f"Swap rejected — {refusal}"}, status=409)
+
+    bk_hard, bk_soft = booking_verdicts([
+        (_move_legs[lid], _move_drivers[did]) for lid, did in valid_moves
+        if lid in _move_legs and did in _move_drivers and _move_legs[lid].driver_id != did
+    ])
+    if bk_hard:
+        return JsonResponse(fleet_bookings.refusal(
+            bk_hard[0]["clash"], leg_id=bk_hard[0]["leg_id"], error=bk_hard[0]["text"]),
+            status=409)
+    if bk_soft and not data.get("override_booking"):
+        return JsonResponse(fleet_bookings.refusal(
+            bk_soft[0]["clash"], leg_id=bk_soft[0]["leg_id"],
+            error=" ".join(b["text"] for b in bk_soft),
+            booking_warnings=[{"leg_id": b["leg_id"], "text": b["text"]} for b in bk_soft]),
+            status=409)
+
     # Held day + granted user: stage the whole cascade in the draft overlay
     # (drivers see nothing; no live revalidation — drafts may be messy and the
     # manager reviews before publish, same contract as drag-drop staging).
     draft = _active_draft_for_date(target_date)
     if draft and can_use_sandbox(request.user):
         staged = 0
-        for leg_id, to_driver_id in valid_moves:
-            try:
-                leg = Leg.objects.get(id=leg_id)
-                driver = Driver.objects.get(id=to_driver_id)
-            except (Leg.DoesNotExist, Driver.DoesNotExist):
-                continue
-            set_leg_driver(leg, driver, request.user, source="swap")
-            staged += 1
-        _log_draft_event(draft, "edited", actor=request.user, source="swap", count=staged)
+        try:
+            # Atomic so a booking saved mid-cascade can't leave half a swap staged.
+            with transaction.atomic():
+                for leg_id, to_driver_id in valid_moves:
+                    try:
+                        leg = Leg.objects.get(id=leg_id)
+                        driver = Driver.objects.get(id=to_driver_id)
+                    except (Leg.DoesNotExist, Driver.DoesNotExist):
+                        continue
+                    set_leg_driver(leg, driver, request.user, source="swap")
+                    staged += 1
+                _log_draft_event(draft, "edited", actor=request.user, source="swap", count=staged)
+        except fleet_bookings.HardBookingRefused as exc:
+            return JsonResponse(fleet_bookings.refusal(exc.clash, leg_id=leg_id), status=409)
         return JsonResponse({"success": True, "applied": staged, "held": True,
                              "message": f"Staged {staged} swap move(s) in the draft."})
 
@@ -18176,6 +18982,10 @@ def execute_swap(request):
                 driver = Driver.objects.get(id=to_driver_id)
                 set_leg_driver(leg, driver, request.user, source="swap")
                 applied += 1
+    except fleet_bookings.HardBookingRefused as exc:
+        # A hard booking saved between the check above and the write: the
+        # whole cascade rolled back with it.
+        return JsonResponse(fleet_bookings.refusal(exc.clash, leg_id=leg_id), status=409)
     except _SwapInfeasible as e:
         return JsonResponse({"success": False, "error": f"Swap rejected — would create an infeasible schedule: {e}"}, status=409)
     except Leg.DoesNotExist:
@@ -18216,13 +19026,44 @@ def execute_takeback(request):
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
 
+    from dispatching import fleet_bookings
+
     try:
         with transaction.atomic():
             leg = Leg.objects.select_for_update().get(id=leg_id)
             driver = Driver.objects.get(id=driver_id)
+            if leg.driver_id != driver.id:
+                # The page lists only pickups still ahead; a tab left open all day
+                # must not take back a job the affiliate is on, or has done.
+                if _run_gone_by(leg, leg.pickup_date or target_date,
+                                timezone.localtime().replace(tzinfo=None)):
+                    return JsonResponse({"success": False, "error": (
+                        "That pickup is already under way or gone by, so it stays with "
+                        "the affiliate. Refresh the page.")}, status=409)
+                from dispatching.scheduler import get_driver_vehicle_type
+                refusal = _vehicle_refusal(
+                    leg, driver, get_driver_vehicle_type(driver.id, target_date))
+                # And the rest of the Take Back gate, on the board as it is NOW —
+                # the page may be hours old. A held day stages into the draft
+                # unchecked, the same contract execute_swap keeps.
+                from dispatching.assignment import _active_draft_for_date, can_use_sandbox
+                if not refusal and not (_active_draft_for_date(leg.pickup_date or target_date)
+                                        and can_use_sandbox(request.user)):
+                    refusal = _takeback_gate_refusal(leg, driver, leg.pickup_date or target_date)
+                if refusal:
+                    return JsonResponse({"success": False, "error": refusal}, status=409)
+            # Fleet's vehicle booking on the receiver's car, before anything is
+            # staged or written: hard refuses (no override); soft asks, and
+            # the resend carrying override_booking goes through.
+            if leg.driver_id != driver.id:
+                soft_clash = fleet_bookings.check_assign(leg, driver)
+                if soft_clash and not data.get("override_booking"):
+                    return JsonResponse(fleet_bookings.refusal(soft_clash), status=409)
             # Front door: stages into the draft overlay when the day is held
             # and the user is a granted sandbox user; writes live otherwise.
             mode, _ = set_leg_driver(leg, driver, request.user, source="takeback")
+    except fleet_bookings.HardBookingRefused as exc:
+        return JsonResponse(fleet_bookings.refusal(exc.clash), status=409)
     except Leg.DoesNotExist:
         return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
     except Driver.DoesNotExist:
@@ -18243,7 +19084,6 @@ def swap_tester(request):
     from dispatching.scheduler import (
         build_driver_schedules, build_sharer_partners, suggest_assignments_clustered,
         preload_timing_cache, load_all_driver_vtypes,
-        check_feasibility, get_compatible_vehicle_types,
     )
     from dispatching.models import SchedulerSettings
     from reservations.models import Leg
@@ -18324,8 +19164,19 @@ def swap_tester(request):
     # ── Affiliate takeback analysis ──────────────────────────
     cfg = SchedulerSettings.get_settings()
     affiliate_legs_list = [l for l in legs if l.driver and l.driver.driver_type == "affiliate"]
+    # Only pickups still ahead can be taken back: at 4 PM the 8 AM job is gone,
+    # and so is one the affiliate is already standing at (_run_gone_by).
+    now_local = timezone.localtime().replace(tzinfo=None)
+    upcoming_affiliate = [l for l in affiliate_legs_list
+                          if not _run_gone_by(l, selected_date, now_local)]
+    takeback_past_count = len(affiliate_legs_list) - len(upcoming_affiliate)
+    # "Take Back → driver" asks the swap search's own gate, so it honours the
+    # same car class, day length and shared car as Find Swaps.
+    from dispatching.swap_optimizer import direct_fit, receiver_windows
+    tb_windows = (receiver_windows([d.id for d in inhouse_drivers], selected_date)
+                  if upcoming_affiliate else {})
     affiliate_takeback = []
-    for leg in affiliate_legs_list:
+    for leg in upcoming_affiliate:
         trip_type = leg.get_trip_type()
         vtype = leg.effective_vehicle_type
         vtype_str = str(vtype) if vtype else None
@@ -18336,15 +19187,9 @@ def swap_tester(request):
         # Check direct feasibility against every inhouse driver
         best_direct = None
         for driver in inhouse_drivers:
-            dvtype = driver_vtypes.get(driver.id)
-            # Driver's vehicle must be able to handle the leg's required type
-            if vtype_str and vtype_str not in get_compatible_vehicle_types(dvtype or ""):
-                continue
-            sched = schedules.get(driver.id)
-            if not sched:
-                continue
-            feas = check_feasibility(sched, leg, selected_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
-            if feas.feasible:
+            feas = direct_fit(leg, driver.id, schedules, driver_vtypes, selected_date, cfg,
+                              windows=tb_windows, sharer_partners=sharer_partners)
+            if feas is not None and feas.feasible:
                 if best_direct is None or feas.buffer_minutes > best_direct["buffer"]:
                     best_direct = {
                         "driver_id": driver.id,
@@ -18404,7 +19249,9 @@ def swap_tester(request):
         "total_legs": len(legs),
         "inhouse_count": sum(1 for l in legs if l.driver and l.driver.driver_type == "inhouse"),
         "unassigned_count": len(unassigned_legs),
-        "affiliate_count": len(affiliate_takeback),
+        "affiliate_count": len(affiliate_legs_list),
+        "takeback_count": len(affiliate_takeback),
+        "takeback_past_count": takeback_past_count,
     }
     return render(request, "dispatching/swap_tester.html", context)
 

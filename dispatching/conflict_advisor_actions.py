@@ -20,6 +20,10 @@ state before touching anything:
     never disagree at the threshold), windows resolved ``enforce_cap=False`` — the dispatcher
     explicitly chose this plan (manual-sovereign, matching execute_swap) — cap/window strain
     surfaces as warnings, never a block; retimes applied in-memory. Any NEW problem => 409.
+  * VEHICLE BOOKINGS — a reassign onto a chauffeur whose car fleet has HARD-booked across the
+    trip, or a retime that moves an assigned trip into its own car's hard booking => 409, the
+    whole plan rolls back (no override at assignment; the booking is the way through). A SOFT
+    booking applies and is named in ``warnings``.
   * HELD-DAY POLICY (owner decision) — advisor applies go LIVE. When a draft is active the
     payload must carry the explicit ``live_override_confirmed`` flag (=> 409 without it);
     ``set_leg_driver(..., live_override=True)`` then writes live and mirrors into the overlay.
@@ -354,6 +358,38 @@ def _reassign_warnings(plan: _AdvisorPlan, legs: dict) -> List[str]:
             if legs[lid].reservation_id in pending]
 
 
+def _check_bookings(plan: _AdvisorPlan, legs: dict, inhouse: dict) -> List[str]:
+    """Fleet's vehicle bookings over every placement this plan makes: each reassign onto a
+    chauffeur whose car is booked across the trip, and each retime that moves a trip into
+    its own car's booking (judged at the NEW pickup — a retime is a dispatcher decision,
+    unlike a flight-driven move). HARD => 409 via ``farmout_actions.check_bookings``, the
+    whole plan refused before anything is written. SOFT => one warning line each."""
+    import copy
+
+    new_times = {a.leg_id: a.new_time for a in plan.retimes}
+    reassigned = {a.leg_id for a in plan.actions if a.op == "reassign"}
+    leaving = {a.leg_id for a in plan.actions if a.op in ("farm_out", "unassign")}
+
+    def _as_planned(leg):
+        if leg.id in new_times and new_times[leg.id] != leg.pickup_time:
+            leg = copy.copy(leg)             # never touch the row the write loop saves
+            leg.pickup_time = new_times[leg.id]
+        return leg
+
+    pairs = []
+    for a in plan.actions:
+        leg = legs[a.leg_id]
+        if a.op == "reassign":
+            driver = inhouse.get(a.to_driver_id)
+            if driver is not None and (leg.driver_id != driver.id or a.leg_id in new_times):
+                pairs.append((_as_planned(leg), driver))
+        elif a.op == "retime" and a.leg_id not in reassigned and a.leg_id not in leaving:
+            holder = leg.driver
+            if holder is not None and holder.driver_type == "inhouse":
+                pairs.append((_as_planned(leg), holder))
+    return [f"Leg {w['leg_id']}: {w['text']}" for w in fa.check_bookings(pairs)]
+
+
 def _revalidate_board(plan: _AdvisorPlan, inhouse: dict):
     """Full-board revalidation against the DB, INSIDE the transaction, through
     the SAME formula the engine ranked with (board_validation.validate_post_move_board)
@@ -513,6 +549,7 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
     from dispatching.pickup_moves import apply_pickup_time_move
     from dispatching.views import _create_schedule_snapshot
     from dispatching import advisor_events
+    from dispatching.fleet_bookings import HardBookingRefused
 
     plan = None
     try:
@@ -557,6 +594,8 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
             inhouse = fa._check_inhouse_receivers(shim)
             affiliate = fa._check_affiliate(shim, legs)
             warnings += _reassign_warnings(plan, legs)
+            # Staged or live alike: a hard-booked car refuses before anything is written.
+            warnings += _check_bookings(plan, legs, inhouse)
 
             # Held-day staging skips live-board revalidation (drafts may be
             # messy; the manager reviews before publish — farmout contract).
@@ -585,9 +624,14 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
                 new_driver = (affiliate if a.op == "farm_out"
                               else inhouse.get(a.to_driver_id)
                               if a.to_driver_id is not None else None)
-                mode, _ = set_leg_driver(leg, new_driver, user,
-                                         live_override=live_override,
-                                         source="conflict_advisor")
+                try:
+                    mode, _ = set_leg_driver(leg, new_driver, user,
+                                             live_override=live_override,
+                                             source="conflict_advisor")
+                except HardBookingRefused as exc:
+                    # The front door's backstop (a booking saved mid-apply): roll it all back.
+                    raise PlanRejected(409, f"Leg {a.leg_id}: {exc.clash['text']}",
+                                       **fa.BOOKING_REFUSAL)
                 modes.add(mode)
                 applied.append({"leg_id": a.leg_id, "op": a.op,
                                 "to_driver_id": a.to_driver_id})
@@ -618,7 +662,7 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
         # `plan` is None when parsing itself failed, so fall back to the raw
         # payload rather than assuming either.
         _record_rejected_apply(data, plan, e.status, e.error)
-        return e.status, {"success": False, "error": e.error}
+        return e.status, {"success": False, "error": e.error, **e.extra}
     except Exception:
         logger.exception("advisor apply failed")
         return 500, {"success": False, "error": "Apply failed — nothing was changed. "

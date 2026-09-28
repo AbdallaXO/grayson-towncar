@@ -156,6 +156,27 @@ Countdown-to-impact is recomputed client-side every 30s from impact_at.
     return n;
   }
 
+  // Fleet vehicle bookings. A hard one refuses the apply with its sentence
+  // ("… is hard-booked from …"); soft ones ride back in `warnings` (or
+  // `booking_warnings`) as the "… is booked from …" sentence.
+  var BOOKING_RE = /\bis (?:hard-)?booked from\b/i;
+  function isBookingRefusal(d) {
+    return !!(d && d.success === false &&
+              (d.booking_conflict || BOOKING_RE.test(d.error || '')));
+  }
+  function bookingNotes(d) {
+    var out = [];
+    ((d && d.booking_warnings) || []).forEach(function (w) {
+      var t = (w && w.text) || (typeof w === 'string' ? w : '');
+      if (t) out.push(t);
+    });
+    ((d && d.warnings) || []).forEach(function (w) {
+      var t = typeof w === 'string' ? w : (w && w.text) || '';
+      if (t && BOOKING_RE.test(t) && out.indexOf(t) === -1) out.push(t);
+    });
+    return out;
+  }
+
   // ── Toast (self-contained; the page's showToast is closure-local) ──
   function raToast(msg, opts) {
     opts = opts || {};
@@ -656,6 +677,15 @@ Countdown-to-impact is recomputed client-side every 30s from impact_at.
     modalApplyBtn.disabled = true;
     modalErr.hidden = true;
     post(CFG.applyUrl, payload).then(function (r) {
+      // Fleet has HARD-booked a receiving chauffeur's car across a trip in
+      // this plan: nothing was written, and refreshing would only offer the
+      // same plan again — keep the modal up and say exactly which booking.
+      if (r.status === 409 && isBookingRefusal(r.data)) {
+        modalApplyBtn.disabled = false;
+        modalErr.hidden = false;
+        modalErr.textContent = r.data.error;
+        return;
+      }
       if (r.status === 409) {
         closeModal();
         raToast('Board changed — refreshing plans…');
@@ -672,14 +702,31 @@ Countdown-to-impact is recomputed client-side every 30s from impact_at.
       closeModal();
       var snapId = r.data.snapshot_id;
       var msg = 'Applied ✓' + (r.data.message ? ' — ' + r.data.message : '');
+      // A soft fleet booking the plan landed on: applied, but said out loud.
+      var booked = bookingNotes(r.data);
+      if (booked.length) msg += ' Fleet booking: ' + booked.join(' ');
       var undone = false;
       raToast(msg, {
         actionLabel: snapId ? 'Undo' : null,
-        ttl: 5000,
+        ttl: booked.length ? 12000 : 5000,   // a booking sentence needs time to read
         onAction: function () {
           undone = true;
           post(CFG.restoreUrl, { snapshot_id: snapId })
-            .then(function () { location.reload(); })
+            .then(function (res) {
+              // Trips the undo could not put back because the car they came
+              // from is now hard-booked by fleet — left where they are.
+              var skipped = (res && res.data && res.data.skipped_booking) || [];
+              if (!skipped.length) { location.reload(); return; }
+              var text = 'Undone, except ' + (skipped.length === 1 ? 'one trip' : skipped.length + ' trips') +
+                         ' left where ' + (skipped.length === 1 ? 'it is' : 'they are') +
+                         ' — the car ' + (skipped.length === 1 ? 'it was on' : 'they were on') +
+                         ' is now hard-booked by fleet:\n\n' +
+                         skipped.map(function (s) { return '• ' + ((s && s.text) || s); }).join('\n');
+              var told = window.BookingPrompt
+                ? window.BookingPrompt.tell(text, { hard: true, title: 'Not everything went back' })
+                : Promise.resolve(alert(text));
+              told.then(function () { location.reload(); });
+            })
             .catch(function () { location.reload(); });
         },
         onExpire: function () { if (!undone) location.reload(); },

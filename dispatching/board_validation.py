@@ -30,6 +30,10 @@ structural rather than aspirational:
                                    from ``views._revalidate_swap_feasibility``;
                                    ``execute_swap`` (via its thin views
                                    delegate) still runs exactly this.
+  * ``booking_verdicts``         — fleet's vehicle bookings over a batch of
+                                   placements: HARD ones a batch must refuse,
+                                   SOFT ones it must ask about or disclose. The
+                                   one reading every bulk trip-assign path uses.
 
 THE "NO NEW PROBLEMS" TEST (risk-review wording, implemented here precisely):
 hard-reject any NEW negative buffer, any car-share (sharers) conflict on an
@@ -37,6 +41,9 @@ affected driver, and any turn band worsening to ``critical`` — while
 pre-existing negatives elsewhere on the board NEVER veto an unrelated fix. A
 ``'' -> 'tight'`` worsening is legal but demoted: recorded in
 ``worsened_pairs`` / ``new_tight_count`` so the caller can penalize and name it.
+A trip moved or retimed into a HARD vehicle booking on its car is a new problem
+too — ``validate_post_move_board`` when the caller hands it the day's bookings
+(``booked``), ``revalidate_moves_against_db`` always.
 """
 from __future__ import annotations
 
@@ -193,7 +200,7 @@ class BoardValidation:
 
 def validate_post_move_board(schedules, legs_by_id, moves, target_date, *,
                              windows, sharer_partners, baseline_bands,
-                             time_changes=None):
+                             time_changes=None, booked=None):
     """Simulate ``moves`` (+ optional pickup-time changes) on COPIES of the board
     and answer: does the resulting board have any problem it didn't already have?
 
@@ -212,6 +219,12 @@ def validate_post_move_board(schedules, legs_by_id, moves, target_date, *,
             must use the same clock).
         time_changes: optional {leg_id: new datetime.time} applied in-memory via
             cloned legs/slots (match_flight / nudge_pickup simulation).
+        booked: optional ``bookings_by_driver`` output — fleet's bookings on
+            the car each chauffeur holds that day. When given, a trip moved
+            onto (or retimed on) a chauffeur whose car is HARD-booked across it
+            is rejected. None skips the check and costs nothing: this core
+            stays query-free, so a caller ranking many candidates loads the
+            bookings once and passes them to every call.
 
     The precise "no new problems" test:
       * hard-reject a NEW negative buffer — a leave-one-out check_feasibility
@@ -311,6 +324,20 @@ def validate_post_move_board(schedules, legs_by_id, moves, target_date, *,
     affected |= {post_assign[lid] for lid in retimed_ids if lid in post_assign}
     affected &= set(post)
 
+    # ── fleet's HARD vehicle bookings: no trip may be put inside one ──
+    # Only what this plan puts somewhere new is judged — a trip left on its own
+    # car at its own time was there before the plan and is not its doing.
+    if booked:
+        for leg_id in sorted(touched_ids):
+            did = post_assign.get(leg_id)
+            if did is None or not booked.get(did):
+                continue
+            if leg_id not in retimed_ids and current_assign.get(leg_id) == did:
+                continue
+            text = _hard_booking_text(_eff_leg(leg_id), target_date, booked[did])
+            if text:
+                return BoardValidation(ok=False, reason=text)
+
     def _loo(scheds, did, leg_obj, leg_id):
         """Leave-one-out feasibility of `leg_obj` against the rest of `did`'s day."""
         sched = scheds[did]
@@ -390,6 +417,87 @@ def validate_post_move_board(schedules, legs_by_id, moves, target_date, *,
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# FLEET VEHICLE BOOKINGS (fleet_bookings is the rulebook; this is the batch view)
+# ════════════════════════════════════════════════════════════════════════════
+
+def bookings_by_driver(target_date, driver_ids=None):
+    """``{driver_id: [VehicleBooking, ...]}`` — fleet's bookings on the car each
+    in-house chauffeur holds on ``target_date``, for ``validate_post_move_board``'s
+    ``booked``. One query when nothing is booked that day (almost every day), two
+    when something is. Read-only."""
+    from dispatching.fleet_bookings import bookings_for
+    from drivers.models import DriverVehicleAssignment
+
+    by_car = bookings_for(target_date)
+    if not by_car:
+        return {}
+    rows = DriverVehicleAssignment.objects.filter(
+        date=target_date, vehicle_id__in=list(by_car),
+        driver__driver_type="inhouse")
+    if driver_ids is not None:
+        rows = rows.filter(driver_id__in=list(driver_ids))
+    return {driver_id: by_car[vehicle_id]
+            for driver_id, vehicle_id in rows.values_list("driver_id", "vehicle_id")}
+
+
+def _hard_booking_text(leg, target_date, bookings):
+    """The refusal sentence when ``leg`` (at its — possibly simulated — pickup)
+    runs into one of ``bookings`` that is HARD, else None. Measured on the same
+    stop-aware planning clock every booking check uses."""
+    from dispatching import fleet_bookings
+
+    hard = [b for b in bookings if b.is_hard]
+    if not hard or getattr(leg, "pickup_time", None) is None:
+        return None
+    window = fleet_bookings.leg_span(leg, target_date)
+    if window is None:
+        return None
+    hits = fleet_bookings.overlapping(hard, *window)
+    return fleet_bookings.clash_text(hits[0]) if hits else None
+
+
+def booking_verdicts(pairs):
+    """Fleet's vehicle bookings over a batch of trip placements.
+
+    ``pairs`` are ``(leg, driver)`` — the leg as it WILL be (a retime passes a
+    copy carrying the new pickup), the driver it lands on. Returns
+    ``(hard, soft)``, each a list of::
+
+        {"leg_id", "driver_id", "hard", "text", "clash"}
+
+    ``text`` names the trip by its pickup ("… The 11:00 AM trip overlaps …") so
+    a list of several reads as several trips, not one sentence repeated;
+    ``clash`` is the ``fleet_bookings`` dict (``refusal(clash)`` is the 409
+    body). A HARD entry is a placement the batch must refuse — there is no
+    override at assignment. A SOFT one is a question: ask, or disclose. Three
+    queries per date at most, whatever the batch size
+    (``fleet_bookings.pair_clashes``).
+    """
+    from business.datefmt import strf
+    from dispatching.fleet_bookings import clash_text, pair_clashes
+
+    pairs = [(leg, driver) for leg, driver in pairs
+             if leg is not None and driver is not None]
+    clashes = pair_clashes(pairs)
+    hard, soft = [], []
+    for leg, driver in pairs:
+        clash = clashes.get(leg.id)
+        if clash is None:
+            continue
+        subject = (f"The {strf(leg.pickup_time, '%-I:%M %p')} trip"
+                   if leg.pickup_time else "This trip")
+        entry = {
+            "leg_id": leg.id,
+            "driver_id": driver.id,
+            "hard": bool(clash["hard"]),
+            "text": clash_text(clash["booking"], subject=subject),
+            "clash": clash,
+        }
+        (hard if clash["hard"] else soft).append(entry)
+    return hard, soft
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # DB-LOADING WRAPPER (promoted views._revalidate_swap_feasibility, verbatim)
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -398,7 +506,9 @@ def revalidate_moves_against_db(valid_moves, target_date):
     on the board that WOULD result from applying `valid_moves`. Returns (ok, reason).
 
     Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
-    remaining legs infeasible). Read-only; mutates only in-memory copies."""
+    remaining legs infeasible). A receiver whose car fleet has HARD-booked across
+    the trip fails too, with the booking's own sentence as the reason. Read-only;
+    mutates only in-memory copies."""
     from reservations.models import Leg as _Leg
     from drivers.models import Driver
     from dispatching.scheduler import (
@@ -425,6 +535,16 @@ def revalidate_moves_against_db(valid_moves, target_date):
     for leg_id, to_did in move_map.items():
         if to_did not in drv_objs:
             return False, f"driver {to_did} not found"
+
+    # Fleet's HARD vehicle bookings: a receiver whose car is hard-booked across
+    # the trip can't take it, whatever the turns say. Judged before the legs are
+    # moved in memory, so a leg already on its receiver is left alone.
+    hard, _soft = booking_verdicts([
+        (legs_by_id[leg_id], drv_objs[to_did]) for leg_id, to_did in move_map.items()
+        if legs_by_id[leg_id].driver_id != to_did])
+    if hard:
+        return False, hard[0]["text"]
+    for leg_id, to_did in move_map.items():
         l = legs_by_id[leg_id]
         l.driver = drv_objs[to_did]
         l.driver_id = to_did

@@ -23,7 +23,7 @@ Every tag is one of five, and nothing else is ever used as a status:
   Needs the shop       an open problem the car should not keep working with
   Watch                an open problem it can work with, for now
   Not confirmed back   expected back from the shop, nobody has said so
-  Booked in            a shop slot is held (handled)
+  Shop day booked      a shop slot is held (handled)
   Off the road         down today, on the ledger (handled)
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ from dispatching import fault_codes, fleet_health
 from dispatching.fleet_attention import RECURRING_EPISODES, RECURRING_WINDOW_DAYS, _natural
 
 NEEDS_SHOP, WATCH, UNCONFIRMED, BOOKED, DOWN = (
-    "Needs the shop", "Watch", "Not confirmed back", "Booked in", "Off the road")
+    "Needs the shop", "Watch", "Not confirmed back", "Shop day booked", "Off the road")
 TONE = {NEEDS_SHOP: "critical", WATCH: "caution", UNCONFIRMED: "caution",
         BOOKED: "settled", DOWN: "settled"}
 ORDER = {NEEDS_SHOP: 0, UNCONFIRMED: 1, WATCH: 2, BOOKED: 3, DOWN: 4}
@@ -229,7 +229,7 @@ def _row_for(v, *, today, now, downtimes, issues, faults, schedules, driver,
             "secondary": {"label": "Push the date", "kind": "link", "href": href},
         }
 
-    # ── Booked in (handled) ──────────────────────────────────────────────
+    # ── Shop day booked (handled) ──────────────────────────────────────────────
     if planned is not None:
         verdict = verdicts.get(planned.id, "")
         when = _day(planned.starts_on)
@@ -253,7 +253,7 @@ def _row_for(v, *, today, now, downtimes, issues, faults, schedules, driver,
             "codes": _chips(faults, today, now, recurring),
             "downtime": planned, "downtime_id": planned.id,
             "primary": {"label": "Change the window", "kind": "link", "href": href},
-            "secondary": {"label": "Cancel the booking", "kind": "cancel"},
+            "secondary": {"label": "Cancel the shop day", "kind": "cancel"},
         }
 
     if not problems:

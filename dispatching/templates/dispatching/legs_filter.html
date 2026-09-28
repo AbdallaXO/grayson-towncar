@@ -1102,6 +1102,7 @@
                   {% else %}
                     <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
                   {% endif %}
+                  {% for b in vehicle.booking_rows %}<span class="va-book-tag{% if b.hard %} hard{% endif %}{% if b.conflict %} conflict{% endif %}" data-hard="{{ b.hard|yesno:'1,0' }}" title="{{ b.title }}"><i class="bi bi-{{ b.icon|default:'calendar-event' }}"></i>{{ b.short }}</span>{% endfor %}
                 </div>
                 {% endfor %}
               </div>
@@ -1193,6 +1194,7 @@
                       {% endif %}
                       <button class="va-remove-btn" onclick="vaRemove({{ row.driver.id }})" title="Remove">&times;</button>
                     </div>
+                    {% if row.assignment.vehicle.booking_rows %}<div class="va-book-line">{% for b in row.assignment.vehicle.booking_rows %}<span class="va-book-tag{% if b.hard %} hard{% endif %}{% if b.conflict %} conflict{% endif %}" data-hard="{{ b.hard|yesno:'1,0' }}" title="{{ b.title }}"><i class="bi bi-{{ b.icon|default:'calendar-event' }}"></i>{{ b.short }}</span>{% endfor %}</div>{% endif %}
                     {% comment %}Samsara live next-stop ETA + risk for this driver's active leg
                        (raw position alone was noise; show the schedule-aware signal instead).
                        Hover the vehicle # for the raw GPS position.{% endcomment %}
@@ -2469,44 +2471,56 @@
               }
           })
 
-          // Helper: submit leg assignment update
-          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement) {
-              fetch('/dispatching/update-leg-assignment/', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-CSRFToken': csrfToken
-                      },
-                      body: JSON.stringify({
-                          leg_id: legId,
-                          field: selectName,
-                          value: selectValue,
-                          live_override: !!window._draftEditLive
-                      })
-                  })
-                  .then(response => {
-                      if (!response.ok) {
-                          return response.json().then(data => {
-                              throw new Error(data.error || 'Server error: ' + response.status);
-                          });
-                      }
-                      return response.json();
-                  })
+          const esc = s => window.BookingPrompt.escapeHtml(s);   // server text is never markup
+
+          // A driver dropdown that did not get its way goes back to the driver
+          // actually on the trip — never left showing someone who isn't.
+          function restoreSelect(selectEl) {
+              if (selectEl && selectEl.classList.contains('driver-select') && selectEl.dataset.prev !== undefined) {
+                  selectEl.value = selectEl.dataset.prev;
+              }
+          }
+
+          function showCancelled(statusElement, text) {
+              statusElement.innerHTML = '<div class="alert alert-secondary py-1 px-2 mb-0 small">' + esc(text) + '</div>';
+              setTimeout(() => { statusElement.innerHTML = ''; }, 2000);
+          }
+
+          // Helper: submit leg assignment update. overrideBooking: the dispatcher
+          // has already answered "Continue Anyway" to fleet's soft booking of the
+          // car. Without it a booked car is asked about here (the server writes
+          // nothing until then) — a hard one is shown and refused.
+          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement, selectEl, overrideBooking) {
+              const body = {
+                  leg_id: legId,
+                  field: selectName,
+                  value: selectValue,
+                  live_override: !!window._draftEditLive
+              };
+              if (overrideBooking) body.override_booking = true;
+              window.BookingPrompt.postWithBookingPrompt('/dispatching/update-leg-assignment/', body, { csrfToken: csrfToken })
                   .then(data => {
                       if (data.success) {
                           console.log('Update successful');
+                          if (selectEl) selectEl.dataset.prev = selectEl.value;
                           statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
                           setTimeout(() => {
                               statusElement.innerHTML = '';
                           }, 3000);
+                          return;
+                      }
+                      restoreSelect(selectEl);
+                      if (data.cancelled) {
+                          showCancelled(statusElement, data.hard ? 'Not assigned — car hard-booked by fleet' : 'Assignment cancelled');
                       } else {
                           console.error('Update failed:', data.error);
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + esc(data.error) + '</div>';
                       }
                   })
                   .catch(error => {
                       console.error('Error:', error);
-                      statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                      restoreSelect(selectEl);
+                      statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + esc(error.message) + '</div>';
                   });
           }
 
@@ -2545,14 +2559,20 @@
           });
 
           // Driver and status selection handlers
+          document.querySelectorAll('.driver-select').forEach(select => { select.dataset.prev = select.value; });
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
               select.addEventListener('change', async function() {
+                  const selectEl = this;
                   const legId = this.dataset.legId;
                   const selectName = this.name;
                   const selectValue = this.value;
                   const form = this.closest('form');
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
+                  // True once the dispatcher has answered fleet's soft booking
+                  // here — the write then carries override_booking and the
+                  // server does not ask a second time.
+                  let bookingAnswered = false;
 
                   // Feasibility check for driver assignments
                   if (selectName === 'driver' && selectValue) {
@@ -2560,22 +2580,56 @@
                       try {
                           const resp = await fetch(`/dispatching/check-feasibility/?leg_id=${legId}&driver_id=${selectValue}`);
                           const fData = await resp.json();
+                          // Fleet has HARD-booked this chauffeur's car across the
+                          // trip: there is nothing to "assign anyway" — say why,
+                          // put the dropdown back, write nothing.
+                          if (resp.ok && fData.hard_block) {
+                              await window.BookingPrompt.ask({
+                                  success: false, booking_conflict: true, hard: true, can_override: false,
+                                  error: fData.reason || 'This car is hard-booked by fleet at that time.'
+                              });
+                              restoreSelect(selectEl);
+                              showCancelled(statusElement, 'Not assigned — car hard-booked by fleet');
+                              return;
+                          }
+                          const bookingText = (resp.ok && typeof fData.booking_warning === 'string') ? fData.booking_warning : '';
+                          const otherWarnings = ((resp.ok && fData.warnings) || []).filter(w => w && w !== bookingText);
                           if (resp.ok && !fData.feasible) {
                               // Not feasible — show confirm dialog
                               let msg = `Schedule Conflict\n\n${fData.reason}\n\nDriver has ${fData.existing_trips} existing trip(s).`;
                               if (fData.vehicle_mismatch_detail) {
                                   msg += `\n\nVehicle: ${fData.vehicle_mismatch_detail}`;
                               }
+                              if (bookingText) {
+                                  msg += `\n\nVehicle booked by fleet: ${bookingText}`;
+                              }
                               msg += '\n\nAssign anyway?';
                               const proceed = confirm(msg);
                               if (!proceed) {
-                                  statusElement.innerHTML = '<div class="alert alert-secondary py-1 px-2 mb-0 small">Assignment cancelled</div>';
-                                  setTimeout(() => { statusElement.innerHTML = ''; }, 2000);
+                                  restoreSelect(selectEl);
+                                  showCancelled(statusElement, 'Assignment cancelled');
                                   return;
                               }
-                          } else if (resp.ok && fData.feasible && fData.warnings && fData.warnings.length > 0) {
+                              bookingAnswered = !!bookingText;
+                          } else if (bookingText) {
+                              // Soft booking: the car stays usable, but the
+                              // dispatcher chooses — Continue Anyway / Cancel.
+                              const go = await window.BookingPrompt.ask({
+                                  success: false, booking_conflict: true, hard: false, can_override: true,
+                                  error: bookingText
+                              });
+                              if (!go) {
+                                  restoreSelect(selectEl);
+                                  showCancelled(statusElement, 'Assignment cancelled');
+                                  return;
+                              }
+                              bookingAnswered = true;
+                              if (otherWarnings.length) {
+                                  statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>' + otherWarnings.map(esc).join('; ') + '</div>';
+                              }
+                          } else if (resp.ok && fData.feasible && otherWarnings.length > 0) {
                               // Feasible but with warnings — show brief toast
-                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>' + fData.warnings.join('; ') + '</div>';
+                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>' + otherWarnings.map(esc).join('; ') + '</div>';
                           }
                       } catch (e) {
                           // If feasibility check fails, proceed anyway (don't block assignment)
@@ -2583,7 +2637,7 @@
                       }
                   }
 
-                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
+                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement, selectEl, bookingAnswered);
               });
           });
 
@@ -4337,13 +4391,21 @@
 
                       // Step 2: Build review modal
                       var hasOff = data.drivers.some(d => d.is_off_today);
+                      // Fleet's bookings on the day being built, said BEFORE the
+                      // copy: a car hard-booked over its chauffeur's trips will
+                      // not be copied (unticked, locked); a soft one will, with
+                      // its booking named.
+                      var notesByDriver = {};
+                      (data.booking_notes || []).forEach(function(n) {
+                          (notesByDriver[n.driver_id] = notesByDriver[n.driver_id] || []).push(n);
+                      });
                       var overlay = document.createElement('div');
                       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
                       var modal = document.createElement('div');
                       modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:480px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
 
                       var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#f8f9fa;border-radius:12px 12px 0 0;">'
-                          + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-arrow-repeat me-2"></i>Copy from ' + data.source_date + '</div>'
+                          + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-arrow-repeat me-2"></i>Copy from ' + esc(data.source_date) + '</div>'
                           + '<div style="font-size:0.75rem;color:#6c757d;">' + data.drivers.length + ' driver' + (data.drivers.length !== 1 ? 's' : '') + ' · Uncheck any to skip</div>'
                           + '</div>';
 
@@ -4352,14 +4414,25 @@
                           body += '<div style="background:#fff3cd;border:1px solid #ffecb5;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#664d03;">'
                               + '<i class="bi bi-exclamation-triangle me-1"></i><strong>Some drivers are off today</strong> — they are unchecked by default.</div>';
                       }
+                      if ((data.booking_notes || []).length) {
+                          body += '<div style="background:#faf6ec;border:1px solid #eadcb6;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#6b5314;">'
+                              + '<i class="bi bi-calendar-event me-1"></i><strong>Fleet has booked some of these cars today</strong> — a hard-booked car is not copied; a soft one is, with its booking below.</div>';
+                      }
                       data.drivers.forEach(function(d) {
-                          var checked = !d.is_off_today;
-                          body += '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:0.82rem;">'
-                              + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' value="' + d.driver_id + '" style="width:16px;height:16px;accent-color:#198754;">'
-                              + '<span style="flex:1;font-weight:' + (d.is_off_today ? '400' : '600') + ';' + (d.is_off_today ? 'color:#999;' : '') + '">' + d.driver_name + '</span>'
-                              + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + d.vehicle_number + ' <span style="color:#aaa;font-weight:400;">' + d.vehicle_type + '</span></span>'
+                          var notes = notesByDriver[d.driver_id] || [];
+                          var hardBooked = notes.some(function(n) { return n.hard; });
+                          var checked = !d.is_off_today && !hardBooked;
+                          body += '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;' + (notes.length ? '' : 'border-bottom:1px solid #f0f0f0;') + 'cursor:' + (hardBooked ? 'default' : 'pointer') + ';font-size:0.82rem;">'
+                              + '<input type="checkbox" ' + (checked ? 'checked' : '') + (hardBooked ? ' disabled' : '') + ' value="' + d.driver_id + '" style="width:16px;height:16px;accent-color:#198754;">'
+                              + '<span style="flex:1;font-weight:' + (d.is_off_today ? '400' : '600') + ';' + (d.is_off_today || hardBooked ? 'color:#999;' : '') + '">' + esc(d.driver_name) + '</span>'
+                              + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + esc(d.vehicle_number) + ' <span style="color:#aaa;font-weight:400;">' + esc(d.vehicle_type) + '</span></span>'
                               + (d.is_off_today ? '<span style="background:#dc3545;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;">OFF</span>' : '')
                               + '</label>';
+                          notes.forEach(function(n, i) {
+                              body += '<div style="margin:0 0 0 26px;padding:0 0 ' + (i === notes.length - 1 ? '8px' : '4px') + ';' + (i === notes.length - 1 ? 'border-bottom:1px solid #f0f0f0;' : '') + 'font-size:0.72rem;line-height:1.4;color:' + (n.hard ? '#A32A1F' : '#7A5E12') + ';">'
+                                  + '<i class="bi bi-' + (n.hard ? 'lock-fill' : 'calendar-event') + ' me-1"></i>'
+                                  + (n.hard ? '<strong>Not copied.</strong> ' : '') + esc(n.text) + '</div>';
+                          });
                       });
                       body += '</div>';
 
@@ -4396,7 +4469,18 @@
                               if (result.success) {
                                   confirmBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Done! Reloading...';
                                   confirmBtn.classList.replace('btn-primary', 'btn-success');
-                                  setTimeout(() => location.reload(), 800);
+                                  // What the copy did around fleet's bookings, before
+                                  // the reload wipes it: hard-booked cars skipped,
+                                  // soft ones copied with their booking.
+                                  var skipped = result.skipped_booking || [];
+                                  var soft = result.booking_warnings || [];
+                                  if (!skipped.length && !soft.length) { setTimeout(() => location.reload(), 800); return; }
+                                  var BP = window.BookingPrompt;
+                                  var parts = [];
+                                  if (skipped.length) parts.push('Not copied — hard-booked by fleet:\n' + BP.listLines(skipped));
+                                  if (soft.length) parts.push('Copied — the car is booked by fleet for part of the day:\n' + BP.listLines(soft));
+                                  BP.tell(parts.join('\n\n'), { hard: !!skipped.length, title: 'Cars copied — fleet bookings' })
+                                    .then(() => location.reload());
                               } else {
                                   alert(result.error || 'Failed');
                                   confirmBtn.disabled = false;
@@ -4480,26 +4564,51 @@
                       return;
                   }
 
-                  // If from another driver, clear that driver first
-                  if (fromDriverId) {
-                      vaSaveAssignment(fromDriverId, null);
-                  }
-
-                  vaSaveAssignment(driverId, vehicleId);
+                  // A car dragged off another chauffeur goes to the receiver
+                  // FIRST; the donor loses it only once the receiver's save
+                  // (including a confirmed booking/out-of-service override)
+                  // has succeeded — a refused or cancelled hand-over leaves
+                  // the donor exactly as they were.
+                  vaSaveAssignment(driverId, vehicleId, false, false, fromDriverId || null);
                   vaDragData = null;
               });
           });
 
-          function vaSaveAssignment(driverId, vehicleId, overrideOos) {
-              fetch('/dispatching/update-inhouse-vehicle-assignment/', {
+          // The pool card's booking tags, copied under a freshly drawn chip.
+          // Whether a trip sits inside a booking was measured against the car's
+          // previous holder, so the copy reads as plain information until the
+          // next load — except after the dispatcher has just said "continue"
+          // to a clash with THIS chauffeur's trips.
+          function vaBookingLine(poolCard, clashAccepted) {
+              if (!poolCard) return '';
+              const tags = Array.from(poolCard.querySelectorAll('.va-book-tag')).map(tag => {
+                  const hard = tag.dataset.hard === '1';
+                  const clash = clashAccepted && !hard;
+                  const icon = hard ? 'lock-fill' : (clash ? 'exclamation-triangle-fill' : 'calendar-event');
+                  // The pool's "Booking conflict — <the old holder's trips>" tail
+                  // is about someone else now; the rest of the tooltip still holds.
+                  const title = (tag.getAttribute('title') || '').replace(/\s*Booking conflict —.*$/, '');
+                  return `<span class="va-book-tag${hard ? ' hard' : ''}${clash ? ' conflict' : ''}" data-hard="${hard ? '1' : '0'}"
+                      title="${esc(title)}"><i class="bi bi-${icon}"></i>${esc(tag.textContent.trim())}</span>`;
+              });
+              return tags.length ? `<div class="va-book-line">${tags.join('')}</div>` : '';
+          }
+
+          // Resolves to the final response once every resend has run, or null
+          // when the dispatcher cancelled / the save was refused.
+          function vaSaveAssignment(driverId, vehicleId, overrideOos, overrideBooking, fromDriverId) {
+              const body = {
+                  driver_id: parseInt(driverId),
+                  date: '{{ selected_date|date:"Y-m-d" }}',
+                  vehicle_id: vehicleId ? parseInt(vehicleId) : null,
+                  override_oos: !!overrideOos,
+                  override_booking: !!overrideBooking,
+              };
+              if (fromDriverId && vehicleId) body.from_driver_id = parseInt(fromDriverId);
+              return fetch('/dispatching/update-inhouse-vehicle-assignment/', {
                   method: 'POST',
                   headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                  body: JSON.stringify({
-                      driver_id: parseInt(driverId),
-                      date: '{{ selected_date|date:"Y-m-d" }}',
-                      vehicle_id: vehicleId ? parseInt(vehicleId) : null,
-                      override_oos: !!overrideOos,
-                  }),
+                  body: JSON.stringify(body),
               })
               .then(r => r.json())
               .then(data => {
@@ -4511,60 +4620,86 @@
                                   + data.reason + '\n\n'
                                   + 'Assign it anyway? Do this only if the car is genuinely back — '
                                   + 'then clear the out-of-service dates on its fleet page.')) {
-                          vaSaveAssignment(driverId, vehicleId, true);
+                          return vaSaveAssignment(driverId, vehicleId, true, overrideBooking, fromDriverId);
                       }
-                      return;
+                      return null;
                   }
-                  if (!data.success && data.error) { alert(data.error); return; }
+                  // Fleet has booked part of this car's day over this
+                  // chauffeur's trips. Soft: Continue Anyway / Cancel. Hard:
+                  // said once, nothing to continue — the car stays put.
+                  if (!data.success && data.booking_conflict) {
+                      if (data.can_override && !overrideBooking) {
+                          return window.BookingPrompt.ask(data).then(go => go
+                              ? vaSaveAssignment(driverId, vehicleId, overrideOos, true, fromDriverId)
+                              : null);
+                      }
+                      return window.BookingPrompt.ask(Object.assign({}, data, {can_override: false})).then(() => null);
+                  }
+                  if (!data.success && data.error) { alert(data.error); return null; }
                   if (data.success) {
-                      // Update the slot visually
-                      const slot = document.querySelector(`.va-driver-slot[data-driver-id="${driverId}"]`);
-                      if (!slot) return;
-                      const vehicleArea = slot.querySelector('.va-drv-vehicle');
-                      if (!vehicleArea) return;
-
-                      if (vehicleId) {
-                          // Find vehicle info from pool
-                          const poolCard = document.querySelector(`#vaVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
-                          const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
-                          const vType = poolCard ? poolCard.dataset.vehicleType : '';
-                          const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
-                          // Carry the out-of-service state onto the new chip, or an
-                          // overridden assignment would render as a perfectly normal
-                          // car until the next page load.
-                          const vOos = poolCard ? (poolCard.dataset.oosLabel || '') : '';
-
-                          vehicleArea.innerHTML = `<div class="va-assigned-chip${vOos ? ' va-oos' : ''}" draggable="true"
-                              data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
-                              ${vOos ? `data-oos="1" data-oos-label="${vOos}" title="OUT OF SERVICE — ${vOos}"` : ''}
-                              data-vehicle-type="${vType}" data-from-driver="${driverId}">
-                              <span class="va-veh-num">#${vNum}</span>
-                              ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
-                              <button class="va-remove-btn" onclick="vaRemove(${driverId})" title="Remove">&times;</button>
-                          </div>`;
-                          slot.dataset.assignedVehicleId = vehicleId;
-                          slot.classList.remove('va-empty');
-                          slot.classList.add('va-has');
-
-                          // Re-attach drag events to new chip
-                          const newChip = vehicleArea.querySelector('.va-assigned-chip');
-                          newChip.addEventListener('dragstart', e => {
-                              vaDragData = {vehicleId: newChip.dataset.vehicleId, fromDriverId: newChip.dataset.fromDriver};
-                              newChip.classList.add('va-dragging');
-                              e.dataTransfer.effectAllowed = 'move';
-                          });
-                          newChip.addEventListener('dragend', () => { newChip.classList.remove('va-dragging'); vaDragData = null; });
-                      } else {
-                          vehicleArea.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
-                          slot.dataset.assignedVehicleId = '';
-                          slot.classList.remove('va-has');
-                          slot.classList.add('va-empty');
+                      vaDrawSlot(driverId, vehicleId, !!overrideBooking);
+                      if (fromDriverId && vehicleId) {
+                          // The server moves the car in one go when it knows
+                          // the donor (answers cleared_driver_id); an older one
+                          // does not, so the donor is cleared here — after.
+                          if ('cleared_driver_id' in data) {
+                              if (data.cleared_driver_id) vaDrawSlot(data.cleared_driver_id, null, false);
+                          } else {
+                              return vaSaveAssignment(fromDriverId, null).then(() => data);
+                          }
                       }
-                      vaMarkInUse();
-                  } else if (data.error) {
-                      alert(data.error);
                   }
-              });
+                  return data.success ? data : null;
+              })
+              .catch(err => { console.error('Vehicle assignment failed:', err); return null; });
+          }
+
+          function vaDrawSlot(driverId, vehicleId, clashAccepted) {
+              // Draw one chauffeur's car slot: the car's chip (or the empty
+              // drop hint when vehicleId is null) and its fleet-booking tags.
+              const slot = document.querySelector(`.va-driver-slot[data-driver-id="${driverId}"]`);
+              if (!slot) return;
+              const vehicleArea = slot.querySelector('.va-drv-vehicle');
+              if (!vehicleArea) return;
+
+              if (vehicleId) {
+                  // Find vehicle info from pool
+                  const poolCard = document.querySelector(`#vaVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
+                  const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
+                  const vType = poolCard ? poolCard.dataset.vehicleType : '';
+                  const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
+                  // Carry the out-of-service state onto the new chip, or an
+                  // overridden assignment would render as a perfectly normal
+                  // car until the next page load.
+                  const vOos = poolCard ? esc(poolCard.dataset.oosLabel || '') : '';
+
+                  vehicleArea.innerHTML = `<div class="va-assigned-chip${vOos ? ' va-oos' : ''}" draggable="true"
+                      data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
+                      ${vOos ? `data-oos="1" data-oos-label="${vOos}" title="OUT OF SERVICE — ${vOos}"` : ''}
+                      data-vehicle-type="${vType}" data-from-driver="${driverId}">
+                      <span class="va-veh-num">#${vNum}</span>
+                      ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
+                      <button class="va-remove-btn" onclick="vaRemove(${driverId})" title="Remove">&times;</button>
+                  </div>` + vaBookingLine(poolCard, clashAccepted);
+                  slot.dataset.assignedVehicleId = vehicleId;
+                  slot.classList.remove('va-empty');
+                  slot.classList.add('va-has');
+
+                  // Re-attach drag events to new chip
+                  const newChip = vehicleArea.querySelector('.va-assigned-chip');
+                  newChip.addEventListener('dragstart', e => {
+                      vaDragData = {vehicleId: newChip.dataset.vehicleId, fromDriverId: newChip.dataset.fromDriver};
+                      newChip.classList.add('va-dragging');
+                      e.dataTransfer.effectAllowed = 'move';
+                  });
+                  newChip.addEventListener('dragend', () => { newChip.classList.remove('va-dragging'); vaDragData = null; });
+              } else {
+                  vehicleArea.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+                  slot.dataset.assignedVehicleId = '';
+                  slot.classList.remove('va-has');
+                  slot.classList.add('va-empty');
+              }
+              vaMarkInUse();
           }
 
           window.vaRemove = function(driverId) {
@@ -4836,26 +4971,26 @@
                   return;
               }
               btn.disabled = true;
+              const origHtml = btn.innerHTML;
               btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning...';
-              fetch('/dispatching/update-leg-assignment/', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                  body: JSON.stringify({ leg_id: parseInt(legId, 10), field: 'driver', value: parseInt(driverId, 10) })
-              })
-              .then(function(r) {
-                  if (!r.ok) {
-                      return r.json().then(function(d) { throw new Error(d.error || 'Server error ' + r.status); });
-                  }
-                  return r.json();
-              })
+              const esc = s => window.BookingPrompt.escapeHtml(s);   // server text is never markup
+              // A car fleet has booked while this trip runs is asked about
+              // first (soft: Continue Anyway / Cancel, hard: why not).
+              window.BookingPrompt.postWithBookingPrompt('/dispatching/update-leg-assignment/',
+                  { leg_id: parseInt(legId, 10), field: 'driver', value: parseInt(driverId, 10) },
+                  { csrfToken: '{{ csrf_token }}' })
               .then(function(data) {
                   if (data.success) {
                       btn.innerHTML = '<i class="bi bi-check-lg"></i> Done';
                       btn.classList.remove('btn-primary');
                       btn.classList.add('btn-success');
                       setTimeout(function() { window.location.reload(); }, 600);
+                  } else if (data.cancelled) {
+                      // Answered in the booking prompt — nothing was written.
+                      btn.innerHTML = data.hard ? '<i class="bi bi-lock-fill"></i> Car hard-booked' : origHtml;
+                      btn.disabled = !!data.hard;
                   } else {
-                      btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + (data.error || 'Failed');
+                      btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + esc(data.error || 'Failed');
                       btn.classList.remove('btn-primary');
                       btn.classList.add('btn-danger');
                       btn.disabled = false;
@@ -4863,7 +4998,7 @@
               })
               .catch(function(err) {
                   console.error('Gap assign error:', err);
-                  btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + (err.message || 'Error');
+                  btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + esc(err.message || 'Error');
                   btn.classList.remove('btn-primary');
                   btn.classList.add('btn-danger');
                   btn.disabled = false;
@@ -5347,6 +5482,25 @@
       .va-assigned-chip.va-oos .va-veh-num { color: #b02a37; text-decoration: line-through; }
       .va-veh-card.va-oos .va-veh-type,
       .va-assigned-chip.va-oos .va-veh-type { color: #b98a8e; }
+      /* Fleet's part-day booking on a pool card or an assigned car — same
+         treatment as the planner. A soft booking no trip sits inside is plain
+         information (calm, calendar); amber ⚠ only when a trip lands in it;
+         red lock = hard (no trips in that window). */
+      .va-book-tag {
+          display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+          font-size: .56rem; font-weight: 600; color: #5b6272; background: #F5F3EE;
+          border: 1px solid #E5E1D6; padding: 0 5px; border-radius: 3px;
+          white-space: nowrap; letter-spacing: .01em;
+          overflow: hidden; text-overflow: ellipsis;
+      }
+      .va-book-tag i { font-size: .55rem; flex: 0 0 auto; color: #A8842F; }
+      .va-book-tag.conflict { color: #7A5E12; background: #FAF3DF; border-color: #E6D9AC; font-weight: 700; }
+      .va-book-tag.conflict i { color: #B7791F; }
+      .va-book-tag.hard { color: #A32A1F; background: #FAEDEA; border-color: #EBCFC9; font-weight: 700; }
+      .va-book-tag.hard i { color: #A32A1F; }
+      .va-book-tag.hard.conflict { color: #fff; background: #A32A1F; border-color: #A32A1F; }
+      .va-book-tag.hard.conflict i { color: #fff; }
+      .va-book-line { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; min-width: 0; }
       .va-oos-tag {
           display: inline-flex; align-items: center; gap: 3px;
           font-size: .58rem; font-weight: 800; color: #fff; background: #b02a37;
@@ -5759,4 +5913,6 @@
   {% include "dispatching/includes/_trip_context_menu.html" %}
   {# Defines matchFlightTime() + the wrong-day confirm used by the match buttons #}
   {% include "dispatching/_flight_match_confirm.html" %}
+  {# Fleet-booking question (Continue Anyway / Cancel) — dropdowns, gap assign, car pool, draft banner, advisor rail #}
+  <script src="{% static 'js/booking-prompt.js' %}"></script>
 {% endblock %}

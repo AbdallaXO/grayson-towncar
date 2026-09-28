@@ -109,7 +109,43 @@ class LegResource(resources.ModelResource):
 
 
 # ─── Forms ──────────────────────────────────────────────────────────────
-class LegAdminForm(forms.ModelForm):
+def _hard_booking_refusal(leg, driver, cleaned):
+    """The refusal sentence when putting ``leg`` (with the date and time this
+    form is about to save) on ``driver`` lands it inside a HARD vehicle booking
+    on the car that chauffeur holds that day, else None. A soft booking is
+    fleet's note to dispatch and is not refused here."""
+    import copy
+    from dispatching import fleet_bookings
+
+    probe = copy.copy(leg)
+    for name in ("pickup_date", "pickup_time"):
+        if name in cleaned:
+            setattr(probe, name, cleaned[name])
+    try:
+        clash = fleet_bookings.booking_clash(probe, driver)
+    except Exception:
+        logger.exception("vehicle-booking check failed for leg %s in the admin", leg.pk)
+        return None
+    return clash["text"] if clash and clash["hard"] else None
+
+
+class _HardBookingGuardForm(forms.ModelForm):
+    """The admin is a backstop, not a way round fleet: a driver change here
+    that puts the trip inside a HARD vehicle booking is refused like it is on
+    every dispatch screen, with the booking's own sentence on the field."""
+
+    def clean(self):
+        cleaned = super().clean()
+        if "driver" in self.fields and "driver" in self.changed_data:
+            driver = cleaned.get("driver")
+            if driver is not None and driver.id != self.instance.driver_id:
+                text = _hard_booking_refusal(self.instance, driver, cleaned)
+                if text:
+                    self.add_error("driver", text)
+        return cleaned
+
+
+class LegAdminForm(_HardBookingGuardForm):
     class Meta:
         model = Leg
         fields = "__all__"
@@ -1472,6 +1508,12 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
         if change and self._PAY_FIELDS & set(getattr(form, "changed_data", ())):
             obj.pay_manually_set = True
         super().save_model(request, obj, form, change)
+
+    def get_changelist_form(self, request, **kwargs):
+        # `driver` is list_editable: the changelist rows get the same hard-booking
+        # refusal as the change form (Django builds them off a bare ModelForm).
+        kwargs.setdefault("form", _HardBookingGuardForm)
+        return super().get_changelist_form(request, **kwargs)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "driver":

@@ -213,6 +213,56 @@ def _verdict(row):
     return {"level": row["level"], "reasons": list(row.get("reasons") or [])}
 
 
+def unit_jobs(start, days, units, *, now=None):
+    """``{vehicle_id: {iso_date: trips}}`` — the trips each car is already
+    carrying on each day, through that day's ``DriverVehicleAssignment`` (a leg
+    has no car of its own; see ``fleet_day``).
+
+    The demand squares answer whether the FLEET can spare a car. They cannot
+    see that the car itself has eight jobs that morning — pulling one Sprinter
+    of five never makes the fleet short, so the finder used to recommend the
+    busiest day this car had and only afterwards print "8 jobs would have to
+    move". This is what lets it prefer a day the car has nothing on yet.
+
+    Same exclusions as ``fleet_day.car_today``. Today counts only trips not yet
+    picked up — the ones a takedown now would still move. A day dispatch has
+    not handed cars out for simply has no rows: nothing on this car YET, which
+    is exactly the day to book it in. Two queries whatever the range.
+    """
+    from drivers.models import DriverVehicleAssignment
+    from reservations.models import Leg
+
+    if not units or days <= 0:
+        return {}
+    end = start + timedelta(days=days - 1)
+    holder = {}
+    for a in (DriverVehicleAssignment.objects
+              .filter(date__range=(start, end), vehicle_id__in=[u.id for u in units])
+              .select_related("driver")):
+        if a.driver and a.driver.is_active and a.driver.driver_type == "inhouse":
+            holder[(a.date, a.driver_id)] = a.vehicle_id
+    if not holder:
+        return {}
+
+    local_now = timezone.localtime(now or timezone.now())
+    out = {}
+    rows = (Leg.objects
+            .filter(pickup_date__range=(start, end),
+                    driver_id__in={driver_id for _day, driver_id in holder})
+            .exclude(reservation__status__in=("cancelled", "canceled"))
+            .exclude(status="cancelled")
+            .values_list("pickup_date", "driver_id", "pickup_time"))
+    for day, driver_id, clock in rows:
+        vehicle_id = holder.get((day, driver_id))
+        if vehicle_id is None:
+            continue
+        if day == local_now.date() and clock is not None and clock < local_now.time():
+            continue
+        per_day = out.setdefault(vehicle_id, {})
+        per_day[day.isoformat()] = per_day.get(day.isoformat(), 0) + 1
+    return out
+
+
 def window_payload(start, days, units, *, today=None, now=None, use_cache=True,
                    unit_extras=None):
     """Everything the window finder needs, JSON-ready.
@@ -290,6 +340,7 @@ def window_payload(start, days, units, *, today=None, now=None, use_cache=True,
             "by_tier": by_tier,
         })
 
+    jobs = unit_jobs(start, days, units, now=now)
     unit_rows = []
     for u in units:
         vtype = fleet_capacity.unit_type(u)
@@ -310,6 +361,10 @@ def window_payload(start, days, units, *, today=None, now=None, use_cache=True,
                        if planned is not None else None),
             "category": "maintenance",
             "codes": [],
+            # Days this car already has trips on, and how many — the finder
+            # ranks a day the car is free ahead of one it would have to be
+            # emptied for. Days with none are simply absent.
+            "jobs": jobs.get(u.id, {}),
         }
         row.update(unit_extras.get(u.id, {}))
         unit_rows.append(row)

@@ -6,10 +6,11 @@ Run with:  ENABLE_DEBUG_TOOLBAR=0 ./manage.py test dispatching.tests_fleet_windo
 Leg end times are pinned to pickup + 90 minutes here so the squares are
 arithmetic, not a drive-time estimate.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 
 from django.urls import reverse
+from django.utils import timezone
 
 from dispatching import fleet_desk, fleet_queue, fleet_windows
 from dispatching.tests_fleet_desk import DAY, TODAY, _FleetFixture
@@ -115,6 +116,61 @@ class WindowPayloadTests(_FleetFixture):
         self.assertEqual(after["by_tier"]["suv"]["have"], 2)
         self.assertEqual(after["down"], ["#2"])
         self.assertEqual(next(t for t in p["tiers"] if t["key"] == "suv")["owned"], 3)
+
+
+@patch("dispatching.scheduler.estimate_job_end_time", _ninety_minutes)
+class UnitJobsTests(_FleetFixture):
+    """The finder must know what the car ITSELF is carrying. Pulling one car of
+    several never makes the fleet short, so without this it recommended the day
+    a car had eight jobs and only then said they would all have to move."""
+
+    def test_trips_are_counted_per_car_per_day_through_the_day_car(self):
+        from django.contrib.auth.models import User
+        from drivers.models import Driver
+        from dispatching import fleet_capacity
+
+        busy, idle = self.unit("4"), self.unit("5")
+        roberto = Driver.objects.create(
+            profile=User.objects.create_user("fw_roberto", first_name="Roberto"),
+            driver_type="inhouse")
+        DriverVehicleAssignment.objects.create(driver=roberto, date=DAY, vehicle=busy)
+        for hour in (7, 9, 11):
+            leg = self.leg(DAY, hour)
+            leg.driver = roberto
+            leg.save()
+        gone = self.leg(DAY, 13)
+        gone.driver, gone.status = roberto, "cancelled"
+        gone.save()
+        # The same chauffeur's trip on a day he holds no car is not this car's.
+        other = self.leg(DAY + timedelta(days=1), 9)
+        other.driver = roberto
+        other.save()
+
+        units = fleet_capacity.fleet_units()
+        jobs = fleet_windows.unit_jobs(TODAY, 14, units)
+        self.assertEqual(jobs, {busy.id: {DAY.isoformat(): 3}})
+
+        p = fleet_windows.window_payload(TODAY, 14, units, today=TODAY, use_cache=False)
+        by_number = {u["number"]: u for u in p["units"]}
+        self.assertEqual(by_number["4"]["jobs"], {DAY.isoformat(): 3})
+        self.assertEqual(by_number["5"]["jobs"], {})
+
+    def test_today_counts_only_trips_not_yet_picked_up(self):
+        from django.contrib.auth.models import User
+        from drivers.models import Driver
+        from dispatching import fleet_capacity
+
+        car = self.unit("4")
+        ana = Driver.objects.create(
+            profile=User.objects.create_user("fw_ana", first_name="Ana"), driver_type="inhouse")
+        DriverVehicleAssignment.objects.create(driver=ana, date=TODAY, vehicle=car)
+        for hour in (6, 15):
+            leg = self.leg(TODAY, hour)
+            leg.driver = ana
+            leg.save()
+        noon = timezone.make_aware(datetime.combine(TODAY, time(12, 0)))
+        jobs = fleet_windows.unit_jobs(TODAY, 7, fleet_capacity.fleet_units(), now=noon)
+        self.assertEqual(jobs, {car.id: {TODAY.isoformat(): 1}})
 
 
 class QueueTests(_FleetFixture):

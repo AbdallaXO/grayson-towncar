@@ -357,10 +357,41 @@ see and edit the live schedule exactly as before.
 
       } else if (action === 'publish') {
         if (!confirm('Publish this schedule to drivers now? Their app updates immediately.')) { reEnable(); return; }
+        // Fleet's bookings, checked at publish: a staged chauffeur whose car is
+        // HARD-booked over the trip stops the whole publish (and "publish
+        // anyway" cannot get past it); soft ones go live and are listed after.
+        var BP = window.BookingPrompt;
+        var tellBooking = function (text, hard, title) {
+          if (BP) return BP.tell(text, { hard: hard, title: title });
+          alert((title ? title + '\n\n' : '') + text);
+          return Promise.resolve();
+        };
+        var bookingLines = function (items) {
+          if (BP) return BP.listLines(items);
+          return (items || []).map(function (i) { return '• ' + ((i && i.text) || i); }).join('\n');
+        };
         var doPublish = function (force) {
           post('/dispatching/approve-draft/', { draft_id: draftId, force: !!force })
             .then(function (r) {
-              if (r.data.success) { location.reload(); return; }
+              if (r.data.success) {
+                var soft = r.data.booking_warnings || [];
+                if (!soft.length) { location.reload(); return; }
+                tellBooking('The schedule is live. ' + (soft.length === 1 ? 'One trip sits' : soft.length + ' trips sit') +
+                            ' inside a soft fleet booking on its car — the car can still run it, but fleet has it booked then:\n\n' +
+                            bookingLines(soft), false, 'Published — check these with fleet')
+                  .then(function () { location.reload(); });
+                return;
+              }
+              if (r.status === 409 && r.data.booking_conflicts && r.data.booking_conflicts.length) {
+                var hardOnes = r.data.booking_conflicts;
+                tellBooking((r.data.error || 'Nothing was published.') + '\n\n' + bookingLines(hardOnes) +
+                            '\n\nPublishing anyway will not get past a hard booking. Move ' +
+                            (hardOnes.length === 1 ? 'that trip' : 'those trips') +
+                            ' onto another car in the draft, or ask fleet to move or lift the booking.',
+                            true, 'Not published — car hard-booked by fleet')
+                  .then(reEnable);
+                return;
+              }
               if (r.status === 409 && r.data.conflicts) {
                 var cs = r.data.conflicts;
                 var lines = cs.slice(0, 6).map(function (c) {

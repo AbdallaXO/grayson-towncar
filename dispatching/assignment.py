@@ -137,7 +137,25 @@ def set_leg_driver(leg, driver, actor, *, live_override=False, source=""):
 
     Returns (mode, draft): mode is "staged" or "live"; draft is the active
     ScheduleDraft when one influenced the decision, else None.
+
+    Raises ``fleet_bookings.HardBookingRefused`` — before anything is staged
+    or written — when the new chauffeur's car is HARD-booked by fleet across
+    this trip. There is no override here by design: the way through is the
+    booking itself. A soft booking never raises; asking "continue anyway?" is
+    the interactive caller's job (``fleet_bookings.check_assign``).
     """
+    if driver is not None and leg.driver_id != driver.id:
+        from dispatching.fleet_bookings import HardBookingRefused, check_assign
+        try:
+            check_assign(leg, driver)
+        except HardBookingRefused:
+            raise
+        except Exception:
+            # The booking lookup failing must not take every assign path down
+            # with it; the interactive endpoints have already asked, and The
+            # day still draws any clash this lets through.
+            logger.exception("vehicle-booking check failed for leg %s", leg.id)
+
     draft = _active_draft_for_date(leg.pickup_date)
     sandbox_active = bool(draft) and actor is not None and can_use_sandbox(actor)
 

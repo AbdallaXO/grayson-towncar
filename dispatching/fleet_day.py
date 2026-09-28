@@ -51,13 +51,14 @@ DB-only, like every fleet page: nothing here calls Samsara.
 """
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import date as _date, datetime, time, timedelta
 
 from django.utils import timezone
 
 from business.datefmt import strf
-from dispatching import car_share, fleet_capacity
+from dispatching import car_share, fleet_bookings, fleet_capacity
 
 # A shop job worth moving a car for. The audit's cadence finding: at this
 # fleet's mileage an oil service falls due roughly every business day, and a
@@ -91,16 +92,52 @@ FLIGHT_PAD_MINUTES = 60
 # comfortable.
 INSPECTION_MINUTES = 20        # the walk-around itself
 
-# Getting the car to HQ and back out to where it is next needed. HQ is about
-# twelve minutes from MCO, and MCO is where most of this fleet's dead time
-# sits, so thirty minutes covers the round trip with a little slack. It is a
-# fleet-wide average and the honest weakness of this estimate: nothing here
-# knows where a given car actually is when its gap opens, and one dropping at a
-# Disney resort is further out than one clearing a terminal.
+# Getting the car to base and back out to where it is next needed.
+#
+# This used to be one flat thirty minutes for the round trip, whatever the car
+# was doing either side of the hole. That marked "54m free" on a car dropping
+# at MCO and picking up next at a Disney resort — twelve minutes in, twenty on
+# the walk, and thirty-five back out to Disney is sixty-seven, and the
+# chauffeur is late (founder, 2026-09-28). So each leg of the trip is now
+# charged from where the car actually is: its drop BEFORE the hole to base,
+# and base to its pickup AFTER it.
+#
+# Base is 6785 Narcoossee Rd, Orlando FL 32822 — founder-supplied during the
+# scheduling audit (docs/scheduling-redesign/00_DATA_AUDIT_AND_INVENTORY.md),
+# just north-east of MCO. The minutes are ESTIMATES by the same location
+# buckets the scheduler's drive table uses, set against the two figures on
+# record: base ↔ MCO about twelve, base ↔ Disney about thirty-five. Correct
+# them here; nothing else in the codebase knows where base is.
+BASE_ADDRESS = "6785 Narcoossee Rd, Orlando, FL 32822"
+BASE_DRIVE_MINUTES = {
+    "MCO Terminal": 12,
+    "Airport Hotel": 12,
+    # Universal and I-Drive (the location buckets file I-Drive under
+    # Universal) and the other tourist hotels: 35, on the founder's word —
+    # "to be safe", 2026-09-28.
+    "Universal Resort": 35,
+    "Other Hotel": 35,
+    "Disney Resort": 35,
+    "Residential": 30,
+    "SFB Terminal": 40,
+    "Port Canaveral Area": 45,
+}
+# A place the buckets cannot put anywhere (an odd address, the far end of a
+# booking) costs the same as the scheduler's own unknown-route fallback.
+BASE_DRIVE_DEFAULT = 35
+
+# Kept for a car with NO trips either side — nothing to measure from, so it is
+# assumed to be near base, as before. Every hole between two trips is charged
+# by ``base_trip_minutes`` instead.
 HQ_TRIP_MINUTES = 30
 
-# What a hole has to be, then, before a car can be inspected inside it.
+# What a trip-less stretch has to be before a car can be inspected inside it.
 WALK_MINUTES = INSPECTION_MINUTES + HQ_TRIP_MINUTES
+
+
+def base_drive_minutes(category):
+    """Minutes between base and a place in this location bucket, either way."""
+    return BASE_DRIVE_MINUTES.get(category or "", BASE_DRIVE_DEFAULT)
 
 # Below this share of the day's legs carrying a chauffeur, "no trips on this
 # car" means "dispatch has not got to it yet", not "this car is free".
@@ -184,6 +221,11 @@ def load_car_day(day):
     if preloaded_here:
         scheduler.preload_timing_cache()
     try:
+        # A charter holds the car for its booked hours, not for the twelve-minute
+        # drive the planning estimate sees. Stamped before the schedules are
+        # built so the block drawn here, the check fleet's booking sheet runs and
+        # every dispatch-side booking check measure the trip the same way.
+        fleet_bookings.stamp_ends(legs, day)
         schedules = scheduler.build_driver_schedules(
             legs, list(drivers_by_id.values()), day, dva_rows=dva_rows)
     finally:
@@ -198,6 +240,9 @@ def load_car_day(day):
         "holders": holders,
         "drivers_by_id": drivers_by_id,
         "schedules": schedules,
+        # Fleet's own claims on each car's day. One query; drawn on the strip
+        # and measured against the trips there.
+        "bookings": fleet_bookings.bookings_for(day, unit_ids),
         # Naive local, to compare against the naive datetimes every slot and gap
         # is built from. The page draws a "now" line from this; it is loaded
         # rather than read inside the builder so a test can fix the clock.
@@ -242,6 +287,11 @@ def _span(minutes):
         return f"{minutes}m"
     hours, rest = divmod(minutes, 60)
     return f"{hours}h" if not rest else f"{hours}h {rest}m"
+
+
+def minutes_into(moment, day):
+    """Minutes from ``day``'s midnight to ``moment`` — past 1440 after midnight."""
+    return int((moment - datetime.combine(day, time(0, 0))).total_seconds() // 60)
 
 
 def coverage(legs):
@@ -331,9 +381,34 @@ def reachable_window(gap, day, shift):
     # than parked, so it is never offered however long it looks.
     if gap.get("handoff"):
         return None
-    needed = WALK_MINUTES + (FLIGHT_PAD_MINUTES if gap.get("flight_dependent") else 0)
+    pad = FLIGHT_PAD_MINUTES if gap.get("flight_dependent") else 0
+    needed = WALK_MINUTES + pad
 
     start, end = gap.get("start"), gap.get("end")
+    if start is not None and end is not None and "to_base" in gap:
+        # A hole between two trips: the car is somewhere real at each end. It
+        # can be at base from the moment it has driven in (plus the flight's
+        # drift, behind an arrival) until it has to leave for its next pickup,
+        # and it is that stretch — not the raw hole — that has to hold the
+        # walk-around, inside the reader's own hours.
+        arrive = start + timedelta(minutes=gap["to_base"] + pad)
+        leave = end - timedelta(minutes=gap["from_base"])
+        at_base_from = max(arrive, datetime.combine(day, shift[0]))
+        at_base_to = min(leave, datetime.combine(day, shift[1]))
+        minutes = int((at_base_to - at_base_from).total_seconds() // 60)
+        if minutes < INSPECTION_MINUTES:
+            return None
+        return {"minutes": minutes, "span": _span(minutes),
+                "from_label": _fmt(at_base_from), "to_label": _fmt(at_base_to),
+                "to_base": gap["to_base"], "from_base": gap["from_base"],
+                "from_place": gap.get("from_place", ""), "to_place": gap.get("to_place", ""),
+                # The unclipped clock either side of the stay, for the hover
+                # card's step-by-step: clears → in at base → leaves → pickup.
+                "clears_label": _fmt(start), "arrive_label": _fmt(arrive),
+                "leave_label": _fmt(leave), "pickup_label": _fmt(end),
+                "flight_pad": pad,
+                "clipped": at_base_from > arrive or at_base_to < leave}
+
     if start is None or end is None:
         # Nothing to place this hole by. Every gap this module builds carries
         # both datetimes; one that does not came from a caller describing a
@@ -356,6 +431,63 @@ def reachable_window(gap, day, shift):
             "from_label": _fmt(start), "to_label": _fmt(end)}
 
 
+def _plan_end(item):
+    """One side of a gap for the hover card: the trip (or booking) there."""
+    if item is None:
+        return None
+    if "slot" in item:                                   # a trip block
+        kind = ("Sanford arrival" if item.get("is_sanford")
+                else "Airport arrival" if item.get("trip_type") == "arrival" else "Trip")
+        return {"kind": kind, "when": f"{item['start_label']} – {item['end_label']}",
+                "start": item["start_label"], "end": item["end_label"],
+                "guest": item.get("customer") or "",
+                "route": f"{item.get('pickup_short') or '?'} → {item.get('dropoff_short') or '?'}",
+                "driver": item.get("driver") or "", "flight": item.get("flight_info") or ""}
+    return {"kind": "Fleet booking", "when": item.get("window", ""),    # a booking
+            "start": item.get("start_label", ""), "end": item.get("end_label", ""),
+            "guest": "", "route": item.get("title", ""), "driver": "", "flight": ""}
+
+
+def hole_stay(gap, day):
+    """[hole from, hole to, at base from, at base to, in, out] in minutes after
+    midnight. Same arithmetic as ``reachable_window`` but unclipped to anyone's
+    hours: a booking can be for any time of day."""
+    pad = FLIGHT_PAD_MINUTES if gap.get("flight_dependent") else 0
+    arrive = gap["start"] + timedelta(minutes=gap["to_base"] + pad)
+    leave = gap["end"] - timedelta(minutes=gap["from_base"])
+    return [minutes_into(gap["start"], day), minutes_into(gap["end"], day),
+            minutes_into(arrive, day), minutes_into(leave, day),
+            gap["to_base"] + pad, gap["from_base"]]
+
+
+def gap_plan(gap, before=None, after=None):
+    """The hover card's step-by-step for one marked hole: the job it follows,
+    the drive in, the stay, the drive out, the job it has to make. Every
+    number is the one ``reachable_window`` judged the hole on."""
+    r = gap["reachable"]
+    return {
+        "last": _plan_end(before),
+        "next": _plan_end(after),
+        "clears": r["clears_label"],
+        "clears_at": r.get("from_place") or "wherever it is",
+        "to_base": r["to_base"],
+        "arrive": r["arrive_label"],
+        "flight_pad": r["flight_pad"],
+        "stay_from": r["from_label"],
+        "stay_to": r["to_label"],
+        "span": r["span"],
+        "minutes": r["minutes"],
+        "spare": max(0, r["minutes"] - INSPECTION_MINUTES),
+        "inspection": INSPECTION_MINUTES,
+        "leave": r["leave_label"],
+        "from_base": r["from_base"],
+        "next_at": r.get("to_place") or "its next stop",
+        "pickup": r["pickup_label"],
+        "clipped": r["clipped"],
+        "shop": bool(gap.get("usable")),
+    }
+
+
 def gaps_between(entries, day, shift):
     """The holes in one car's day, with the honest caveats attached.
 
@@ -375,42 +507,163 @@ def gaps_between(entries, day, shift):
     for (prev_driver, prev_slot), (next_driver, next_slot) in zip(entries, entries[1:]):
         _, prev_end = slot_datetimes(prev_slot, day)
         next_start, _ = slot_datetimes(next_slot, day)
-        minutes = (next_start - prev_end).total_seconds() / 60.0
-        if minutes <= 0:
+        if next_start <= prev_end:
             continue
-        handoff = prev_driver != next_driver
         # An ARRIVAL's pickup time is the flight time and moves with it, so a window
         # that opens after one is softer than the clock says. A departure carries a
         # flight too, but its pickup is a fixed clock time — flagging those as well
         # would light the marker on nearly every gap and mean nothing.
-        flight_dependent = (prev_slot.trip_type or "") == "arrival"
-        needed = (MIN_WINDOW_MINUTES + WINDOW_PAD_MINUTES
-                  + (FLIGHT_PAD_MINUTES if flight_dependent else 0))
-        out.append({
-            "start": prev_end,
-            "end": next_start,
-            "minutes": int(round(minutes)),
-            "span": _span(minutes),
-            "from_label": _fmt(prev_end),
-            "to_label": _fmt(next_start),
-            "handoff": handoff,
-            "flight_dependent": bool(flight_dependent),
-            "needed": needed,
-            "usable": (not handoff) and minutes >= needed,
-        })
-    for gap in out:
-        gap["reachable"] = reachable_window(gap, day, shift)
+        out.append(_hole(prev_end, next_start, day, shift,
+                         handoff=prev_driver != next_driver,
+                         flight_dependent=(prev_slot.trip_type or "") == "arrival",
+                         from_cat=prev_slot.dropoff_category,
+                         to_cat=next_slot.pickup_category,
+                         from_place=_venue(prev_slot.dropoff_location),
+                         to_place=_venue(next_slot.pickup_location)))
     return out
 
 
+def _hole(start, end, day, shift, *, handoff=False, flight_dependent=False,
+          from_cat=None, to_cat=None, from_place="", to_place=""):
+    """One hole, [start, end), carrying both judgements ``gaps_between``
+    describes. The one place a gap dict is shaped, so a hole cut around a
+    booking is judged exactly like one that never had a booking in it.
+
+    ``from_cat`` / ``to_cat`` are the location buckets the car is in when the
+    hole opens and where it must be when it closes; they price the drive to
+    base and back out. None (the far side of a booking) costs the default."""
+    minutes = (end - start).total_seconds() / 60.0
+    needed = (MIN_WINDOW_MINUTES + WINDOW_PAD_MINUTES
+              + (FLIGHT_PAD_MINUTES if flight_dependent else 0))
+    gap = {
+        "start": start,
+        "end": end,
+        "minutes": int(round(minutes)),
+        "span": _span(minutes),
+        "from_label": _fmt(start),
+        "to_label": _fmt(end),
+        "handoff": handoff,
+        "flight_dependent": bool(flight_dependent),
+        "needed": needed,
+        "usable": (not handoff) and minutes >= needed,
+        "to_base": base_drive_minutes(from_cat),
+        "from_base": base_drive_minutes(to_cat),
+        "from_cat": from_cat,
+        "to_cat": to_cat,
+        "from_place": from_place,
+        "to_place": to_place,
+    }
+    gap["reachable"] = reachable_window(gap, day, shift)
+    return gap
+
+
+def uncovered(start, end, spans):
+    """The pieces of [start, end) that none of ``spans`` covers, in order.
+
+    Interval subtraction, nothing cleverer: a 9:30–2:00 hole with a 10–11
+    booking in it is two holes, 9:30–10:00 and 11:00–2:00, and the second is
+    as free as it ever was. Touching ends leave nothing behind.
+    """
+    pieces = [(start, end)]
+    for cut_start, cut_end in spans:
+        kept = []
+        for a, b in pieces:
+            if not car_share.intervals_overlap(a, b, cut_start, cut_end):
+                kept.append((a, b))
+                continue
+            if a < cut_start:
+                kept.append((a, cut_start))
+            if cut_end < b:
+                kept.append((cut_end, b))
+        pieces = kept
+    return [(a, b) for a, b in pieces if b > a]
+
+
+def cut_gaps(gaps, booked, day, shift):
+    """``gaps`` with every booked stretch taken out.
+
+    A hole fleet has already put something in is not free for the part the
+    booking covers — the gold mark would sit under the booking and tell the
+    next reader it was still open. The rest of the hole is exactly as free as
+    it was, and keeps its own mark and its own reachable window: the founder's
+    own example books 10–12 inside a 10–1 hole and then 12–1 after it.
+
+    The flight-drift flag stays only on a piece that still opens where the
+    hole did, straight after the arrival; a piece that opens when a booking
+    ends starts on a fixed clock.
+    """
+    spans = [(b["start_dt"], b["end_dt"]) for b in booked]
+    if not spans:
+        return gaps
+    out = []
+    for gap in gaps:
+        pieces = uncovered(gap["start"], gap["end"], spans)
+        if pieces == [(gap["start"], gap["end"])]:
+            out.append(gap)
+            continue
+        for start, end in pieces:
+            # Each piece keeps the real place only on the end it shares with
+            # the hole; the end that meets a booking is wherever the booking
+            # is, which nothing here knows.
+            opens, closes = start == gap["start"], end == gap["end"]
+            piece = _hole(start, end, day, shift, handoff=gap["handoff"],
+                          flight_dependent=gap["flight_dependent"] and opens,
+                          from_cat=gap.get("from_cat") if opens else None,
+                          to_cat=gap.get("to_cat") if closes else None,
+                          from_place=gap.get("from_place", "") if opens else "",
+                          to_place=gap.get("to_place", "") if closes else "")
+            piece["cut"] = True           # what is left of a hole a booking sits in
+            out.append(piece)
+    return out
+
+
+def place_bookings(bookings, jobs, axis_start, axis_end, can_edit=True):
+    """Fleet's bookings on one car, placed on the strip, each carrying the
+    trips that have landed on it since.
+
+    A clash is worked out here on read, never stored: a trip added after the
+    booking, or one whose end estimate grew, shows up the next time the page
+    loads without anyone having to remember to flag it.
+    """
+    out = []
+    for booking in bookings:
+        start, end = fleet_bookings.span(booking)
+        hits = [j for j in jobs
+                if car_share.intervals_overlap(start, end, j["start"], j["end"])]
+        row = fleet_bookings.booking_payload(
+            booking,
+            trips=[{"start_label": j["start_label"], "end_label": j["end_label"],
+                    "driver": j["driver"], "customer": j["customer"]} for j in hits],
+            can_edit=can_edit(booking) if callable(can_edit) else can_edit,
+        )
+        row["left"], row["width"] = _place(start, end, axis_start, axis_end)
+        row["start_dt"], row["end_dt"] = start, end
+        row["order"] = int((start - datetime.combine(booking.date, time(0, 0))).total_seconds() // 60)
+        row["conflict"] = bool(hits)
+        # The same sentence the desk's band prints for this clash.
+        row["conflict_line"] = (fleet_bookings.conflict_sentence(row["clashes"], row["title"])
+                                if hits else "")
+        out.append(row)
+    return out
+
+
+def _booked_phrase(booked):
+    """'booked 10:00 AM–12:00 PM for Tire service' — one clause per booking,
+    'hard-booked' where it is one, for a car-row with no trips to talk about."""
+    return fleet_bookings.and_list([
+        f"{'hard-booked' if b['is_hard'] else 'booked'} {b['window']} for {b['title']}"
+        for b in booked])
+
+
 def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_end,
-            confident=True, shift=None):
+            confident=True, shift=None, bookings=(), can_edit=True):
     """One car's day. Pure — every argument is already loaded."""
     from users.models import DEFAULT_SHIFT
 
     shift = shift or DEFAULT_SHIFT
     downtime = unit.downtime_on(day)
-    names = [str(drivers_by_id[d]) for d in holder_ids if d in drivers_by_id]
+    # A Driver with no surname str()s with a trailing space — "(Miguel )".
+    names = [str(drivers_by_id[d]).strip() for d in holder_ids if d in drivers_by_id]
 
     entries = []
     for driver_id in holder_ids:
@@ -428,7 +681,7 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
         jobs.append({
             "slot": slot,
             "driver_id": driver_id,
-            "driver": str(drivers_by_id.get(driver_id, "")),
+            "driver": str(drivers_by_id.get(driver_id, "")).strip(),
             "start": start,
             "end": end,
             "start_label": _fmt(start),
@@ -459,6 +712,9 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             # Set below: the first and last block of a row always carry a time,
             # printed OUTSIDE the block when it is too narrow to hold one.
             "edge": "",
+            # Minutes after midnight: the phone list interleaves trips, holes
+            # and bookings by this, so a 10:00 booking never lists above 6:45.
+            "order": minutes_into(start, day),
         })
 
     # Without this most of a row is unlabelled marks, and reading when a car's
@@ -470,9 +726,22 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             if not job["show_label"]:
                 job["edge"] = side
 
-    gaps = gaps_between(entries, day, shift)
+    booked = place_bookings(bookings, jobs, axis_start, axis_end, can_edit=can_edit)
+
+    # Only the booked PART of a hole stops being free; see cut_gaps.
+    gaps = cut_gaps(gaps_between(entries, day, shift), booked, day, shift)
+    ends = {j["end"]: j for j in jobs}
+    starts = {j["start"]: j for j in jobs}
+    booking_ends = {b["end_dt"]: b for b in booked}
+    booking_starts = {b["start_dt"]: b for b in booked}
     for gap in gaps:
         gap["left"], gap["width"] = _place(gap["start"], gap["end"], axis_start, axis_end)
+        gap["order"] = minutes_into(gap["start"], day)
+        if gap.get("reachable") and "clears_label" in gap["reachable"]:
+            gap["plan"] = json.dumps(gap_plan(
+                gap,
+                before=ends.get(gap["start"]) or booking_ends.get(gap["start"]),
+                after=starts.get(gap["end"]) or booking_starts.get(gap["end"])))
 
     # Two chauffeurs' legs cannot both be in one car at once. If they overlap the
     # board has a problem worth saying out loud rather than drawing over.
@@ -488,20 +757,34 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
     usable = [g for g in gaps if g["usable"]]
     reachable = [g for g in gaps if g["reachable"]]
 
-    # ── The sentence. Four states that must never collapse into each other. ──
+    # ── The sentence. Five states that must never collapse into each other. ──
+    # "Booked" means one thing on this page — fleet's own claim on the car —
+    # so a car with no trips says "no trips on it", never "nothing booked".
+    holder = names[0] if names else "Assigned"
+    list_note = None
     if downtime is not None:
         state, note = "down", (unit.out_of_service_label(day) or "In the shop")
     elif not holder_ids and not jobs:
-        if confident:
-            state, note = "open", "No chauffeur on it — free all day."
-        else:
+        if not confident:
             state, note = "unknown", "Not assigned yet."
-    elif not jobs:
-        if confident:
-            state, note = "open", f"{names[0] if names else 'Assigned'} has it, nothing booked on it."
+        elif booked:
+            # No trips, but fleet has claimed some of it. Calling that "free all
+            # day" right under the booking is the contradiction this replaces,
+            # and it is not a car sitting still either.
+            state = "booked"
+            note = f"No chauffeur on it — {_booked_phrase(booked)}."
+            list_note = "No chauffeur on it."
         else:
-            state, note = "unknown", (
-                f"{names[0] if names else 'Assigned'} has it, nothing on it yet.")
+            state, note = "open", "No chauffeur on it — free all day."
+    elif not jobs:
+        if not confident:
+            state, note = "unknown", f"{holder} has it, nothing on it yet."
+        elif booked:
+            state = "booked"
+            note = f"{holder} has it, no trips on it — {_booked_phrase(booked)}."
+            list_note = f"{holder} has it, no trips on it."
+        else:
+            state, note = "open", f"{holder} has it, no trips on it."
     else:
         state = "working"
         first, last = jobs[0]["start_label"], jobs[-1]["end_label"]
@@ -513,6 +796,9 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
         "vehicle_type": fleet_capacity.type_label(fleet_capacity.unit_type(unit)),
         "state": state,
         "note": note,
+        # The phone list prints the bookings as their own lines just above
+        # this, so it takes the sentence without repeating them.
+        "list_note": list_note or note,
         "drivers": names,
         "shared": len(names) > 1,
         "jobs": jobs,
@@ -523,14 +809,28 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
         "longest_gap": longest,
         "overlap": overlap,
         "downtime": downtime,
+        "bookings": booked,
+        "booking_conflicts": sum(1 for b in booked if b["conflict"]),
         "downtime_notice": unit.downtime_notice(day) if downtime is None else "",
         "first_label": jobs[0]["start_label"] if jobs else "",
         "last_label": jobs[-1]["end_label"] if jobs else "",
         "href": f"/dispatching/fleet/{unit.id}/",
+        # What is already on the strip, as minutes after this day's midnight,
+        # so a click on the open part of the line can be turned into the hole
+        # it landed in without the page re-deriving any trip times.
+        # Each hole between trips with the stretch the car can actually be AT
+        # BASE inside it, so booking from a hole fills in the time the car can
+        # really be had, not the raw gap (founder: Steven's 9:21–10:30 hole
+        # books 9:33–10:18, after the drive in and before the drive out).
+        "holes": json.dumps([hole_stay(g, day) for g in gaps
+                             if not g.get("handoff") and "to_base" in g]),
+        "busy": sorted([[minutes_into(j["start"], day), minutes_into(j["end"], day)] for j in jobs]
+                       + [[minutes_into(bk["start_dt"], day), minutes_into(bk["end_dt"], day)]
+                          for bk in booked]),
     }
 
 
-def build_day(loaded, shift=None):
+def build_day(loaded, shift=None, can_edit=True):
     """The whole page, from one ``load_car_day`` payload.
 
     ``shift`` is the working day of whoever is reading — it decides which holes
@@ -553,11 +853,16 @@ def build_day(loaded, shift=None):
     for schedule in sched.values():
         for slot in schedule.slots:
             spans.append(slot_datetimes(slot, day))
+    # A 5 AM detail booked before the first trip belongs on the page too.
+    bookings = loaded.get("bookings") or {}
+    for unit_bookings in bookings.values():
+        spans.extend(fleet_bookings.span(b) for b in unit_bookings)
     axis_start, axis_end = day_axis(day, spans)
 
     rows = [
         car_row(unit, day, holders.get(unit.id, []), drivers_by_id, sched,
-                axis_start, axis_end, confident=confident, shift=shift)
+                axis_start, axis_end, confident=confident, shift=shift,
+                bookings=bookings.get(unit.id, []), can_edit=can_edit)
         for unit in units
     ]
 
@@ -579,6 +884,15 @@ def build_day(loaded, shift=None):
             now_pct = round((now - axis_start).total_seconds() / span * 100, 4)
 
     on_a_car = sum(r["trips"] for r in rows)
+    axis_start_min = minutes_into(axis_start, day)
+    axis_end_min = minutes_into(axis_end, day)
+    # Where the next day begins on the strip, when the axis runs past midnight
+    # for a late drop. That stretch is drawn but not bookable: a booking is
+    # same-day, and a click there used to prefill an unrelated evening window.
+    midnight_pct = None
+    if axis_end_min > 24 * 60 and axis_end_min > axis_start_min:
+        midnight_pct = round(100.0 * (24 * 60 - axis_start_min)
+                             / (axis_end_min - axis_start_min), 4)
     return {
         "day": day,
         "rows": rows,
@@ -597,11 +911,23 @@ def build_day(loaded, shift=None):
         # the same hours the header labels do however long the day turns out.
         "hour_pct": round(100.0 / max(1, int((axis_end - axis_start).total_seconds() // 3600)), 4),
         "working": sum(1 for r in rows if r["state"] == "working"),
+        # A car with no trips whose day fleet has booked is not "sitting still".
         "open_units": sum(1 for r in rows if r["state"] == "open"),
         "down": sum(1 for r in rows if r["state"] == "down"),
+        "booked": sum(len(r["bookings"]) for r in rows),
+        "booking_conflicts": sum(r["booking_conflicts"] for r in rows),
         "headline": _headline(built, confident, ratio, total, day),
         "shift_start": shift[0],
         "shift_end": shift[1],
+        # Minutes after midnight, for the booking sheet's script: where the
+        # strip starts and ends, the reader's hours, and — today only — now.
+        "axis_start_min": axis_start_min,
+        "axis_end_min": axis_end_min,
+        "midnight_pct": midnight_pct,
+        "shift_start_min": shift[0].hour * 60 + shift[0].minute,
+        "shift_end_min": shift[1].hour * 60 + shift[1].minute,
+        "now_min": (minutes_into(now, day)
+                    if now is not None and now.date() == day else None),
     }
 
 
@@ -613,7 +939,9 @@ def _headline(built, confident, ratio, total, day):
             return (f"Dispatch has not built {when} yet. {total} trips are booked, "
                     f"and no car is assigned to any of them — nothing on this page "
                     f"is a free car.")
-        return f"Nothing booked for {when} yet."
+        # "No trips", not "nothing booked": on this page "booked" is fleet's
+        # own claim on a car, and this sentence can sit above a list of them.
+        return f"No trips on {when} yet."
     if not confident:
         return (f"{when} is still being built — {int(round(ratio * 100))}% of its "
                 f"trips have a chauffeur. A car showing nothing may just not be "
@@ -701,6 +1029,8 @@ def car_today(unit, day, *, now=None):
     if preloaded_here:
         scheduler.preload_timing_cache()
     try:
+        # The same charter-aware ends The day draws with (see load_car_day).
+        fleet_bookings.stamp_ends(legs, day)
         schedules = scheduler.build_driver_schedules(
             legs, list(drivers.values()), day, dva_rows=dva_rows)
     finally:
@@ -910,14 +1240,19 @@ def is_built(pulse_row):
     return bool(pulse_row["holders"]) and pulse_row["assigned"] > 0
 
 
-def day_options(today, pulse=None):
+def day_options(today, pulse=None, conflicts=None):
     """The week control: seven days, each carrying what is known about it.
 
     Every option states its own coverage so the choice itself is honest — a day
     four out reads "0% assigned · 256 trips" before it is opened, not after.
+
+    ``conflicts`` is ``{date: n}`` — bookings a trip has landed on that day
+    (``fleet_bookings.conflict_counts``), so a clash on Thursday is visible
+    from Tuesday's page without opening every day to look.
     """
     labels = ["Today", "Tomorrow"]
     pulse = pulse if pulse is not None else week_pulse(today)
+    conflicts = conflicts or {}
     out = []
     for offset in range(DAY_CHOICES):
         value = today + timedelta(days=offset)
@@ -933,6 +1268,7 @@ def day_options(today, pulse=None):
             "built": built,
             "confident": built and ratio >= CONFIDENT_COVERAGE,
             "coverage_pct": int(round(ratio * 100)) if row["trips"] else 0,
+            "conflicts": conflicts.get(value, 0),
         })
     return out
 
@@ -950,8 +1286,8 @@ def demand_only(day, pulse_row, typical_units=None):
     if not trips:
         return {
             "day": day, "trips": 0, "typical_units": typical_units,
-            "headline": f"Nothing booked for {when} yet.",
-            "detail": "Nothing to plan around on this day.",
+            "headline": f"No trips on {when} yet.",
+            "detail": "No trips to plan around on this day yet.",
         }
     detail = (f"{trips} trip{'s' if trips != 1 else ''} are on the books and none of them "
               f"has a chauffeur yet, so no car on this date can be called free.")

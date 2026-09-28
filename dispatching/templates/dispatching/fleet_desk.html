@@ -5,6 +5,19 @@
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
 {% include "dispatching/includes/_fleet_luxe_css.html" %}
+<style>
+  /* A clash in the band: a trip dispatch put inside one of fleet's
+     part-day bookings. The one line on this dark band that is a warning, so
+     it takes the band's only warm red — softened to read on ink. */
+  .fl-band-clash { color: #F2A99E; }
+  .fl-band-clash .bi { font-size: 0.6rem; margin-right: 2px; }
+  .fl-clash-line { display: block; padding-left: 10px; border-left: 2px solid #F2A99E;
+                   text-decoration: none; transition: var(--fl-t); }
+  .fl-clash-line b { display: block; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
+  .fl-clash-line span { display: block; font-size: 0.78rem; color: rgba(255,255,255,0.7); line-height: 1.5; }
+  .fl-clash-line:hover, .fl-clash-line:focus-visible { border-left-color: var(--fl-gold); }
+  .fl-clash-line:hover span { color: var(--fl-champagne); }
+</style>
 {% endblock %}
 
 {% block navbar %}{% endblock %}
@@ -51,11 +64,32 @@
         </div>
       </div>
       <div class="fl-band-right">
+        {% comment %}
+          Fleet's part-day bookings a trip has since landed on, today and the
+          six days after — the one thing on The day fleet has to act on, said
+          here so it is not found only by opening that date. Each line goes to
+          The day on its date, where the booking can be moved or cancelled.
+        {% endcomment %}
+        {% if booking_conflicts %}
+          <div class="fl-band-eyebrow fl-band-clash"><i class="bi bi-exclamation-triangle-fill"></i> Booking conflicts</div>
+          {% for c in booking_conflicts %}
+            <a class="fl-shop-line fl-clash-line" href="{% url 'fleet_day' %}?date={{ c.date|date:'Y-m-d' }}">
+              <b>#{{ c.number }} · {% if c.date == today %}today{% else %}{{ c.date|date:"D j M" }}{% endif %} · {{ c.window }}</b>
+              <span>{{ c.detail }}</span>
+            </a>
+          {% endfor %}
+          <div class="fl-shop-note" style="margin-bottom:18px;">Open the day to move the booking, cancel it, or ask dispatch to move the trip.</div>
+        {% endif %}
+        {% comment %}
+          Whole shop days (the downtime ledger) — called "shop days" here so
+          that "booking" means one thing across the fleet pages: fleet's
+          part-day claim on a car, made from The day.
+        {% endcomment %}
         {% if shop.booked %}
-          <div class="fl-band-eyebrow">Booked in</div>
+          <div class="fl-band-eyebrow">Shop days booked</div>
           {% for b in shop.booked %}
             <div class="fl-shop-line">{{ b.unit }} · {{ b.when }} · {{ b.reason }}{% if b.verdict == 'conflict' %}<span class="fl-verdict-inline conflict">short that day</span>{% elif b.verdict == 'tight' %}<span class="fl-verdict-inline tight">tight</span>{% endif %}</div>
-            <button type="button" class="fl-btn-ghost-dark" data-cancel="{{ b.downtime.id }}" data-unit="{{ b.unit }}" style="margin:-4px 0 12px;">Cancel this booking</button>
+            <button type="button" class="fl-btn-ghost-dark" data-cancel="{{ b.downtime.id }}" data-unit="{{ b.unit }}" style="margin:-4px 0 12px;">Cancel this shop day</button>
           {% endfor %}
           <div class="fl-shop-note">Dispatch sees it on the board and plans around it.</div>
         {% endif %}
@@ -68,7 +102,7 @@
         {% endif %}
         {% if not shop.booked and not shop.down %}
           <div class="fl-band-eyebrow">Nothing in the shop</div>
-          <div class="fl-shop-line">Every unit is on the road and nothing is booked ahead.</div>
+          <div class="fl-shop-line">Every unit is on the road and no shop days are coming up.</div>
           <div class="fl-shop-note">{{ shop.idle_text }}</div>
         {% endif %}
       </div>
@@ -500,10 +534,11 @@
     FW.post(FW.url(URLS.close, id), { ended_on: day.trim() }, CSRF)
       .then(function (d) { d.success ? done(unit + ' back in service') : FW.toast(d.error || 'Could not close', false); });
   }
+  // A shop day off the downtime ledger — not a part-day booking from The day.
   function cancelBooking(id, unit) {
-    if (!confirm('Cancel the shop slot held for ' + unit + '?')) return;
+    if (!confirm('Cancel the shop day held for ' + unit + '?')) return;
     FW.post(FW.url(URLS.remove, id), {}, CSRF)
-      .then(function (d) { d.success ? done('Booking cancelled') : FW.toast(d.error || 'Could not cancel', false); });
+      .then(function (d) { d.success ? done('Shop day cancelled') : FW.toast(d.error || 'Could not cancel', false); });
   }
   document.querySelectorAll('[data-cancel]').forEach(function (b) {
     b.addEventListener('click', function () { cancelBooking(b.getAttribute('data-cancel'), b.getAttribute('data-unit')); });

@@ -283,8 +283,9 @@ def build_week(loaded, day_rows=None, last_seen=None, shift=None):
         # be out — an unbuilt board says nothing about a car, and reading that
         # silence as "unreachable" would empty the round on exactly the mornings
         # Day Setup has not run yet.
+        # A car fleet has booked for every walkable hour is just as out of reach.
         off_shift = (today_row is not None
-                     and today_row["state"] == "working"
+                     and today_row["state"] in ("working", "booked")
                      and window is None)
         tile = {
             "unit": unit,
@@ -430,23 +431,27 @@ def walkable_window(row, day, shift):
     judgement, or the manager reads a free afternoon on one screen and "no gap"
     on the other for the same car on the same day.
     """
-    from dispatching.fleet_day import WALK_MINUTES, reachable_window
+    from dispatching.fleet_day import WALK_MINUTES, reachable_window, uncovered
 
     if row is None:
         return None
     shift_start, shift_end = shift
 
-    # A car with nobody on it is free for the whole shift, and there are no gap
-    # rows to clip because there are no trips to sit between.
-    if row["state"] == "open":
+    # A car with no trips on it is free for the whole shift, less whatever fleet
+    # has booked it for — a car at the body shop from eight to five is not a
+    # car to walk at nine. There are no gap rows to clip: no trips to sit between.
+    if row["state"] in ("open", "booked"):
         day_start = datetime.combine(day, shift_start)
         day_end = datetime.combine(day, shift_end)
-        minutes = int((day_end - day_start).total_seconds() // 60)
-        if minutes < WALK_MINUTES:
-            return None
-        return {"minutes": minutes, "span": "",
-                "from_label": _fmt_time(day_start),
-                "to_label": _fmt_time(day_end)}
+        booked = [(b["start_dt"], b["end_dt"]) for b in row.get("bookings") or ()
+                  if b.get("start_dt") and b.get("end_dt")]
+        best = None
+        for start, end in uncovered(day_start, day_end, booked):
+            minutes = int((end - start).total_seconds() // 60)
+            if minutes >= WALK_MINUTES and (best is None or minutes > best["minutes"]):
+                best = {"minutes": minutes, "span": "",
+                        "from_label": _fmt_time(start), "to_label": _fmt_time(end)}
+        return best
 
     # Every hole in the day, not only the ones long enough for the shop.
     holes = row.get("gaps")
@@ -454,8 +459,12 @@ def walkable_window(row, day, shift):
         holes = row.get("usable_windows") or []
     best = None
     for hole in holes:
-        candidate = hole.get("reachable") if "reachable" in hole else None
-        if candidate is None:
+        # A hole The day already judged is taken at its word — including a
+        # None, which means "not reachable", never "not worked out". Only a
+        # hole described without a verdict is judged here.
+        if "reachable" in hole:
+            candidate = hole["reachable"]
+        else:
             candidate = reachable_window(hole, day, shift)
         if candidate is None:
             continue
@@ -482,6 +491,8 @@ def _today_note(row, window, shift):
         return "Sitting still today"
     if window is not None:
         return f"Free {window['from_label']} – {window['to_label']}"
+    if row["state"] == "booked":
+        return f"Booked by fleet — no gap before {_fmt_time(shift[1])}"
     return f"No gap before {_fmt_time(shift[1])}"
 
 

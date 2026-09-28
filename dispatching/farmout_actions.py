@@ -17,6 +17,9 @@ CURRENT database state before touching anything:
     (Guard B turnaround + Guard C window via ``check_feasibility``, mirroring
     ``views._revalidate_swap_feasibility``) plus vehicle-class compatibility, INSIDE the
     transaction, before writing.
+  * VEHICLE BOOKINGS — a keep/move onto a chauffeur whose car fleet has HARD-booked across the
+    trip refuses the whole plan (409, live or staged — there is no override at assignment); a
+    SOFT booking is applied and disclosed in the response (``booking_warnings``).
 
 All writes go through ``dispatching.assignment.set_leg_driver`` (THE front door), so held-day
 sandbox routing (staged vs live), pay auto-fill from the affiliate's real DriverPayRate card,
@@ -48,9 +51,12 @@ _KEEP, _MOVE, _FARM, _UNASSIGN = "keep", "move", "farm", "unassign"
 class PlanRejected(Exception):
     """Validation failure -> (http_status, human error). Nothing is ever written."""
 
-    def __init__(self, status: int, error: str):
+    def __init__(self, status: int, error: str, **extra):
         self.status = status
         self.error = error
+        # Extra keys for the JSON body — a vehicle-booking refusal carries
+        # booking_conflict/hard so the page can say so without parsing the text.
+        self.extra = extra
         super().__init__(error)
 
 
@@ -258,6 +264,32 @@ def _check_inhouse_receivers(plan: _Plan) -> dict:
     return found
 
 
+# The keys a hard vehicle-booking refusal adds to a 409, matching
+# fleet_bookings.refusal(): nothing to continue, the booking is the way through.
+BOOKING_REFUSAL = {"booking_conflict": True, "hard": True, "can_override": False}
+
+
+def check_bookings(pairs) -> List[dict]:
+    """Fleet's vehicle bookings against every in-house placement a plan makes.
+
+    ``pairs`` are ``(leg, receiving Driver)`` — a retime passes a copy of the leg carrying
+    its new pickup. A HARD booking on the receiver's car refuses the WHOLE plan (409,
+    nothing written): the way through is the booking, not the plan. SOFT ones come back as
+    ``[{"leg_id", "text"}]`` for the response. Shared with the Recovery Advisor's apply."""
+    from dispatching.board_validation import booking_verdicts
+
+    hard, soft = booking_verdicts(pairs)
+    if hard:
+        raise PlanRejected(409, f"Leg {hard[0]['leg_id']}: {hard[0]['text']}", **BOOKING_REFUSAL)
+    return [{"leg_id": s["leg_id"], "text": s["text"]} for s in soft]
+
+
+def _placement_pairs(plan: _Plan, legs: dict, inhouse: dict) -> list:
+    """(leg, receiver) for every keep/move that changes who drives the leg."""
+    return [(legs[leg_id], inhouse[did]) for leg_id, did, role in plan.writes
+            if role in (_KEEP, _MOVE) and did in inhouse and legs[leg_id].driver_id != did]
+
+
 def _check_affiliate(plan: _Plan, legs: dict):
     """The chosen affiliate must pass the engine's capability/permit/rate gates AND have real
     remaining capacity that day (counted/chained against their ACTUAL assigned legs). Returns
@@ -389,6 +421,7 @@ def apply_farmout_plan(data: dict, user) -> Tuple[int, dict]:
     from drivers.models import Driver
     from reservations.models import Leg
     from dispatching.assignment import _active_draft_for_date, can_use_sandbox, set_leg_driver
+    from dispatching.fleet_bookings import HardBookingRefused
 
     plan = None
     try:
@@ -415,6 +448,8 @@ def apply_farmout_plan(data: dict, user) -> Tuple[int, dict]:
             _check_hard_rules(plan, legs)
             inhouse = _check_inhouse_receivers(plan)
             affiliate = _check_affiliate(plan, legs)
+            # Staged or live alike: a hard-booked car refuses before anything is written.
+            booking_warnings = check_bookings(_placement_pairs(plan, legs, inhouse))
 
             # Held-day staging skips live board revalidation (drafts may be messy; the manager
             # reviews before publish — same contract as execute_swap / drag-drop staging).
@@ -429,8 +464,12 @@ def apply_farmout_plan(data: dict, user) -> Tuple[int, dict]:
             for leg_id, did, role in plan.writes:
                 new_driver = affiliate if role == _FARM else (
                     inhouse.get(did) if did is not None else None)
-                mode, _ = set_leg_driver(legs[leg_id], new_driver, user,
-                                         source="farmout_optimizer")
+                try:
+                    mode, _ = set_leg_driver(legs[leg_id], new_driver, user,
+                                             source="farmout_optimizer")
+                except HardBookingRefused as exc:
+                    # The front door's backstop (a booking saved mid-apply): roll it all back.
+                    raise PlanRejected(409, f"Leg {leg_id}: {exc.clash['text']}", **BOOKING_REFUSAL)
                 modes.add(mode)
                 applied.append({"leg_id": leg_id, "driver_id": did, "role": role})
             if modes != {"staged" if staged else "live"}:
@@ -443,7 +482,7 @@ def apply_farmout_plan(data: dict, user) -> Tuple[int, dict]:
             # The page's picture of the board is provably stale — bump the version so the user's
             # next Analyze recomputes instead of re-serving the same cached recommendations.
             bump_farmout_page_cache(plan.day)
-        return e.status, {"success": False, "error": e.error}
+        return e.status, {"success": False, "error": e.error, **e.extra}
     except Exception:
         logger.exception("farmout apply failed")
         return 500, {"success": False, "error": "Apply failed — nothing was changed. "
@@ -468,4 +507,5 @@ def apply_farmout_plan(data: dict, user) -> Tuple[int, dict]:
     msg = msg[0].upper() + msg[1:]
     if held:
         msg = f"Staged in the draft ({plan.day} is held — live board unchanged until publish): {msg}"
-    return 200, {"success": True, "held": held, "applied": applied, "message": msg}
+    return 200, {"success": True, "held": held, "applied": applied, "message": msg,
+                 "booking_warnings": booking_warnings}

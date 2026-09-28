@@ -242,6 +242,109 @@ def build_share_entry(leg_id, did, pickup_dt, pickup_category, dropoff_category)
             "start": start, "end": end}
 
 
+def read_unit_day(trips):
+    """How one shared car's day reads — for the schedule board's picture AND the
+    drag-and-drop question, so the two can never disagree.
+
+    ``trips``: every trip on the unit that day, both drivers, completed ones
+    included (they are facts about who had the car), as dicts
+    ``{"leg_id", "did", "pick", "clear", "pickup_category", "dropoff_category",
+    "movable"}`` — ``pick``/``clear`` naive local datetimes, ``clear`` may be None,
+    ``movable`` False for a trip already under way or done.
+
+    Returns ``{"runs": {did: [(start, end, [leg_id, ...]), ...]},
+    "grade": {leg_id: "" | "tight" | "clash"},
+    "why": {leg_id: "overlap" | "handback" | "handback_either"}}``.
+
+    * A RUN is a stretch the car is with one driver: his consecutive trips (by
+      pickup) with no partner trip between. It spans the first trip's drive out
+      (the P75 lead, convention B) to the later of the last trip's P75 tail and
+      its estimated clear — a long trip keeps the car out past the table's tail.
+    * CLASH — the trips that can't work as planned:
+        - "handback": the car would change hands more than once. The day is cut
+          at the one hand-over that leaves the fewest trips on the wrong side,
+          and only those are the clash — so the job to move is the red one, not
+          both. Ties go against trips that can still move, then against the
+          driver with fewer trips (the one being fitted around the other); a
+          tie beyond that marks every candidate ("handback_either");
+        - "overlap": a trip starts while the other driver's is still running
+          (pickup to estimated clear) — the later one.
+    * TIGHT — the trip's own drive-out/drive-back margin touches the other
+      driver's run: a close hand-over that often runs fine; worth a look.
+    """
+    from dispatching.handoff_chain import occupancy_kind
+
+    ts = sorted((dict(t) for t in trips if t.get("pick") is not None),
+                key=lambda t: (t["pick"], t["leg_id"] or 0))
+    for t in ts:
+        start, end = occupancy_block(
+            t["pick"], occupancy_kind(t.get("pickup_category"), t.get("dropoff_category")),
+            percentile="p75")
+        clear = max(t.get("clear") or t["pick"], t["pick"])
+        t["_occ"] = (start, max(end, clear))
+        t["_raw"] = (t["pick"], clear)
+
+    runs, i = {}, 0
+    while i < len(ts):
+        j = i
+        while j + 1 < len(ts) and ts[j + 1]["did"] == ts[i]["did"]:
+            j += 1
+        chunk = ts[i:j + 1]
+        runs.setdefault(ts[i]["did"], []).append(
+            (min(c["_occ"][0] for c in chunk), max(c["_occ"][1] for c in chunk),
+             [c["leg_id"] for c in chunk]))
+        i = j + 1
+
+    grade = {t["leg_id"]: "" for t in ts}
+    why = {}
+    drivers = list(dict.fromkeys(t["did"] for t in ts))
+    if len(drivers) == 2:
+        count = {d: sum(1 for t in ts if t["did"] == d) for d in drivers}
+        best_key, best_sets = None, []
+        for first, second in ((drivers[0], drivers[1]), (drivers[1], drivers[0])):
+            for k in range(len(ts) + 1):
+                wrong = ([t for t in ts[:k] if t["did"] != first]
+                         + [t for t in ts[k:] if t["did"] != second])
+                key = (len(wrong), sum(1 for t in wrong if not t.get("movable", True)),
+                       sum(count[t["did"]] for t in wrong))
+                ids = frozenset(t["leg_id"] for t in wrong)
+                if best_key is None or key < best_key:
+                    best_key, best_sets = key, [ids]
+                elif key == best_key and ids not in best_sets:
+                    best_sets.append(ids)
+        # A genuine tie (either trip could move) marks both, and says so.
+        tie = len(best_sets) > 1
+        for lid in frozenset().union(*best_sets):
+            grade[lid], why[lid] = "clash", ("handback_either" if tie else "handback")
+
+    for a_i, a in enumerate(ts):
+        for b in ts[a_i + 1:]:
+            if a["did"] != b["did"] and intervals_overlap(*a["_raw"], *b["_raw"]):
+                grade[b["leg_id"]] = "clash"
+                why.setdefault(b["leg_id"], "overlap")
+
+    # Tight is judged against the partner's trips that DO work — a neighbour of a
+    # trip already marked as the clash is not a second problem.
+    ok = [t for t in ts if not grade[t["leg_id"]]]
+    for t in ok:
+        if any(o["did"] != t["did"] and intervals_overlap(*t["_occ"], *span)
+               for o in ok for span in [_run_span_of(o, ok)]):
+            grade[t["leg_id"]] = "tight"
+    return {"runs": runs, "grade": grade, "why": why}
+
+
+def _run_span_of(trip, trips):
+    """The span of the run ``trip`` belongs to within ``trips`` (sorted by pickup)."""
+    i = trips.index(trip)
+    lo = hi = i
+    while lo > 0 and trips[lo - 1]["did"] == trip["did"]:
+        lo -= 1
+    while hi + 1 < len(trips) and trips[hi + 1]["did"] == trip["did"]:
+        hi += 1
+    chunk = trips[lo:hi + 1]
+    return (min(c["_occ"][0] for c in chunk), max(c["_occ"][1] for c in chunk))
+
+
 def share_conflicts(entries, pad_min, focus_leg_id=None):
     """PURE decision core of the co-driver car-share check — shared verbatim by
     the manual-assign endpoint (``assign_warnings``) and the precision replay

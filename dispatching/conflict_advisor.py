@@ -1847,9 +1847,10 @@ def _is_affiliate_held(board, leg):
 
 
 def _leg_vtype_of(leg):
-    v = getattr(getattr(getattr(leg, "reservation", None), "vehicle", None),
-                "vehicle_type", None)
-    return str(v) if v else None
+    """The leg's own vehicle class first, then the booking's — one read shared
+    with the swap search (see swap_optimizer._get_leg_vtype)."""
+    from dispatching.swap_optimizer import _get_leg_vtype
+    return _get_leg_vtype(leg)
 
 
 def _vehicle_ok(driver_vtype, leg_vtype):

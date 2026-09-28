@@ -631,3 +631,55 @@ class ReachableWindowTests(_DayFixture):
                              (best["from_label"], best["to_label"]))
         else:
             self.assertIsNone(round_)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The drive to base and back out is charged from where the car actually is
+# ════════════════════════════════════════════════════════════════════════════
+
+@patch("dispatching.scheduler.estimate_job_end_time", _ninety_minutes)
+class BaseTripTests(_DayFixture):
+    """Founder, 2026-09-28: "54 minutes free" is not possible when the next
+    pickup is at Disney — base to Disney alone is thirty-five minutes."""
+
+    def hole(self, from_cat, to_cat, start, end):
+        a, b = datetime.combine(DAY, start), datetime.combine(DAY, end)
+        return fleet_day._hole(a, b, DAY, (time(6, 0), time(18, 0)),
+                               from_cat=from_cat, to_cat=to_cat)
+
+    def test_fifty_four_minutes_before_a_disney_pickup_is_not_marked(self):
+        """12 in from MCO + 20 walking + 35 out to Disney is 67, not 54."""
+        gap = self.hole("MCO Terminal", "Disney Resort", time(14, 6), time(15, 0))
+        self.assertIsNone(gap["reachable"])
+
+    def test_the_same_hole_before_an_mco_pickup_is(self):
+        """12 in, 12 out: 30 minutes at base, and the walk takes 20."""
+        gap = self.hole("MCO Terminal", "MCO Terminal", time(14, 6), time(15, 0))
+        self.assertIsNotNone(gap["reachable"])
+        self.assertEqual(gap["reachable"]["minutes"], 30)
+        self.assertEqual((gap["reachable"]["from_label"], gap["reachable"]["to_label"]),
+                         ("2:18 PM", "2:48 PM"))
+
+    def test_the_label_is_time_at_base_not_the_raw_hole(self):
+        gap = self.hole("MCO Terminal", "Disney Resort", time(9, 0), time(11, 0))
+        self.assertEqual(gap["reachable"]["minutes"], 120 - 12 - 35)
+
+    def test_a_trip_that_drops_at_disney_pays_the_drive_in_too(self):
+        gap = self.hole("Disney Resort", "MCO Terminal", time(9, 0), time(10, 0))
+        self.assertIsNone(gap["reachable"])          # 35 + 20 + 12 = 67 > 60
+
+    def test_the_strip_uses_the_real_places(self):
+        """End to end: a job dropping at Disney, then an MCO pickup 65 min
+        later — 35 + 20 + 12 = 67, so no gold mark."""
+        unit = self.unit("3")
+        held = self.driver("base_trip_holder")
+        self.hold(unit, held)
+        self.job(held, 8, pickup="MCO Terminal B", dropoff="Disney's Polynesian Village Resort")
+        leg = self.job(held, 10, pickup="MCO Terminal B", dropoff="Disney's Polynesian Village Resort")
+        leg.pickup_time = time(10, 35)
+        leg.save(update_fields=["pickup_time"])
+        row = self.row_for(self.payload(), "3")
+        hole = next(g for g in row["gaps"] if not g["handoff"])
+        self.assertEqual(hole["to_base"], fleet_day.BASE_DRIVE_MINUTES["Disney Resort"])
+        self.assertEqual(hole["from_base"], fleet_day.BASE_DRIVE_MINUTES["MCO Terminal"])
+        self.assertIsNone(hole["reachable"])

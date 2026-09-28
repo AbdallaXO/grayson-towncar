@@ -6,7 +6,7 @@ from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
 from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck, DriverInvite
 from .models import (
-    FleetSyncState, VehicleDayReading, VehicleDowntime, VehicleFault, VehicleIssue,
+    FleetSyncState, VehicleBooking, VehicleDayReading, VehicleDowntime, VehicleFault, VehicleIssue,
     VehicleServiceRecord, VehicleServiceSchedule,
 )
 from reservations.models import Leg
@@ -1141,6 +1141,19 @@ class VehicleDowntimeAdmin(admin.ModelAdmin):
     search_fields = ["vehicle__vehicle_number", "reason", "vendor", "notes"]
     date_hierarchy = "starts_on"
     readonly_fields = ["created_by", "created_at", "closed_by", "closed_at", "demand_snapshot"]
+
+
+@admin.register(VehicleBooking)
+class VehicleBookingAdmin(admin.ModelAdmin):
+    """Part-day bookings. Made and changed on Fleet -> The day, which runs the
+    clash check and the hard-booking permission; here as a backstop."""
+    list_display = ["vehicle", "date", "start_time", "end_time", "booking_type", "reason",
+                    "is_hard", "cancelled_at"]
+    list_filter = ["booking_type", "is_hard", "vehicle"]
+    search_fields = ["vehicle__vehicle_number", "reason", "location", "notes"]
+    date_hierarchy = "date"
+    readonly_fields = ["created_by", "created_at", "updated_by", "updated_at",
+                       "cancelled_by", "cancelled_at"]
 
 
 @admin.register(VehicleIssue)

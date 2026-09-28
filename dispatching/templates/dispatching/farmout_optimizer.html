@@ -508,6 +508,15 @@
     el.textContent = txt;
   }
 
+  // Fleet's SOFT bookings a plan landed on (applied — the car can still run
+  // the trip — but dispatch should know). A HARD one never gets here: the
+  // server refuses the whole plan and its sentence shows as the error.
+  function bookingNote(j){
+    var ws = (j && j.booking_warnings) || [];
+    return ws.map(function(w){ return (w && w.text) || String(w); }).filter(Boolean);
+  }
+  var queuedBookingNotes = [];
+
   // Run one plan against its action box. Always resolves to the response object ({success: bool}).
   function runPlan(box, plan, opts){
     opts = opts || {};
@@ -517,10 +526,19 @@
     return postPlan(plan).then(function(j){
       if(j.success){
         box.dataset.applied = '1';
+        var notes = bookingNote(j);
+        var noteTail = notes.length ? ' · Fleet booking: ' + notes.join(' ') : '';
         if(j.held){
-          setStatus(box, 'staged', 'Staged in draft ✓ (publish to go live)');
+          setStatus(box, 'staged', 'Staged in draft ✓ (publish to go live)' + noteTail);
+        } else if(notes.length && !opts.noReload){
+          // Said once, where it can be read, before the refresh wipes it.
+          setStatus(box, 'ok', 'Applied ✓' + noteTail);
+          alert('Applied. Fleet has the car booked while this trip runs — the car can still do it, but check with fleet:\n\n• ' +
+                notes.join('\n• '));
+          location.reload();
         } else {
-          setStatus(box, 'ok', opts.noReload ? 'Applied ✓' : 'Applied ✓ — refreshing…');
+          setStatus(box, 'ok', (opts.noReload ? 'Applied ✓' : 'Applied ✓ — refreshing…') + noteTail);
+          if(opts.noReload){ queuedBookingNotes = queuedBookingNotes.concat(notes); }
           if(!opts.noReload){ setTimeout(function(){ location.reload(); }, 700); }
         }
       } else {
@@ -585,7 +603,12 @@
   function runQueue(boxes, planOf, btn){
     allControls().forEach(function(c){ c.disabled = true; });
     var anyLive = false, idx = 0;
+    queuedBookingNotes = [];
     function finish(failMsg){
+      if(anyLive && queuedBookingNotes.length){
+        alert('Fleet has a car booked while ' + (queuedBookingNotes.length === 1 ? 'one of these trips runs' : 'some of these trips run') +
+              ' — the car can still do it, but check with fleet:\n\n• ' + queuedBookingNotes.join('\n• '));
+      }
       if(anyLive){
         if(failMsg){ alert('Stopped: ' + failMsg + '\nRefreshing to show what WAS applied.'); }
         location.reload();

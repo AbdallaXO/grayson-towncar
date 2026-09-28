@@ -279,6 +279,31 @@ retry with live_override_confirmed once. UNCHANGED by the redesign.
     }).then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); });
   }
 
+  // Fleet vehicle bookings — same reading as the board rail: a hard one comes
+  // back as the refusal's sentence ("… is hard-booked from …"), soft ones in
+  // `warnings` / `booking_warnings` ("… is booked from …").
+  var BOOKING_RE = /\bis (?:hard-)?booked from\b/i;
+  function isBookingRefusal(d) {
+    return !!(d && d.success === false && (d.booking_conflict || BOOKING_RE.test(d.error || '')));
+  }
+  function bookingNotes(d) {
+    var out = [];
+    ((d && d.booking_warnings) || []).forEach(function (w) {
+      var t = (w && w.text) || (typeof w === 'string' ? w : '');
+      if (t) out.push(t);
+    });
+    ((d && d.warnings) || []).forEach(function (w) {
+      var t = typeof w === 'string' ? w : (w && w.text) || '';
+      if (t && BOOKING_RE.test(t) && out.indexOf(t) === -1) out.push(t);
+    });
+    return out;
+  }
+  function tellBooking(text, hard) {
+    if (window.BookingPrompt) return window.BookingPrompt.tell(text, { hard: hard });
+    alert(text);
+    return Promise.resolve();
+  }
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-ra-apply]'), function (btn) {
     btn.addEventListener('click', function () {
       var plan = plansById[btn.dataset.raApply];
@@ -299,8 +324,26 @@ retry with live_override_confirmed once. UNCHANGED by the redesign.
       btn.disabled = true; btn.innerHTML = 'Applying…';
       function send(payload) {
         post('{% url "recovery_advisor_apply" %}', payload).then(function (r) {
-          if (r.data.success) { location.href = '{% url "task_queue" %}'; return; }
+          if (r.data.success) {
+            // Applied onto a car fleet has SOFT-booked while the trip runs —
+            // allowed, but said before leaving the page.
+            var booked = bookingNotes(r.data);
+            if (!booked.length) { location.href = '{% url "task_queue" %}'; return; }
+            tellBooking('Applied. Fleet has the car booked while ' +
+                        (booked.length === 1 ? 'this trip runs' : 'these trips run') +
+                        ' — the car can still do it, but check with fleet:\n\n' +
+                        booked.map(function (t) { return '• ' + t; }).join('\n'), false)
+              .then(function () { location.href = '{% url "task_queue" %}'; });
+            return;
+          }
           var err = r.data.error || 'Apply failed';
+          // A HARD fleet booking on a receiving car refuses the whole plan.
+          // Refreshing would offer the same plan again — say which booking.
+          if (r.status === 409 && isBookingRefusal(r.data)) {
+            btn.disabled = false; btn.innerHTML = orig;
+            tellBooking(err, true);
+            return;
+          }
           if (r.status === 409 && err.indexOf('held') !== -1 && !payload.live_override_confirmed && !payload.stage) {
             // Held-day policy: explicit extra confirmation, then apply LIVE;
             // staging into the draft is the secondary choice for

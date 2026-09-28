@@ -114,6 +114,10 @@ urlpatterns = [
          name="fleet_close_downtime"),
     path("fleet/downtime/<int:pk>/delete/", fleet_views.fleet_delete_downtime,
          name="fleet_delete_downtime"),
+    # Bookings: a few hours of one car's day, claimed by fleet from The day.
+    path("fleet/booking/save/", fleet_views.fleet_save_booking, name="fleet_save_booking"),
+    path("fleet/booking/<int:pk>/cancel/", fleet_views.fleet_cancel_booking,
+         name="fleet_cancel_booking"),
     # Reported issues: the dispatch-to-fleet handoff.
     path("fleet/<int:pk>/issue/", fleet_views.fleet_report_issue, name="fleet_report_issue"),
     path("fleet/issue/<int:pk>/resolve/", fleet_views.fleet_resolve_issue,

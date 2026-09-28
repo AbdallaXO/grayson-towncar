@@ -46,6 +46,12 @@
   .fd-day.active .cov { color: rgba(255,255,255,0.68); }
   .fd-day.unbuilt .cov { color: var(--fl-caution); }
   .fd-day.active.unbuilt .cov { color: var(--fl-gold-light); }
+  /* A day with a booking a trip has landed on says so on its chip, so a clash
+     on Thursday is in view from Tuesday without opening every day to look. */
+  .fd-day .clash { display: block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.02em;
+                   color: var(--fl-critical); margin-top: 2px; }
+  .fd-day .clash .bi { margin-right: 3px; font-size: 0.56rem; }
+  .fd-day.active .clash { color: #F2A99E; }
 
   /* ── A day with no chauffeurs on it: demand, and nothing about any car ── */
   .fd-demand { margin-top: 18px; max-width: 680px; border: 1px solid var(--fl-hair);
@@ -115,6 +121,9 @@
   .fd-row.is-open::before    { background: var(--fl-gold); }
   .fd-row.is-down::before    { background: var(--fl-critical); }
   .fd-row.is-unknown::before { background: var(--fl-hair); }
+  /* No trips, but fleet has claimed part of its day: neither working nor
+     sitting still, and the rule says whose the car is — fleet's brown. */
+  .fd-row.is-booked::before  { background: var(--fl-restricted); }
 
   .fd-label { flex: 0 0 var(--fd-label); padding: 10px 14px 10px 17px;
               border-right: 1px solid var(--fl-hair-soft); min-width: 0; }
@@ -180,6 +189,124 @@
 
   .fd-empty { position: absolute; top: 5px; left: 0; font-size: 0.74rem; color: var(--fl-muted); font-style: italic; }
 
+  /* ── Bookings ───────────────────────────────────────────────────────────
+     Fleet's claim on part of a car's day. A FRAME, taller than the trip lane
+     by 5px each side and drawn under the trips (z 1 against their 2): a trip
+     that has landed inside a booking sits visibly inside it, and the booking
+     still shows — and can still be clicked — above and below the trip. Drawn
+     the same height as a trip, a clashing booking disappeared under it
+     entirely. Brown for soft: neither trip green nor the gold that means
+     "free", and a booking is exactly the thing that stops a hole being free.
+     Ink for hard, the one mark on this strip that says "no". */
+  .fd-track.bookable { cursor: pointer; }
+  /* A <button>, so a booking can be reached and opened from the keyboard: the
+     font, margin and alignment a button brings with it are put back here. */
+  .fd-book { position: absolute; top: -5px; height: calc(var(--fd-bar) + 10px); z-index: 1; border-radius: 5px;
+             background: #F3E9DD; border: 1px solid #DCC5A8; border-left: 3px solid var(--fl-restricted);
+             color: #5E3B18; font-family: inherit; font-size: 0.64rem; font-weight: 700;
+             line-height: calc(var(--fd-bar) + 8px); padding: 0 6px; margin: 0; text-align: left;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+             transition: box-shadow 0.12s ease, transform 0.12s ease; }
+  /* Hover lifts the frame's shadow only. Raising it above the trips would hide
+     the very trips a clash is about for as long as the mouse is on it. */
+  .fd-book:hover { box-shadow: 0 2px 10px rgba(138,90,43,0.28); transform: translateY(-1px); }
+  .fd-book:focus-visible { outline: 2px solid var(--fl-gold); outline-offset: 2px; }
+  .fd-book.hard { background: repeating-linear-gradient(135deg, #262B33 0 6px, #1A1E25 6px 12px);
+                  border-color: #0d1117; border-left-color: var(--fl-gold); color: #F4EEE2; }
+  .fd-book.conflict { border: 2px solid var(--fl-critical); border-left-width: 3px;
+                      box-shadow: 0 0 0 3px rgba(163,42,31,0.12); }
+  .fd-book .bi { margin-right: 3px; font-size: 0.62rem; }
+  .fd-book.conflict .bi { color: var(--fl-critical); }
+  .fd-book.hard.conflict .bi { color: #F2A99E; }
+  .fd-book.tiny { font-size: 0; padding: 0; }
+  /* The clash itself, on the booking. The frame's own icon and title sit in the
+     trip lane, under the very trip that causes the clash, so the flag rides
+     the frame's top edge ABOVE the trips (z 3 against their 2) — and, being a
+     sibling rather than a child, it survives a booking too narrow for text. */
+  .fd-book-flag { position: absolute; top: -10px; z-index: 3; height: 14px; line-height: 14px;
+                  padding: 0 5px; border-radius: 3px; background: var(--fl-critical); color: #fff;
+                  font-size: 0.56rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+                  white-space: nowrap; cursor: pointer; box-shadow: 0 1px 4px rgba(163,42,31,0.3); }
+  .fd-book-flag .bi { font-size: 0.54rem; }
+  .fd-book-flag .bi + span { margin-left: 3px; }
+  /* Past midnight, for a late drop: drawn, but a booking is same-day, so the
+     stretch is shaded and a click on it books nothing. */
+  .fd-nextday { position: absolute; top: -10px; bottom: -10px; right: 0; pointer-events: none;
+                border-left: 1px dashed var(--fl-hair);
+                background: repeating-linear-gradient(135deg, rgba(13,17,23,0.035) 0 4px, transparent 4px 9px); }
+
+  .fd-clash { font-size: 0.66rem; font-weight: 700; color: var(--fl-critical); margin-top: 3px;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fd-clash .bi { margin-right: 3px; }
+  /* Quiet at rest rather than invisible: a control you have to hover to find
+     is one most people never find. */
+  .fd-bookbtn { border: 0; background: transparent; padding: 0; margin-left: auto; font-size: 0.64rem;
+                font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fl-muted-light);
+                opacity: 0.55; transition: var(--fl-t); }
+  .fd-row:hover .fd-bookbtn, .fd-bookbtn:focus { opacity: 1; }
+  .fd-bookbtn:hover { color: var(--fl-gold); }
+  .fd-tally .booked .dot { background: var(--fl-restricted); border-radius: 2px; }
+  .fd-tally .clash .n, .fd-tally .clash .lab { color: var(--fl-critical); }
+  .fd-tally .clash .dot { background: var(--fl-critical); }
+  .fd-trip.booking .t { color: var(--fl-restricted); }
+  /* A <button> on the phone list too, reset to read as the row it sits in. */
+  .fd-trip.booking { cursor: pointer; width: 100%; text-align: left; background: transparent;
+                     border-width: 1px 0 0; font: inherit; font-size: 0.78rem; color: inherit; margin: 0; }
+  .fd-trip.booking:focus-visible { outline: 2px solid var(--fl-gold); outline-offset: 1px; }
+  .fd-trip.booking.conflict .w { color: var(--fl-critical); font-weight: 600; }
+
+  /* Bookings on a day dispatch has not built — listed, since there is no strip. */
+  .fd-blist { margin-top: 18px; max-width: 680px; }
+  .fd-blist h3 { font-family: var(--fl-serif); font-size: 1.1rem; font-weight: 600; margin: 0 0 8px; }
+  .fd-bitem { display: flex; gap: 14px; align-items: baseline; width: 100%; text-align: left;
+              padding: 11px 2px; border: 0; border-top: 1px solid var(--fl-hair-soft); background: transparent;
+              font-size: 0.84rem; color: var(--fl-ink); transition: var(--fl-t); }
+  .fd-bitem:hover { background: var(--fl-cream); }
+  .fd-bitem .u { font-weight: 700; flex: 0 0 52px; font-variant-numeric: tabular-nums; }
+  .fd-bitem .t { flex: 0 0 auto; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fd-bitem .w { flex: 1 1 auto; color: var(--fl-muted); min-width: 0; }
+  .fd-bitem .hard { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+                    color: #fff; background: var(--fl-ink); padding: 2px 6px; border-radius: 3px; }
+
+  /* ── The booking sheet ─────────────────────────────────────────────────── */
+  .fb-modal .modal-content { border: 0; border-radius: 1rem; overflow: hidden; font-family: var(--fl-sans);
+                             box-shadow: 0 24px 60px rgba(13,17,23,0.28); }
+  .fb-modal .modal-header { border: 0; padding: 22px 26px 6px; display: block; position: relative; }
+  .fb-modal .modal-header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(135deg, var(--fl-gold) 0%, var(--fl-champagne) 50%, var(--fl-gold) 100%); }
+  .fb-modal .btn-close { position: absolute; top: 20px; right: 20px; }
+  .fb-eyebrow { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fl-gold); }
+  .fb-title { font-family: var(--fl-serif); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; margin: 4px 0 0; color: var(--fl-ink); }
+  .fb-open { font-size: 0.8rem; color: var(--fl-muted); margin-top: 4px; min-height: 1.2em; }
+  .fb-modal .modal-body { padding: 14px 26px 6px; }
+  .fb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .fb-grid .full { grid-column: 1 / -1; }
+  .fb-field label { display: block; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em;
+                    text-transform: uppercase; color: var(--fl-muted); margin-bottom: 5px; }
+  .fb-field input, .fb-field select, .fb-field textarea {
+    width: 100%; border: 1px solid var(--fl-hair); border-radius: 0.6rem; padding: 9px 12px;
+    font-size: 0.88rem; font-family: var(--fl-sans); color: var(--fl-ink); background: #fff; transition: var(--fl-t); }
+  .fb-field input:focus, .fb-field select:focus, .fb-field textarea:focus {
+    outline: none; border-color: var(--fl-gold); box-shadow: 0 0 0 3px rgba(201,162,39,0.14); }
+  .fb-field textarea { min-height: 64px; resize: vertical; }
+  .fb-field :disabled { background: var(--fl-cream); color: var(--fl-muted); }
+  .fb-strength { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fb-opt { border: 1px solid var(--fl-hair); border-radius: 0.7rem; padding: 10px 12px; background: #fff;
+            text-align: left; transition: var(--fl-t); }
+  .fb-opt b { display: block; font-size: 0.8rem; color: var(--fl-ink); }
+  .fb-opt span { display: block; font-size: 0.7rem; color: var(--fl-muted); line-height: 1.4; margin-top: 2px; }
+  .fb-opt:hover:not(:disabled) { border-color: var(--fl-gold); }
+  .fb-opt.on { border-color: var(--fl-ink); box-shadow: inset 0 0 0 1px var(--fl-ink); background: var(--fl-cream); }
+  .fb-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+  .fb-msg { display: none; margin-top: 14px; padding: 11px 14px; border-radius: 0.7rem; font-size: 0.8rem; line-height: 1.5; }
+  .fb-msg.show { display: block; }
+  .fb-msg.err { background: var(--fl-critical-tint); color: var(--fl-critical); }
+  .fb-msg.ack { background: var(--fl-caution-tint); color: var(--fl-caution); }
+  .fb-msg.lock { background: var(--fl-cream); color: var(--fl-muted); }
+  .fb-modal .modal-footer { border: 0; padding: 14px 26px 22px; display: flex; gap: 8px; }
+  .fb-modal .modal-footer .spacer { flex: 1 1 auto; }
+  @media (max-width: 520px) { .fb-grid, .fb-strength { grid-template-columns: 1fr; } }
+
   /* ── Now ────────────────────────────────────────────────────────────────
      Only ever drawn on today. Sits above the blocks so it is never buried, and
      ignores the mouse so it can't steal a hover from the trip underneath it. */
@@ -224,6 +351,26 @@
   .fd-pop-head.arrival { background: var(--fl-settled); }
   .fd-pop-head.sanford { background: #1F5A63; }
   .fd-pop-head.window  { background: var(--fl-gold); color: #1a1d21; }
+  /* The plan for one marked hole: a short vertical timeline, a clock time on
+     the left, what happens on the right. Base is the gold step. */
+  .fd-pop:has(.fd-steps) { max-width: 390px; min-width: 330px; }
+  .fd-steps { padding: 8px 11px 6px; }
+  .fd-step { display: flex; gap: 10px; padding: 4px 0 4px 14px; position: relative; }
+  .fd-step::before { content: ''; position: absolute; left: 0; top: 9px; width: 7px; height: 7px;
+                     border-radius: 50%; background: var(--fl-hair); }
+  .fd-step:not(:last-child)::after { content: ''; position: absolute; left: 3px; top: 17px; bottom: -5px;
+                                     width: 1px; background: var(--fl-hair); }
+  .fd-step.job::before { background: var(--fl-good); }
+  .fd-step.base::before { background: var(--fl-gold); }
+  .fd-step .st { flex: 0 0 108px; font-size: 0.7rem; font-weight: 700; color: var(--fl-ink);
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fd-step .sb { flex: 1 1 auto; min-width: 0; font-size: 0.7rem; color: var(--fl-ink); line-height: 1.35; }
+  .fd-step .sb b { font-weight: 600; display: block; }
+  .fd-step .sd { display: block; color: var(--fl-muted); font-size: 0.66rem; word-break: break-word; }
+  .fd-step.base .sb b { color: var(--fl-caution); }
+  .fd-pop-head.booking { background: var(--fl-restricted); }
+  .fd-pop-head.booking.hard { background: var(--fl-ink); }
+  .fd-pop-foot.clash { background: var(--fl-critical-tint); color: var(--fl-critical); font-weight: 600; }
   .fd-pop-when { padding: 9px 11px 7px; font-size: 0.86rem; font-weight: 700;
                  font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--fl-hair-softest); }
   .fd-pop-when .dur { font-weight: 500; color: var(--fl-muted); font-size: 0.72rem; margin-left: 5px; }
@@ -244,8 +391,9 @@
     .fd-axis, .fd-track, .fd-legend { display: none; }
     .fd-row { display: block; }
     .fd-label { flex: 1 1 auto; border-right: 0; padding-bottom: 4px; }
+    .fd-bookbtn { opacity: 1; }
     .fd-who { white-space: normal; }
-    .fd-list { display: block; }
+    .fd-list { display: flex; flex-direction: column; }
   }
 </style>
 {% endblock %}
@@ -265,6 +413,7 @@
       <div class="fl-date">{{ day|date:"l, F j" }}</div>
     </div>
     <div class="fl-head-right">
+      {% if can_book %}<button type="button" class="fl-btn-primary" id="fbNew"><i class="bi bi-calendar-plus me-1"></i>Book a car</button>{% endif %}
       {% include "dispatching/includes/_fleet_pills.html" %}
     </div>
   </div>
@@ -282,10 +431,11 @@
            href="?date={{ option.value }}">
           {{ option.label }}
           <span class="cov">
-            {% if not option.trips %}nothing booked
+            {% if not option.trips %}no trips yet
             {% elif option.built %}{{ option.coverage_pct }}% assigned
             {% else %}{{ option.trips }} trips · not built{% endif %}
           </span>
+          {% if option.conflicts %}<span class="clash"><i class="bi bi-exclamation-triangle-fill"></i>{{ option.conflicts }} booking conflict{{ option.conflicts|pluralize }}</span>{% endif %}
         </a>
       {% endfor %}
     </div>
@@ -294,12 +444,17 @@
       <span class="t working"><span class="dot"></span><span class="n">{{ payload.working }}</span><span class="lab">working</span></span>
       <span class="t still"><span class="dot"></span><span class="n">{{ payload.open_units }}</span><span class="lab">sitting still</span></span>
       <span class="t shop"><span class="dot"></span><span class="n">{{ payload.down }}</span><span class="lab">in the shop</span></span>
+      {% if payload.booked %}<span class="t booked"><span class="dot"></span><span class="n">{{ payload.booked }}</span><span class="lab">booked by fleet</span></span>{% endif %}
+      {% if payload.booking_conflicts %}<span class="t clash"><span class="dot"></span><span class="n">{{ payload.booking_conflicts }}</span><span class="lab">booking{{ payload.booking_conflicts|pluralize }} with a trip on {{ payload.booking_conflicts|pluralize:"it,them" }}</span></span>{% endif %}
       {% if payload.now_label %}<span class="fd-nownote">now {{ payload.now_label }}</span>{% endif %}
     </div>
     <div class="fd-legend">
       <span><span class="sw" style="background:#DCEAE2;border:1px solid #CFE2D8;"></span>On a trip</span>
       <span><span class="sw" style="background:#DCE7F4;border:1px solid #BACDE3;"></span>Airport arrival</span>
-      <span><span class="sw" style="background:rgba(201,162,39,0.16);border:1px solid #C9A227;"></span>Standing still, in your hours</span>
+      <span><span class="sw" style="background:rgba(201,162,39,0.16);border:1px solid #C9A227;"></span>Time at base, in your hours</span>
+      <span><span class="sw" style="background:#F3E9DD;border:1px solid #DCC5A8;border-left:3px solid #8A5A2B;"></span>Booked by fleet</span>
+      <span><span class="sw" style="background:#1A1E25;border:1px solid #0d1117;border-left:3px solid #C9A227;"></span>Hard booking</span>
+      <span><span class="sw" style="background:#F3E9DD;border:2px solid #A32A1F;"></span>Booking with a trip on it</span>
     </div>
     {% endif %}
   </div>
@@ -321,6 +476,22 @@
       without claiming to know which unit runs them.
     </div>
   </div>
+  {% if demand_bookings %}
+  <div class="fd-blist">
+    <h3>Booked by fleet on this day</h3>
+    {% for b in demand_bookings %}
+      <button type="button" class="fd-bitem" data-booking="{{ b.id }}">
+        <span class="u">#{{ b.number }}</span>
+        <span class="t">{{ b.window }}</span>
+        <span class="w">{{ b.title }}{% if b.location %} · {{ b.location }}{% endif %}</span>
+        {% if b.is_hard %}<span class="hard">Hard</span>{% endif %}
+      </button>
+    {% endfor %}
+    <div class="rule" style="margin-top:10px;font-size:0.76rem;color:var(--fl-muted);">
+      Clashes with trips show here once dispatch assigns cars for this day.
+    </div>
+  </div>
+  {% endif %}
   {% else %}
 
   {# ── The board ─────────────────────────────────────────────────────── #}
@@ -350,6 +521,7 @@
         <div class="fd-unit">
           <a href="{{ row.href }}">#{{ row.number }}</a>
           <span class="vt">{{ row.vehicle_type }}</span>
+          {% if can_book and row.state != 'down' %}<button type="button" class="fd-bookbtn" data-book-unit="{{ row.unit.id }}" title="Book #{{ row.number }} for part of the day">+ Book</button>{% endif %}
         </div>
         <div class="fd-who" title="{{ row.drivers|join:', ' }}">
           {% if row.drivers %}
@@ -361,13 +533,47 @@
         {% if row.state == 'working' %}
           <div class="fd-fact">{{ row.trips }} trip{{ row.trips|pluralize }} &middot; {{ row.first_label }} – {{ row.last_label }}</div>
         {% endif %}
+        {% if row.booking_conflicts %}
+          <div class="fd-clash" title="{% for b in row.bookings %}{% if b.conflict %}{{ b.title }}: {{ b.conflict_line }} {% endif %}{% endfor %}"><i class="bi bi-exclamation-triangle-fill"></i>Booking conflict</div>
+        {% endif %}
       </div>
 
-      <div class="fd-track" style="--fd-hour:{{ payload.hour_pct }}%;">
+      {% comment %}
+        The whole strip is the booking target: a click on open space becomes a
+        booking sheet for the hole it landed in. ``data-busy`` is what is
+        already on the line, in minutes after midnight, so the script can find
+        that hole without re-deriving a single trip time.
+      {% endcomment %}
+      <div class="fd-track{% if can_book and row.state != 'down' %} bookable{% endif %}" style="--fd-hour:{{ payload.hour_pct }}%;"
+           data-unit="{{ row.unit.id }}" data-number="{{ row.number }}" data-busy="{{ row.busy }}" data-holes="{{ row.holes }}">
+        {% if payload.midnight_pct is not None %}<div class="fd-nextday" style="left:{{ payload.midnight_pct }}%;" aria-hidden="true"></div>{% endif %}
+        {% for b in row.bookings %}
+          <button type="button" class="fd-book{% if b.is_hard %} hard{% endif %}{% if b.conflict %} conflict{% endif %}{% if b.width < 3.5 %} tiny{% endif %}"
+               style="left:{{ b.left }}%;width:{{ b.width }}%;"
+               aria-label="#{{ row.number }} {% if b.is_hard %}hard-booked{% else %}booked{% endif %} {{ b.window }} for {{ b.title }}{% if b.conflict %}. {{ b.conflict_line }}{% endif %}"
+               data-pop="booking" data-booking="{{ b.id }}"
+               data-kind="{% if b.is_hard %}hard{% endif %}"
+               data-label="{% if b.is_hard %}Hard booking{% else %}Booked{% endif %} · {{ b.type_label }}"
+               data-when="{{ b.window }}"
+               data-title="{{ b.title }}"
+               data-where="{{ b.location }}"
+               data-notes="{{ b.notes|truncatechars:140 }}"
+               data-clash="{{ b.conflict_line }}"
+               data-unit="#{{ row.number }}">{% if b.conflict %}<i class="bi bi-exclamation-triangle-fill"></i>{% elif b.is_hard %}<i class="bi bi-lock-fill"></i>{% endif %}{{ b.title }}</button>
+          {% if b.conflict %}
+            {% comment %}
+              The clash, said ON the booking and above the trips — the frame's
+              own icon and title are under the trip that caused it. A sibling,
+              not a child: the frame clips its contents. Hidden from a screen
+              reader because the button above already says it.
+            {% endcomment %}
+            <span class="fd-book-flag" style="left:{{ b.left }}%;" data-pop="flag" data-booking="{{ b.id }}" aria-hidden="true"><i class="bi bi-exclamation-triangle-fill"></i>{% if b.width >= 5 %}<span>Conflict</span>{% endif %}</span>
+          {% endif %}
+        {% endfor %}
         {% if row.state == 'down' %}
           <div class="fd-empty">{{ row.note }}</div>
         {% elif not row.jobs %}
-          <div class="fd-empty">{{ row.note }}</div>
+          {% if not row.bookings %}<div class="fd-empty">{{ row.note }}</div>{% endif %}
         {% else %}
           {% for gap in row.gaps %}
             {% comment %}
@@ -388,8 +594,11 @@
                  data-span="{{ gap.reachable.span }}"
                  data-shop="{% if gap.usable %}1{% endif %}"
                  data-flight="{% if gap.flight_dependent %}1{% endif %}"
-                 data-unit="#{{ row.number }}"{% endif %}>{% if gap.reachable %}{{ gap.reachable.span }} free{% endif %}</div>
-            {% if gap.reachable %}<span class="fd-gap-label" style="left:{{ gap.left }}%;">{{ gap.reachable.span }} free</span>{% endif %}
+                 {% if gap.reachable.to_base is not None %}data-in="{{ gap.reachable.to_base }} min in{% if gap.reachable.from_place %} from {{ gap.reachable.from_place }}{% endif %}"
+                 data-out="{{ gap.reachable.from_base }} min out{% if gap.reachable.to_place %} to {{ gap.reachable.to_place }}{% endif %}"{% endif %}
+                 {% if gap.plan %}data-plan="{{ gap.plan }}"{% endif %}
+                 data-unit="#{{ row.number }}"{% endif %}>{% if gap.reachable %}{{ gap.reachable.span }} at base{% endif %}</div>
+            {% if gap.reachable %}<span class="fd-gap-label" style="left:{{ gap.left }}%;">{{ gap.reachable.span }} at base</span>{% endif %}
           {% endfor %}
           {% for job in row.jobs %}
             <div class="fd-job {% if job.trip_type == 'arrival' %}arrival{% endif %} {% if job.is_sanford %}sanford{% endif %}"
@@ -418,17 +627,23 @@
         stylesheet: a twenty-hour axis in 450px is unreadable, not responsive.
       {% endcomment %}
       <div class="fd-list">
+        {% for b in row.bookings %}
+          <button type="button" class="fd-trip booking{% if b.conflict %} conflict{% endif %}" data-booking="{{ b.id }}" style="order:{{ b.order }};">
+            <span class="t">{{ b.start_label }}</span>
+            <span class="w">{% if b.is_hard %}Hard booking{% else %}Booked{% endif %} to {{ b.end_label }} — {{ b.title }}{% if b.conflict %} · ⚠ {{ b.conflict_line }}{% endif %}</span>
+          </button>
+        {% endfor %}
         {% if row.state == 'down' or not row.jobs %}
-          <div class="fd-trip"><span class="w"><em>{{ row.note }}</em></span></div>
+          <div class="fd-trip"><span class="w"><em>{{ row.list_note }}</em></span></div>
         {% else %}
           {% for job in row.jobs %}
-            <div class="fd-trip {% if job.trip_type == 'arrival' %}arrival{% endif %}">
+            <div class="fd-trip {% if job.trip_type == 'arrival' %}arrival{% endif %}" style="order:{{ job.order }};">
               <span class="t">{{ job.start_label }}</span>
               <span class="w" title="{{ job.pickup }} → {{ job.dropoff }}">{{ job.pickup_short }} → {{ job.dropoff_short }}</span>
             </div>
           {% endfor %}
           {% for gap in row.gaps %}{% if gap.usable %}
-            <div class="fd-trip free">
+            <div class="fd-trip free" style="order:{{ gap.order }};">
               <span class="t">{{ gap.from_label }}</span>
               <span class="w">{{ gap.span }} free — room for shop work</span>
             </div>
@@ -446,16 +661,102 @@
       {{ payload.unplaced }} trip{{ payload.unplaced|pluralize }} on this date sit on no in-house car —
       farmed out, or not assigned yet.<br>
     {% endif %}
-    Gold marks a hole big enough to bring the car into HQ and walk it — the inspection
-    is twenty minutes, the rest is getting it there and back out — and only between
+    Gold marks a hole big enough to bring the car into base and walk it: the drive in
+    from where it drops, twenty minutes for the inspection, and the drive out to its next
+    pickup — the label is the time it can actually sit at base — and only between
     {{ payload.shift_start|time:"g:i A" }} and {{ payload.shift_end|time:"g:i A" }}, your
     hours. Which car is next due is on Inspections. Booking a car in for actual shop work
     is a different question, a longer window and an outside garage; the Outlook answers
     that one.
     Trip end times are planning estimates, the same ones the shop-window finder uses.
     An airport arrival's pickup time moves with the flight.
+    {% if can_book %}<br>Click any open stretch of a car's line to book that car for part of the day;
+    click a booking to change or cancel it. A soft booking leaves the car usable: anyone
+    putting a trip on it in that window is shown the booking and asked first. A hard
+    booking means no trip can go on the car in that window at all.{% endif %}
   </div>
   {% endif %}
+
+  {% comment %}
+    Bookings keyed by id, for the sheet to open in edit mode. json_script
+    escapes it; the notes are free text and must never be spliced into JS.
+  {% endcomment %}
+  {{ booking_index|json_script:"fbIndex" }}
+
+  {# ── The booking sheet ──────────────────────────────────────────────── #}
+  <div class="modal fade fb-modal" id="fbModal" tabindex="-1" aria-labelledby="fbTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="fb-eyebrow" id="fbEyebrow">Book vehicle</div>
+          <h2 class="fb-title" id="fbTitle">Book a car</h2>
+          <div class="fb-open" id="fbOpen"></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="fb-grid">
+            <div class="fb-field">
+              <label for="fbUnit">Car</label>
+              <select id="fbUnit" required>
+                <option value="" disabled>Choose a car</option>
+                {% for u in booking_units %}<option value="{{ u.id }}">#{{ u.number }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="fb-field">
+              <label for="fbDate">Date</label>
+              <input type="date" id="fbDate" min="{{ today|date:'Y-m-d' }}">
+            </div>
+            <div class="fb-field">
+              <label for="fbStart">Start</label>
+              <input type="time" id="fbStart" step="60">
+            </div>
+            <div class="fb-field">
+              <label for="fbEnd">End</label>
+              <input type="time" id="fbEnd" step="60">
+            </div>
+            <div class="fb-field full">
+              <label for="fbType">What it's for</label>
+              <select id="fbType">
+                {% for key, label in booking_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="fb-field full">
+              <label for="fbReason">Reason</label>
+              <input type="text" id="fbReason" maxlength="200" placeholder="Rear tyres · New-hire drive with Ana · Permit renewal">
+            </div>
+            <div class="fb-field full">
+              <label for="fbWhere">Location or vendor</label>
+              <input type="text" id="fbWhere" maxlength="160" placeholder="Optional">
+            </div>
+            <div class="fb-field full">
+              <label for="fbNotes">Notes</label>
+              <textarea id="fbNotes" placeholder="Optional"></textarea>
+            </div>
+            <div class="fb-field full">
+              <label>How firm</label>
+              <div class="fb-strength">
+                <button type="button" class="fb-opt on" data-hard="0">
+                  <b>Soft booking</b>
+                  <span>The car can still be used. Anyone putting a trip on it in this window is shown the booking and asked first.</span>
+                </button>
+                <button type="button" class="fb-opt" data-hard="1" {% if not can_hard %}disabled title="Only the fleet manager can make a hard booking."{% endif %}>
+                  <b>Hard booking</b>
+                  <span>No trip can go on this car in this window, and dispatch can't override it. {% if can_hard %}Only fleet can move or lift it.{% else %}Fleet manager only.{% endif %}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="fb-msg" id="fbMsg" role="status" aria-live="polite"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="fl-btn-danger-ghost" id="fbCancelBooking" style="display:none;">Cancel booking</button>
+          <span class="spacer"></span>
+          <button type="button" class="fl-btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="fl-btn-primary" id="fbSave">Save booking</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </div>
 </div>
@@ -487,17 +788,77 @@
            '<span class="v">' + esc(value) + '</span></div>';
   }
 
+  // One marked hole, as the plan it is: the job before, the drive in, the
+  // stay, the drive out, the job after, each with its clock time.
+  function step(time, title, detail, cls) {
+    return '<div class="fd-step ' + (cls || '') + '"><span class="st">' + esc(time) + '</span>' +
+           '<span class="sb"><b>' + esc(title) + '</b>' +
+           (detail ? '<span class="sd">' + esc(detail) + '</span>' : '') + '</span></div>';
+  }
+  function jobLines(j) {
+    var bits = [];
+    if (j.guest) bits.push(j.guest);
+    if (j.route) bits.push(j.route);
+    if (j.driver) bits.push(j.driver);
+    if (j.flight) bits.push(j.flight);
+    return bits.join(' · ');
+  }
+  function planCard(p, d, el) {
+    var html = '<div class="fd-pop-head window">At base · ' + esc(d.unit) + '</div>' +
+               '<div class="fd-pop-when">' + esc(p.stay_from) + ' – ' + esc(p.stay_to) +
+               '<span class="dur">' + esc(p.span) + ' at base</span></div><div class="fd-steps">';
+    if (p.last) html += step(p.last.when, 'Last job · ' + p.last.kind, jobLines(p.last), 'job');
+    html += step(p.clears, 'Clears ' + p.clears_at,
+                 p.flight_pad ? 'Plus ' + p.flight_pad + ' min in case the flight is late. This one moves with it.' : '',
+                 'move');
+    html += step(p.arrive, 'In at base', p.to_base + ' min drive in', 'move');
+    html += step(p.stay_from + '–' + p.stay_to, 'Walk-around',
+                 p.inspection + ' min needed · ' + p.spare + ' min to spare' +
+                 (p.clipped ? ' · cut to your hours' : ''), 'base');
+    html += step(p.leave, 'Leaves base', p.from_base + ' min drive to ' + p.next_at, 'move');
+    if (p.next) html += step(p.pickup, 'Next job · ' + p.next.kind, jobLines(p.next), 'job');
+    else html += step(p.pickup, 'Due at ' + p.next_at, '', 'job');
+    html += '</div>';
+    var notes = [];
+    if (p.shop) notes.push('Long enough for outside shop work too.');
+    if (el.closest('.fd-track.bookable')) notes.push('Click to book ' + p.stay_from + ' – ' + p.stay_to + '.');
+    if (notes.length) html += '<div class="fd-pop-foot">' + esc(notes.join(' ')) + '</div>';
+    return html;
+  }
+
   function build(el) {
     var d = el.dataset;
+    if (d.pop === 'booking') {
+      var foot = d.clash
+        ? '<div class="fd-pop-foot clash">' + esc(d.clash) + '</div>'
+        : '<div class="fd-pop-foot">' + esc(d.kind === 'hard'
+            ? 'Hard booking: dispatch cannot put a trip on this car in the window.'
+            : 'Soft booking: dispatch can still use the car, and is warned first.') +
+          ' Click to open it.</div>';
+      return '<div class="fd-pop-head booking ' + (d.kind === 'hard' ? 'hard' : '') + '">' + esc(d.label) + '</div>' +
+             '<div class="fd-pop-when">' + esc(d.when) + '</div>' +
+             '<div class="fd-pop-body">' +
+               row('For', d.title) + row('Where', d.where) + row('Notes', d.notes) + row('Car', d.unit) +
+             '</div>' + foot;
+    }
+    if (d.pop === 'window' && d.plan) {
+      var plan = null;
+      try { plan = JSON.parse(d.plan); } catch (err) { plan = null; }
+      if (plan) return planCard(plan, d, el);
+    }
     if (d.pop === 'window') {
       var notes = [];
-      notes.push('Enough to bring it into HQ and walk it.');
+      notes.push(d.in
+        ? 'Time at base once it has driven in, before it has to leave for its next pickup.'
+        : 'Enough to bring it into base and walk it.');
       if (d.shop) notes.push('Long enough to book outside shop work into, as well.');
       if (d.flight) notes.push('Opens after an airport arrival, so it moves with the flight.');
-      return '<div class="fd-pop-head window">Standing still</div>' +
+      if (el.closest('.fd-track.bookable')) notes.push('Click to book it.');
+      return '<div class="fd-pop-head window">At base</div>' +
              '<div class="fd-pop-when">' + esc(d.when) +
              '<span class="dur">' + esc(d.span) + '</span></div>' +
-             '<div class="fd-pop-body">' + row('Car', d.unit) + '</div>' +
+             '<div class="fd-pop-body">' + row('Drive in', d.in) + row('Drive out', d.out) +
+             row('Car', d.unit) + '</div>' +
              (notes.length ? '<div class="fd-pop-foot">' + esc(notes.join(' ')) + '</div>' : '');
     }
     var head = d.kind === 'arrival' ? 'arrival' : (d.kind === 'sanford' ? 'sanford' : '');
@@ -550,6 +911,10 @@
 
   board.addEventListener('mouseover', function (e) {
     var el = e.target.closest('[data-pop]');
+    // A conflict flag reads as the booking it sits on.
+    if (el && el.dataset.pop === 'flag') {
+      el = board.querySelector('.fd-book[data-booking="' + el.dataset.booking + '"]');
+    }
     if (!el || el === current) return;
     current = el;
     pop.innerHTML = build(el);
@@ -577,6 +942,366 @@
     pop.classList.remove('on');
   }, { passive: true });
 })();
+</script>
+
+{% comment %}
+  The booking sheet. Three ways in, one sheet: a click on open space on a car's
+  line (prefilled with the hole it landed in), "+ Book" beside a car, and
+  "Book a car" in the header. A click on an existing booking opens the same
+  sheet in edit mode. Everything is saved server-side and the page reloads —
+  the strip is drawn by the same builder that judges clashes, so redrawing it
+  in the browser would be a second opinion about the same facts.
+{% endcomment %}
+<script>
+// Bootstrap's bundle is loaded by main.html AFTER the content block, so the
+// sheet is wired up once the document has finished parsing, not inline.
+document.addEventListener('DOMContentLoaded', function () {
+  var modalEl = document.getElementById('fbModal');
+  if (!modalEl || !window.bootstrap) return;
+
+  var index = {};
+  try { index = JSON.parse(document.getElementById('fbIndex').textContent || '{}') || {}; } catch (e) { index = {}; }
+  var DAY = '{{ day|date:"Y-m-d" }}';
+  var TODAY = '{{ today|date:"Y-m-d" }}';
+  var CAN_BOOK = {{ can_book|yesno:"true,false" }};
+  var CSRF = '{{ csrf_token }}';
+  var SAVE_URL = '{% url "fleet_save_booking" %}';
+  var CANCEL_URL = '{% url "fleet_cancel_booking" 0 %}';
+  {% comment %}
+    Explicit branches, never |default: an axis that starts at midnight is 0,
+    and |default reads 0 as missing — every click then landed hours off.
+    An unbuilt day has no payload at all and still needs valid numbers here.
+  {% endcomment %}
+  var AXIS = {
+    start: {% if payload %}{{ payload.axis_start_min }}{% else %}360{% endif %},
+    end: {% if payload %}{{ payload.axis_end_min }}{% else %}1200{% endif %}
+  };
+  // Where "+ Book" starts looking for a hole: the reader's own hours, and on
+  // today not before now.
+  var SHIFT_START = {% if payload %}{{ payload.shift_start_min }}{% else %}540{% endif %};
+  var NOW_MIN = {% if payload and payload.now_min is not None %}{{ payload.now_min }}{% else %}null{% endif %};
+  var LAST_MIN = 24 * 60 - 1;     // a booking is same-day
+
+  function $(id) { return document.getElementById(id); }
+  var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  var fields = ['fbUnit', 'fbDate', 'fbStart', 'fbEnd', 'fbType', 'fbReason', 'fbWhere', 'fbNotes'];
+  // ``auto``: the times are still the ones the page chose, so picking a
+  // different car may re-choose them. Typing a time hands them to the user.
+  var state = { id: null, hard: false, ack: false, auto: false };
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function hhmm(min) {
+    min = Math.max(0, Math.min(Math.round(min), 23 * 60 + 59));
+    return pad(Math.floor(min / 60)) + ':' + pad(min % 60);
+  }
+  function clock(min) {
+    var h = Math.floor(min / 60) % 24, m = Math.round(min % 60);
+    var ap = h < 12 ? 'AM' : 'PM', h12 = h % 12 || 12;
+    return h12 + ':' + pad(m) + ' ' + ap;
+  }
+  function unitNumber() {
+    var opt = $('fbUnit').selectedOptions[0];
+    return opt && opt.value ? opt.textContent : '';
+  }
+
+  // ── Holes, from what is already on a car's line ──
+  // ``data-busy`` is every trip and booking on the car, in minutes after this
+  // day's midnight: the builder's own spans, so nothing here re-derives a time.
+  function busyOf(track) {
+    try { return JSON.parse((track && track.dataset.busy) || '[]'); } catch (e) { return []; }
+  }
+  function insideBusy(busy, at) {
+    return busy.some(function (b) { return b[0] < at && at < b[1]; });
+  }
+  // The open stretch around minute ``at``: from whatever ends before it to
+  // whatever starts after it, cut to the strip and to this day.
+  function holeAround(busy, at) {
+    var lo = AXIS.start, hi = AXIS.end;
+    busy.forEach(function (b) {
+      if (b[1] <= at && b[1] > lo) lo = b[1];
+      if (b[0] >= at && b[0] < hi) hi = b[0];
+    });
+    return [lo, Math.min(hi, LAST_MIN)];
+  }
+  // The first hole of half an hour or more from ``from`` on, rounded INTO the
+  // hole (a booking that starts a minute before a trip clears is a clash the
+  // sheet itself made) and capped at two hours. [start, end, lo, hi] or null.
+  function firstHole(busy, from) {
+    var at = Math.max(from, AXIS.start);
+    for (var guard = 0; guard < 400 && at < LAST_MIN; guard++) {
+      var covering = busy.filter(function (b) { return b[0] <= at && at < b[1]; });
+      if (covering.length) {
+        at = Math.max.apply(null, covering.map(function (b) { return b[1]; }));
+        continue;
+      }
+      var hole = holeAround(busy, at);
+      var ws = Math.ceil(at / 15) * 15, we = Math.floor(hole[1] / 15) * 15;
+      if (we - ws >= 30) return [ws, Math.min(we, ws + 120), at, hole[1]];
+      if (hole[1] <= at) break;
+      at = hole[1];
+    }
+    return null;
+  }
+  // What "+ Book" and a freshly chosen car open on: the car's first real
+  // hole in the reader's hours (not before now, on today), else its first
+  // hole at all, else nine to eleven.
+  function suggestFor(unitId) {
+    var track = document.querySelector('.fd-track[data-unit="' + unitId + '"]');
+    if (!track) return null;
+    var busy = busyOf(track);
+    var from = SHIFT_START;
+    if (NOW_MIN !== null) from = Math.max(from, Math.ceil(NOW_MIN / 15) * 15);
+    return firstHole(busy, from) || firstHole(busy, AXIS.start);
+  }
+  // The hole between two trips that `at` falls in, as the builder measured
+  // it: [hole from, hole to, at base from, at base to, drive in, drive out].
+  // Only a hole the car can actually sit at base in (15+ minutes) counts;
+  // anything shorter falls back to the raw hole and lets fleet decide.
+  function stayAt(track, at) {
+    var holes = [];
+    try { holes = JSON.parse(track.dataset.holes || '[]'); } catch (err) { holes = []; }
+    for (var i = 0; i < holes.length; i++) {
+      var h = holes[i];
+      if (h[0] <= at && at <= h[1] && h[3] - h[2] >= 15 && h[3] <= 24 * 60 - 1) return h;
+    }
+    return null;
+  }
+  function stayText(h) {
+    return 'Free ' + clock(h[0]) + ' – ' + clock(h[1]) + '. After ' + h[4] +
+           ' min to drive in, and before the ' + h[5] + ' min drive to its next pickup, it can be at base ' +
+           clock(h[2]) + ' – ' + clock(h[3]) + '.';
+  }
+
+  function openText(lo, hi) {
+    return (lo > AXIS.start || hi < Math.min(AXIS.end, LAST_MIN))
+      ? 'Open ' + clock(lo) + ' – ' + clock(hi) + ' on this car.'
+      : 'Nothing else on this car in view.';
+  }
+
+  function msg(kind, text) {
+    var el = $('fbMsg');
+    el.className = 'fb-msg' + (kind ? ' show ' + kind : '');
+    el.textContent = text || '';
+  }
+  function setHard(hard) {
+    state.hard = !!hard;
+    modalEl.querySelectorAll('.fb-opt').forEach(function (b) {
+      b.classList.toggle('on', (b.dataset.hard === '1') === state.hard);
+    });
+  }
+  function resetAck() {
+    state.ack = false;
+    $('fbSave').textContent = state.id ? 'Save changes' : 'Save booking';
+    if ($('fbMsg').classList.contains('ack')) msg();
+  }
+  function lock(locked) {
+    fields.forEach(function (id) { $(id).disabled = locked; });
+    modalEl.querySelectorAll('.fb-opt').forEach(function (b) {
+      b.disabled = locked || (b.dataset.hard === '1' && {{ can_hard|yesno:"false,true" }});
+    });
+    $('fbSave').style.display = locked ? 'none' : '';
+  }
+
+  function openNew(unitId, startMin, endMin, text) {
+    if (!CAN_BOOK) return;
+    state = { id: null, hard: false, ack: false, auto: true };
+    lock(false);
+    // Always set, never left over: "Book a car" used to open on whichever car
+    // the last sheet showed, under a title that named none.
+    $('fbUnit').value = unitId ? String(unitId) : '';
+    $('fbDate').value = DAY < TODAY ? TODAY : DAY;
+    $('fbStart').value = hhmm(startMin);
+    $('fbEnd').value = hhmm(endMin);
+    $('fbType').value = 'service';
+    $('fbReason').value = ''; $('fbWhere').value = ''; $('fbNotes').value = '';
+    setHard(false); msg(); resetAck();
+    $('fbCancelBooking').style.display = 'none';
+    $('fbEyebrow').textContent = 'Book vehicle';
+    $('fbTitle').textContent = unitId ? 'Book ' + unitNumber() : 'Book a car';
+    $('fbOpen').textContent = text || '';
+    modal.show();
+  }
+
+  // "+ Book" and a car chosen in the header sheet: that car's first hole.
+  function openFor(unitId) {
+    var hole = suggestFor(unitId);
+    var track = document.querySelector('.fd-track[data-unit="' + unitId + '"]');
+    var stay = hole && track ? stayAt(track, (hole[0] + hole[1]) / 2) : null;
+    if (stay) { openNew(unitId, stay[2], stay[3], stayText(stay)); return; }
+    if (hole) openNew(unitId, hole[0], hole[1], openText(hole[2], hole[3]));
+    else openNew(unitId, 9 * 60, 11 * 60, '');
+  }
+
+  function openEdit(id) {
+    var b = index[id];
+    if (!b) return;
+    // A booking whose day has gone is the record of what the car was doing.
+    // The server refuses to change it; the sheet says so instead of offering.
+    var past = b.date < TODAY;
+    var editable = !!b.can_edit && !past;
+    state = { id: b.id, hard: !!b.is_hard, ack: false, auto: false };
+    lock(!editable);
+    $('fbUnit').value = String(b.vehicle_id);
+    $('fbUnit').disabled = true;      // a different car is a different booking
+    $('fbDate').value = b.date;
+    $('fbStart').value = b.start;
+    $('fbEnd').value = b.end;
+    $('fbType').value = b.type;
+    $('fbReason').value = b.reason || '';
+    $('fbWhere').value = b.location || '';
+    $('fbNotes').value = b.notes || '';
+    setHard(b.is_hard); msg(); resetAck();
+    $('fbEyebrow').textContent = b.is_hard ? 'Hard booking' : 'Booking';
+    $('fbTitle').textContent = '#' + b.number + ' · ' + b.title;
+    $('fbOpen').textContent = b.conflict_line ? '⚠ ' + b.conflict_line : b.window;
+    $('fbCancelBooking').style.display = editable ? '' : 'none';
+    if (past) msg('lock', 'This booking\'s day has gone. It is kept as the record of what the car was doing, so it can\'t be changed or cancelled.');
+    else if (!editable) msg('lock', 'This is a hard booking. Only the fleet manager can change or lift it.');
+    modal.show();
+  }
+
+  // ── A click on open space: book the hole it landed in ──
+  document.querySelectorAll('.fd-track.bookable').forEach(function (track) {
+    track.addEventListener('click', function (e) {
+      if (e.target.closest('.fd-book, .fd-book-flag, .fd-job')) return;
+      var rect = track.getBoundingClientRect();
+      if (!rect.width) return;
+      var frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      var at = AXIS.start + frac * (AXIS.end - AXIS.start);
+      // Past midnight is the next day, and a booking is same-day. The stretch
+      // is shaded; a click on it books nothing rather than an evening slot.
+      if (at >= 24 * 60) return;
+      var busy = busyOf(track);
+      if (insideBusy(busy, at)) return;
+
+      var stay = stayAt(track, at);
+      if (stay) { openNew(track.dataset.unit, stay[2], stay[3], stayText(stay)); return; }
+
+      var hole = holeAround(busy, at), lo = hole[0], hi = hole[1];
+      // Round INTO the hole, never out of it: a booking that starts a minute
+      // before a trip clears is a clash the sheet itself created.
+      var ws = Math.ceil(lo / 15) * 15, we = Math.floor(hi / 15) * 15;
+      var start, end;
+      if (we - ws >= 30 && we - ws <= 240) {
+        start = ws; end = we;                      // a hole this size is the booking
+      } else if (we - ws > 240) {
+        start = Math.max(ws, Math.floor(at / 15) * 15);
+        end = Math.min(we, start + 120);
+        if (end - start < 60) { start = Math.max(ws, end - 120); }
+      } else {
+        start = Math.floor(at / 15) * 15; end = start + 30;  // a sliver: let them decide
+      }
+      openNew(track.dataset.unit, start, end, openText(lo, hi));
+    });
+  });
+
+  // ── "+ Book" beside a car, and "Book a car" in the header ──
+  // "+ Book" is also the keyboard's way in to a car's open time, so it opens
+  // on the car's first real hole, never on a fixed nine-to-eleven that may sit
+  // across a trip. The header asks for a car first.
+  document.querySelectorAll('[data-book-unit]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openFor(btn.dataset.bookUnit);
+    });
+  });
+  if ($('fbNew')) $('fbNew').addEventListener('click', function () {
+    openNew(null, 9 * 60, 11 * 60, 'Choose a car to see its open time.');
+  });
+
+  // ── An existing booking: strip block, phone row, or unbuilt-day list ──
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-booking]');
+    if (!el) return;
+    e.stopPropagation();
+    openEdit(el.dataset.booking);
+  }, true);
+
+  modalEl.querySelectorAll('.fb-opt').forEach(function (b) {
+    b.addEventListener('click', function () { setHard(b.dataset.hard === '1'); resetAck(); });
+  });
+  fields.forEach(function (id) {
+    $(id).addEventListener('input', function () {
+      resetAck();
+      if (id === 'fbStart' || id === 'fbEnd' || id === 'fbDate') state.auto = false;
+    });
+    $(id).addEventListener('change', function () {
+      resetAck();
+      if (id === 'fbStart' || id === 'fbEnd' || id === 'fbDate') state.auto = false;
+      if (id !== 'fbUnit' || state.id) return;
+      $('fbTitle').textContent = unitNumber() ? 'Book ' + unitNumber() : 'Book a car';
+      // A car picked in the header sheet, on the day this page shows, opens on
+      // its own first hole — unless the times are already the user's.
+      var hole = state.auto && $('fbDate').value === DAY ? suggestFor($('fbUnit').value) : null;
+      if (hole) {
+        $('fbStart').value = hhmm(hole[0]);
+        $('fbEnd').value = hhmm(hole[1]);
+        $('fbOpen').textContent = openText(hole[2], hole[3]);
+      } else if (state.auto) {
+        $('fbOpen').textContent = '';
+      }
+    });
+  });
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body || {}),
+    }).then(function (r) {
+      return r.json().catch(function () { return { success: false, error: 'The server did not answer properly (' + r.status + ').' }; });
+    });
+  }
+
+  function goTo(date) {
+    if (date && date !== DAY) { window.location.href = '?date=' + date; }
+    else { window.location.reload(); }
+  }
+
+  $('fbSave').addEventListener('click', function () {
+    var btn = this;
+    if (!$('fbUnit').value) { msg('err', 'Choose a car.'); $('fbUnit').focus(); return; }
+    var body = {
+      id: state.id,
+      vehicle_id: parseInt($('fbUnit').value, 10),
+      date: $('fbDate').value,
+      start: $('fbStart').value,
+      end: $('fbEnd').value,
+      booking_type: $('fbType').value,
+      reason: $('fbReason').value,
+      location: $('fbWhere').value,
+      notes: $('fbNotes').value,
+      is_hard: state.hard,
+      acknowledge: state.ack,
+    };
+    btn.disabled = true;
+    post(SAVE_URL, body).then(function (data) {
+      btn.disabled = false;
+      if (data.success) { goTo(body.date); return; }
+      if (data.needs_ack) {
+        // Fleet is booking over a trip already on the car. Their call — say
+        // exactly which trips, and turn the button into the decision.
+        state.ack = true;
+        msg('ack', data.summary || data.error);
+        btn.textContent = state.id ? 'Save anyway' : 'Book it anyway';
+        return;
+      }
+      msg('err', data.error || 'Could not save the booking.');
+    }).catch(function () {
+      btn.disabled = false;
+      msg('err', 'Network error — the booking was not saved.');
+    });
+  });
+
+  $('fbCancelBooking').addEventListener('click', function () {
+    if (!state.id) return;
+    if (!confirm('Cancel this booking? Dispatch stops seeing it straight away.')) return;
+    post(CANCEL_URL.replace('/0/', '/' + state.id + '/')).then(function (data) {
+      if (data.success) { window.location.reload(); return; }
+      msg('err', data.error || 'Could not cancel the booking.');
+    }).catch(function () { msg('err', 'Network error — the booking was not cancelled.'); });
+  });
+});
 </script>
 {% endblock %}
 

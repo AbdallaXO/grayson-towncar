@@ -156,6 +156,11 @@ and every character of it prints onto the page.{% endcomment %}
         color: #888;
         margin: 0.75rem 0 0.35rem;
     }
+    .affiliate-past-note {
+        font-size: 0.75rem;
+        color: #888;
+        margin: 0.35rem 0 0;
+    }
 </style>
 {% endblock %}
 
@@ -245,8 +250,8 @@ and every character of it prints onto the page.{% endcomment %}
             <div class="mt-4">
                 <h5 style="font-size:1rem;font-weight:700;">
                     <i class="bi bi-arrow-down-left-circle me-1" style="color:#7b1fa2;"></i>Affiliate Takeback
-                    {% if affiliate_count > 0 %}
-                    <span class="badge" style="background:#7b1fa2;font-size:0.7rem;">{{ affiliate_count }}</span>
+                    {% if takeback_count > 0 %}
+                    <span class="badge" style="background:#7b1fa2;font-size:0.7rem;">{{ takeback_count }}</span>
                     {% endif %}
                 </h5>
                 <div id="affiliatePanel">
@@ -287,6 +292,8 @@ and every character of it prints onto the page.{% endcomment %}
 
 {% block extra_js %}
 {% include "dispatching/includes/_timeline_renderer.html" %}
+{# Fleet-booking question (Continue Anyway / Cancel) for swaps and takebacks #}
+<script src="{% static 'js/booking-prompt.js' %}"></script>
 <script>
 (function() {
     const csrfToken = '{{ csrf_token }}';
@@ -294,6 +301,7 @@ and every character of it prints onto the page.{% endcomment %}
     const nofitLegs = {{ nofit_legs|safe }};
     const timelineDrivers = {{ timeline_drivers|safe }};
     const affiliateLegs = {{ affiliate_takeback|safe }};
+    const takebackPastCount = {{ takeback_past_count }};
     const tripColors = {arrival:'#1565c0', return:'#2e7d32', cruise:'#e65100', other:'#6a1b9a'};
 
     // ── Timeline rendering ────────────────────────────────────
@@ -499,6 +507,9 @@ and every character of it prints onto the page.{% endcomment %}
                     if (d.skipped_reason === 'vehicle_incompatible') {
                         icon = '<i class="bi bi-truck" style="color:var(--ra-amber);"></i>';
                         detail = '<span style="color:var(--ra-amber);">Wrong vehicle</span> — has ' + (d.vehicle_type || 'none') + ', job needs bigger';
+                    } else if (d.skipped_reason === 'car_share_conflict') {
+                        icon = '<i class="bi bi-people-fill" style="color:var(--ra-amber);"></i>';
+                        detail = '<span style="color:var(--ra-amber);">Shared car</span> — the other driver on this car has it then';
                     } else if (d.skipped_reason === 'same_driver') {
                         icon = '<i class="bi bi-dash-circle" style="color:var(--ra-text-muted);"></i>';
                         detail = '<span style="color:var(--ra-text-muted);">Already on this driver</span>';
@@ -638,35 +649,56 @@ and every character of it prints onto the page.{% endcomment %}
             return {leg_id: m.leg_id, to_driver_id: m.to_driver_id};
         });
 
-        fetch('{% url "execute_swap" %}', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-            body: JSON.stringify({date: dateVal, moves: moves})
-        })
-        .then(function(r) {
-            if (!r.ok && r.status === 403) {
-                throw new Error('Session expired or permission denied. Please refresh the page and try again.');
-            }
-            return r.json().catch(function() {
-                throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
-            });
-        })
-        .then(data => {
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Swap failed: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(err => alert('Swap error: ' + err.message));
+        // Fleet's bookings are judged for the whole swap before anything is
+        // written: a hard one refuses it (said, nothing to continue); soft ones
+        // are asked once — Continue Anyway resends with override_booking.
+        function send(overrideBooking) {
+            const body = {date: dateVal, moves: moves};
+            if (overrideBooking) body.override_booking = true;
+            fetch('{% url "execute_swap" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify(body)
+            })
+            .then(function(r) {
+                if (!r.ok && r.status === 403) {
+                    throw new Error('Session expired or permission denied. Please refresh the page and try again.');
+                }
+                return r.json().catch(function() {
+                    throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
+                });
+            })
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else if (window.BookingPrompt.isRefusal(data)) {
+                    const soft = window.BookingPrompt.isSoft(data) && !overrideBooking;
+                    window.BookingPrompt.ask(soft ? data : Object.assign({}, data, {can_override: false}))
+                        .then(go => { if (go && soft) send(true); });
+                } else {
+                    alert('Swap failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => alert('Swap error: ' + err.message));
+        }
+        send(false);
     };
 
     // ── Affiliate takeback panel ────────────────────────────────
     function renderAffiliatePanel() {
         const panel = document.getElementById('affiliatePanel');
         if (!panel) return;
+        // Pickups that have already gone by are left out server-side — they
+        // can't be taken back. Say so, so a short list doesn't look like a bug.
+        var pastNote = takebackPastCount > 0
+            ? '<p class="affiliate-past-note"><i class="bi bi-clock-history me-1"></i>' + takebackPastCount +
+              (takebackPastCount === 1 ? ' pickup' : ' pickups') + ' not shown — already under way or gone by.</p>'
+            : '';
         if (affiliateLegs.length === 0) {
-            panel.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle" style="color:#2e7d32;font-size:1.3rem;"></i><p class="text-muted mt-1 mb-0" style="font-size:0.85rem;">No affiliate assignments for this date.</p></div>';
+            var emptyMsg = takebackPastCount > 0
+                ? 'No affiliate pickups left to take back.'
+                : 'No affiliate assignments for this date.';
+            panel.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle" style="color:#2e7d32;font-size:1.3rem;"></i><p class="text-muted mt-1 mb-0" style="font-size:0.85rem;">' + emptyMsg + '</p>' + pastNote + '</div>';
             return;
         }
 
@@ -726,7 +758,7 @@ and every character of it prints onto the page.{% endcomment %}
             });
         }
 
-        panel.innerHTML = html;
+        panel.innerHTML = html + pastNote;
     }
 
     // ── Execute takeback ────────────────────────────────────────
@@ -737,17 +769,16 @@ and every character of it prints onto the page.{% endcomment %}
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Applying...';
         }
-        fetch('{% url "execute_takeback" %}', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-            body: JSON.stringify({date: dateVal, leg_id: legId, driver_id: driverId})
-        })
-        .then(function(r) { return r.json(); })
+        // The in-house chauffeur's car may be booked by fleet while this trip
+        // runs: soft → Continue Anyway / Cancel before anything is written,
+        // hard → said, and the trip stays with the affiliate.
+        window.BookingPrompt.postWithBookingPrompt('{% url "execute_takeback" %}',
+            {date: dateVal, leg_id: legId, driver_id: driverId}, {csrfToken: csrfToken})
         .then(function(data) {
             if (data.success) {
                 window.location.reload();
             } else {
-                alert('Takeback failed: ' + (data.error || 'Unknown error'));
+                if (!data.cancelled) alert('Takeback failed: ' + (data.error || 'Unknown error'));
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-down-left me-1"></i>Take Back'; }
             }
         })

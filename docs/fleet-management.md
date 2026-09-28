@@ -616,9 +616,115 @@ row always carry a time, printed outside the block when it is too narrow; below
 680px the axis is replaced by a per-car list, because twenty hours in 450px is
 unreadable rather than responsive.
 
+**The gold mark is time AT BASE** (changed 2026-09-28, founder). A hole between
+two trips is marked only if the car can drive from its drop to base, be walked
+round for `INSPECTION_MINUTES` (20), and drive from base to its next pickup —
+inside the reader's hours. Each drive is priced from the location bucket at that
+end (`BASE_DRIVE_MINUTES`, base = 6785 Narcoossee Rd; MCO 12; Disney, Universal/I-Drive and other hotels 35; unknown
+35), not the old flat 30-minute round trip, which marked "54m free" before a
+Disney pickup that needs 67. The label and the Inspections suggestion show the
+at-base stretch; the hover card shows the drive in and out. The bucket minutes
+are estimates set against those two founder figures — correct them in
+`fleet_day.py`. A car with no trips either side still uses the flat
+`WALK_MINUTES`.
+
 **`car_today()` / `car_range()`** answer the takedown confirmation on the desk:
 what one unit is carrying on each day a downtime would block, through the same
 estimator `build_day` uses. See [Taking a car off the road](#taking-a-car-off-the-road).
+
+## Vehicle bookings (part of a day)
+
+Added 2026-09-28. Fleet claims a few hours of one car's day — a tyre slot, a
+detail, a permit appointment, a training drive — from **The day**, where the
+holes between trips already are. Model `drivers.VehicleBooking` (migration
+0061); every rule lives in `dispatching/fleet_bookings.py`.
+
+**Not a downtime.** `VehicleDowntime` takes whole days and is the only thing
+that empties a car out of the pool. A booking sits inside a working day and is
+**soft by default**: the car stays in every pool, draggable and selectable, and
+dispatch is told before a trip lands on it. `is_hard` is fleet saying the car
+physically cannot run then — it refuses overlapping trips with **no override at
+assignment**; the way through is moving, softening or cancelling the booking,
+which on a hard one only a fleet manager or superuser may do
+(`fleet_bookings.can_manage_hard`). Any staff member may make or change a soft one.
+
+**How you make one.** Click open space on a car's line → the sheet opens
+prefilled with the hole the click landed in (rounded *into* it, so the sheet
+never creates a clash itself). Also "+ Book" beside each car and "Book a car"
+in the header, which also works on an unbuilt day (listed under the demand
+card, since there is no strip). Click a booking to edit, harden/soften, or
+cancel it. Cancelling keeps the row (`cancelled_at`); reads go through
+`VehicleBooking.active()`. Same-day only (`end_time > start_time`, a DB check).
+
+**Save rules** (`fleet_save_booking`): refused outright — end before start, a
+date gone by, a second booking stacked on the same car, a car with a downtime
+covering the whole day, a retired car, a malformed body (clean 400s, never a
+500). Landing on a trip already on the car is a *decision*: 409 `needs_ack`
+naming the trips, saved with `acknowledge: true` — and on an edit it is asked
+only when NEW trips come into the window or a soft booking turns hard, so fixing
+a note never re-asks. Past bookings are a record: read-only on the page, and the
+server refuses editing, moving or cancelling them. A booking someone else has
+already cancelled answers a JSON 409, not an HTML 404.
+
+**Conflicts are never stored.** A trip overlapping a booking is worked out on
+read, from the same p75 end estimate the strip draws with, so a trip added
+later, or one whose estimate grew, shows as a conflict on the next load. Touching
+ends are not a clash (`car_share.intervals_overlap`). On the strip a booking is
+a frame 5px taller than the trip lane, drawn *under* the trips — a trip inside
+it sits visibly inside it, and the booking stays clickable above and below.
+Drawn the same height as a trip, a clashing booking vanished under it, so a
+conflicting booking also carries an always-visible ⚠ flag above the trip lane
+("Booking conflict — the 9:00 AM trip (Miguel) was put on this car during Tire
+service"). Only the BOOKED part of a hole loses its gold "free" mark: the hole is
+cut into the pieces the booking leaves (`fleet_day.cut_gaps`), each judged again,
+so the spec's "book 10–12 inside 10–1, then 12–1" still shows 12–1 as free. A car
+with no trips but a booking is its own row state (`booked`), not "free all day",
+and the inspection round never offers booked time (`walkable_window`). Charters
+are drawn by their booked hours (`fleet_bookings.stamp_ends`), the same end every
+booking check uses. The fleet desk lists every booking a trip has since landed on
+for the next seven days, and The day's date chips carry a conflict count.
+
+**Where dispatch meets it** — leg → driver → that day's
+`DriverVehicleAssignment` → the car. Two layers:
+
+1. **The front door refuses HARD.** `assignment.set_leg_driver` calls
+   `fleet_bookings.check_assign` whenever the driver changes and raises
+   `HardBookingRefused` before anything is staged or written, so every path that
+   goes through it (dropdowns, board, swaps, takeback, Smart Builder, advisors,
+   farm-out) is covered, including ones written later. Paths that write
+   `leg.driver` themselves run `pair_clashes` over the whole batch.
+2. **Interactive endpoints ASK on SOFT.** A soft clash answers 409
+   `fleet_bookings.refusal(clash)` (`booking_conflict`, `hard`, `can_override`)
+   and writes nothing; the page shows "Vehicle booked by fleet" with Cancel /
+   Continue Anyway (`content/static/js/booking-prompt.js`) and resends with
+   `override_booking: true`. Nothing is re-warned after the dispatcher chose.
+
+| Surface | Soft | Hard |
+|---|---|---|
+| Trip assign (`update_leg_assignment`: legs dashboard, reservation page, legs list, conflict task, planner quick-assign, gap popup) | 409 ask → `override_booking` | 409, nothing written, live or staged |
+| Board drag-drop (`check_driver_feasibility`) | `booking_warning`; modal leads with it, "Continue Anyway" | `hard_block`; not offered |
+| Swap / takeback (`execute_swap`, `execute_takeback`) | 409 ask for the whole batch | 409, nothing applied |
+| Smart Builder / auto-assign | listed in the preview (`booking_warnings`) | left unassigned, `refused_booking` |
+| Draft publish (`publish_draft`) | published, listed after | 409 `booking_conflicts`; `force` does not bypass |
+| Snapshot restore | restored | skipped, `skipped_booking` |
+| Advisor / farm-out apply | applied, listed in warnings | `PlanRejected(409)` with `booking_conflict`, whole plan rolled back |
+| Car → chauffeur drop (`update_inhouse_vehicle_assignment`) | 409 ask → `override_booking` | 409 |
+| Moving a car between chauffeurs | `from_driver_id`: the receiver is checked first and the donor's row is deleted in the same transaction, so Cancel leaves the donor holding the car | same |
+| Day Setup apply / copy yesterday's cars | 409 ask / copied with `booking_warnings` | 409 / skipped (`skipped_booking`) |
+| Django admin (Leg change form, inline, changelist) | allowed | ValidationError on the driver field |
+| Tags: both pools, assigned-car chips, schedule board, trip dropdown labels | `fleet_bookings.chip`: "Booked 10:00 AM–12:00 PM · Tire service", calendar icon; ⚠ only when a trip is inside | red lock |
+
+A trip that MOVES into a booking because its flight changed is not refused (the
+flight decides); the board tag and The day show the conflict on the next load.
+The car→chauffeur check counts only that chauffeur's trips — a co-driver's were
+on the car before this assignment.
+
+**Not done:** the auto-assign engine, Find Swaps and the Recovery Advisor's
+candidate generators do not avoid booked cars when they PROPOSE (their applies
+refuse a hard one); the capacity maths does not subtract a hard booking; the
+per-car fleet page does not list bookings; a late-night trip running past
+midnight is not checked against the next day's booking; the driver app never
+sees them.
 
 ## Inspections
 
@@ -739,6 +845,19 @@ costing nothing). Now any window leaving `COMFORT_SPARE` (2) cars free at its
 tightest hour counts as equally comfortable, and among those the soonest wins.
 Tipping days still rank last. `fillingNote()` says when a far day is still
 filling, from `typical_units` — the same median `judge_day` reads.
+
+**The car's own trips come next (2026-09-28).** The squares ask whether the FLEET
+can spare a car, and pulling one Sprinter of five never makes it short — so the
+finder recommended the day #004 had 8 trips and only then said they would all
+have to move. `fleet_windows.unit_jobs` puts each car's trips per day (through
+that day's `DriverVehicleAssignment`, same exclusions as `car_today`; today counts
+only trips not yet picked up) on the payload as `units[].jobs`, and `rank()`
+sorts: tipping days last, then a day the car has NOTHING on ahead of any day it
+would have to be emptied for, then fewest trips to move, then the old cost /
+comfort / soonest. An unassigned day has nothing on the car yet — the right day
+to book it, before anyone plans around it. The impact line stops saying
+"Dispatch loses nothing" on a day the car has trips, the day rows say "8 trips on
+#004", and alternatives say how many they would move.
 
 **A square counts JOBS, not free cars.** Both come from the same arithmetic and
 a "cars free" square was built and pulled the same day on the founder's call:

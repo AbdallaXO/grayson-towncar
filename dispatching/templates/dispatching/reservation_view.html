@@ -1497,45 +1497,53 @@
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Helper: submit leg assignment update
-          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement) {
-              fetch('/dispatching/update-leg-assignment/', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-CSRFToken': csrfToken
-                      },
-                      body: JSON.stringify({
-                          leg_id: legId,
-                          field: selectName,
-                          value: selectValue
-                      })
-                  })
-                  .then(response => {
-                      if (!response.ok) {
-                          return response.json().then(data => {
-                              throw new Error(data.error || 'Server error: ' + response.status);
-                          });
-                      }
-                      return response.json();
-                  })
+          const esc = s => window.BookingPrompt.escapeHtml(s);   // server text is never markup
+
+          // A driver dropdown that did not get its way goes back to the driver
+          // actually on the trip — never left showing someone who isn't.
+          function restoreSelect(selectEl) {
+              if (selectEl && selectEl.classList.contains('driver-select') && selectEl.dataset.prev !== undefined) {
+                  selectEl.value = selectEl.dataset.prev;
+              }
+          }
+
+          // Helper: submit leg assignment update. A car fleet has booked while
+          // the trip runs is asked about first (soft: Continue Anyway / Cancel,
+          // hard: why not) — nothing is written until the dispatcher answers.
+          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement, selectEl) {
+              window.BookingPrompt.postWithBookingPrompt('/dispatching/update-leg-assignment/', {
+                      leg_id: legId,
+                      field: selectName,
+                      value: selectValue
+                  }, { csrfToken: csrfToken })
                   .then(data => {
                       if (data.success) {
+                          if (selectEl) selectEl.dataset.prev = selectEl.value;
                           if (statusElement) {
                               statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
                               setTimeout(() => {
                                   statusElement.innerHTML = '';
                               }, 3000);
                           }
+                          return;
+                      }
+                      restoreSelect(selectEl);
+                      if (data.cancelled) {
+                          if (statusElement) {
+                              statusElement.innerHTML = '<div class="alert alert-secondary py-1 px-2 mb-0 small">' +
+                                  (data.hard ? 'Not assigned — car hard-booked by fleet' : 'Assignment cancelled') + '</div>';
+                              setTimeout(() => { statusElement.innerHTML = ''; }, 3000);
+                          }
                       } else if (statusElement) {
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + esc(data.error) + '</div>';
                       } else {
                           alert('Update failed: ' + (data.error || 'Unknown error'));
                       }
                   })
                   .catch(error => {
+                      restoreSelect(selectEl);
                       if (statusElement) {
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + esc(error.message) + '</div>';
                       } else {
                           alert('Error: ' + error.message);
                       }
@@ -1543,6 +1551,7 @@
           }
 
           // Driver and status selection handlers
+          document.querySelectorAll('.driver-select').forEach(select => { select.dataset.prev = select.value; });
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
               select.addEventListener('change', async function() {
                   const legId = this.dataset.legId;
@@ -1552,7 +1561,7 @@
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
 
-                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
+                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement, this);
               });
           });
 
@@ -3308,4 +3317,6 @@
 {% block extra_js %}
   {# Right-click any trip row for Mapping / Flight Tracker #}
   {% include "dispatching/includes/_trip_context_menu.html" %}
+  {# Fleet-booking question (Continue Anyway / Cancel) for the leg driver dropdowns #}
+  <script src="{% static 'js/booking-prompt.js' %}"></script>
 {% endblock %}

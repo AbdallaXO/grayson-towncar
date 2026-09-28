@@ -2382,6 +2382,127 @@ class VehicleDowntime(models.Model):
         return f"{reason} — expected back {when}, not yet confirmed by fleet"
 
 
+class VehicleBooking(models.Model):
+    """
+    A few hours of one car's day, claimed by fleet: a tyre slot, a detail, a
+    permit appointment, a training drive, "I need #006 from ten to twelve".
+
+    NOT a downtime. ``VehicleDowntime`` takes whole days away and is the one
+    thing allowed to empty a car out of the pool. A booking sits INSIDE a day
+    the car is otherwise working, between its trips, and its job is to make
+    dispatch aware — so by default it is SOFT: the car stays selectable, and
+    anything that lands a trip on top of it asks "continue anyway?" first.
+
+    ``is_hard`` is the exception fleet opts into when the car genuinely cannot
+    run in that window (it will be on a lift). A hard booking refuses any trip
+    that overlaps it, with no override at the point of assignment; the way
+    through is to move, soften or cancel the booking itself, which only a fleet
+    manager or a superuser may do to a hard one (``fleet_bookings.can_manage``).
+
+    Same-day only: ``start_time`` < ``end_time`` on ``date``. Fleet's working
+    hours never cross midnight, and a window that did would need two rows'
+    worth of meaning in one.
+
+    Cancelling keeps the row (``cancelled_at``) — "why was that car not in the
+    shop on Tuesday" is answerable later. Every read goes through ``active()``.
+
+    Conflicts are never STORED. Whether a trip overlaps a booking is worked out
+    on read, from the same trip-end estimate The day draws with
+    (``dispatching/fleet_bookings.py``), because trips move and a saved flag
+    would go stale the moment one did.
+    """
+
+    TYPE_CHOICES = [
+        ("service", "Service"),
+        ("maintenance", "Maintenance"),
+        ("inspection", "Inspection"),
+        ("detailing", "Detailing"),
+        ("repair", "Repair"),
+        ("transfer", "Vehicle pickup / drop-off"),
+        ("fleet_use", "Fleet Manager use"),
+        ("training", "Driver training"),
+        ("permit", "Permit / registration appointment"),
+        ("reserved", "Reserved for another operational reason"),
+        ("other", "Other"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="bookings"
+    )
+    date = models.DateField(db_index=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    booking_type = models.CharField(max_length=16, choices=TYPE_CHOICES, default="service")
+    reason = models.CharField(
+        max_length=200, blank=True,
+        help_text="What it's for, in plain words — 'rear tyres', 'new-hire drive with Ana'.",
+    )
+    location = models.CharField(max_length=160, blank=True, help_text="Where, or which vendor.")
+    notes = models.TextField(blank=True)
+    is_hard = models.BooleanField(
+        default=False,
+        help_text="Hard = no trip may be put on the car in this window. "
+                  "Soft (default) = dispatch is warned and may continue.",
+    )
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="created_vehicle_bookings",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="updated_vehicle_bookings",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    cancelled_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="cancelled_vehicle_bookings",
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["date", "start_time", "id"]
+        indexes = [models.Index(fields=["vehicle", "date"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end_time__gt=models.F("start_time")),
+                name="vehicle_booking_ends_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return f"#{self.vehicle.vehicle_number} {self.date} {self.window_label()} {self.title()}"
+
+    @classmethod
+    def active(cls):
+        return cls.objects.filter(cancelled_at__isnull=True)
+
+    @property
+    def is_active(self) -> bool:
+        return self.cancelled_at is None
+
+    def title(self) -> str:
+        """'Tire service' when a reason was given, else the type — 'Service'."""
+        return (self.reason or "").strip() or self.get_booking_type_display()
+
+    def window_label(self) -> str:
+        return (f"{strf(self.start_time, '%-I:%M %p')}–"
+                f"{strf(self.end_time, '%-I:%M %p')}")
+
+    def short_window(self) -> str:
+        """'10a–12p' / '9:30a–10a' — for a tag squeezed beside a driver's name."""
+        def clock(t):
+            text = strf(t, "%-I:%M").replace(":00", "")
+            return text + ("a" if t.hour < 12 else "p")
+        return f"{clock(self.start_time)}–{clock(self.end_time)}"
+
+    def label(self) -> str:
+        """'Tire service 10:00 AM–12:00 PM' — the one line every surface prints."""
+        return f"{self.title()} {self.window_label()}"
+
+
 class FleetSyncState(models.Model):
     """
     Health (and, if the delta feed is ever entitled, cursor) for one Samsara feed.

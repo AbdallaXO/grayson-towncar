@@ -40,7 +40,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
-from dispatching import fleet_capacity, fleet_health, fleet_notify
+from dispatching import fleet_bookings, fleet_capacity, fleet_health, fleet_notify
 from dispatching import fleet_windows
 # Aliased: the views below are named fleet_desk / fleet_report after their URLs,
 # and a bare module import would be shadowed by the function definitions.
@@ -55,7 +55,7 @@ from dispatching.samsara_service import EXTENDED_STAT_TYPES
 from drivers.context_processors import invalidate_fleet_now_count
 from drivers.models import (
     DriverVehicleAssignment, FleetSyncState, FleetVehicle, VehicleDayReading,
-    VehicleDowntime, VehicleFault, VehicleInspection, VehicleInspectionPhoto,
+    VehicleBooking, VehicleDowntime, VehicleFault, VehicleInspection, VehicleInspectionPhoto,
     VehicleIssue, VehicleServiceRecord, VehicleServiceSchedule,
 )
 from users.models import shift_for
@@ -410,9 +410,14 @@ def fleet_detail(request, pk):
 
 def _body(request):
     try:
-        return json.loads(request.body or "{}"), None
-    except json.JSONDecodeError:
+        data = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
         return None, JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    # Every endpoint here reads named fields. A list or a bare number is not a
+    # form, and letting it through turns the first .get() into a 500.
+    if not isinstance(data, dict):
+        return None, JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    return data, None
 
 
 def _opt_date(raw, label):
@@ -1059,7 +1064,11 @@ def fleet_day(request):
     today = timezone.localdate()
     day = fleet_day_builder.parse_day(request.GET.get("date"), today)
     pulse = fleet_day_builder.week_pulse(today)
-    row = pulse.get(day) or {"trips": 0, "assigned": 0, "holders": 0}
+    # A date outside the week control — two weeks out, where saving a booking
+    # sends you, or a past day being looked back at — gets its own two
+    # aggregate queries. Falling back to zeros drew every such day as
+    # "Nothing booked" and never judged a clash on it.
+    row = pulse.get(day) or fleet_day_builder.week_pulse(day, days=1)[day]
 
     # A day nobody has started assigning gets its demand and no car rows at all.
     # Building the board for it would cost the full five-query load to draw
@@ -1067,21 +1076,67 @@ def fleet_day(request):
     #
     # The gold "you could get to this car" marks are clipped to the reader's own
     # working hours, the same way the inspection round clips its suggestions.
-    payload, demand = None, None
+    can_hard = fleet_bookings.can_manage_hard(request.user)
+
+    def can_edit(booking):
+        # A booking whose day has gone is a record ("why was that car not in
+        # the shop on Tuesday"), not a plan: it opens read-only for everyone.
+        if booking.date < today:
+            return False
+        return can_hard or not booking.is_hard
+
+    payload, demand, demand_bookings = None, None, []
     if fleet_day_builder.is_built(row):
         payload = fleet_day_builder.build_day(
-            fleet_day_builder.load_car_day(day), shift=shift_for(request.user))
+            fleet_day_builder.load_car_day(day), shift=shift_for(request.user),
+            can_edit=can_edit)
     else:
         typical = fleet_capacity.typical_units_by_weekday(today)
         demand = fleet_day_builder.demand_only(day, row, typical.get(day.weekday()))
+        # No car rows on an unbuilt day, but fleet's bookings are real and are
+        # exactly what gets planned this far out — list them. No clash can be
+        # judged yet: no chauffeur holds any car on this date.
+        demand_bookings = [
+            fleet_bookings.booking_payload(b, can_edit=can_edit(b))
+            for unit_bookings in fleet_bookings.bookings_for(day).values()
+            for b in unit_bookings
+        ]
+        demand_bookings.sort(
+            key=lambda b: (b["start"], fleet_day_builder._natural(b["number"])))
 
+    # Every booking on the page by id, for the sheet's edit mode. The strip's
+    # own copy carries datetimes for placement; the sheet needs only the text.
+    booking_index = {b["id"]: b for b in demand_bookings}
+    for car in (payload or {}).get("rows", []):
+        for b in car["bookings"]:
+            booking_index[b["id"]] = {k: v for k, v in b.items()
+                                      if k not in ("start_dt", "end_dt")}
+
+    # A clash on any day of the week shows on that day's chip, so fleet sees
+    # Thursday's from here. Informational: never let it take the page down.
+    try:
+        conflicts = fleet_bookings.conflict_counts(fleet_bookings.conflicts_between(
+            today, today + timedelta(days=fleet_day_builder.DAY_CHOICES - 1)))
+    except Exception:
+        logger.exception("fleet_day: booking conflicts unavailable for the week of %s", today)
+        conflicts = {}
+
+    units = sorted(fleet_capacity.fleet_units(),
+                   key=lambda u: fleet_day_builder._natural(u.vehicle_number))
     return render(request, "dispatching/fleet_day.html", {
         "fleet_page": "day",
         "day": day,
         "today": today,
         "payload": payload,
         "demand": demand,
-        "day_options": fleet_day_builder.day_options(today, pulse=pulse),
+        "demand_bookings": demand_bookings,
+        "booking_index": booking_index,
+        "day_options": fleet_day_builder.day_options(today, pulse=pulse, conflicts=conflicts),
+        # The booking sheet.
+        "booking_types": VehicleBooking.TYPE_CHOICES,
+        "booking_units": [{"id": u.id, "number": u.vehicle_number} for u in units],
+        "can_hard": can_hard,
+        "can_book": day >= today,
     })
 
 
@@ -1116,9 +1171,20 @@ def fleet_desk(request):
     else:
         default_unit, default_hours = None, 4
     shop = desk["shop"]
+    # Fleet's part-day bookings that a trip has since landed on, this week.
+    # The Day draws each one; this is the band that sends fleet there without
+    # opening seven days to look. Informational — never take the desk down.
+    try:
+        booking_conflicts = fleet_bookings.conflicts_between(
+            desk["today"],
+            desk["today"] + timedelta(days=fleet_day_builder.DAY_CHOICES - 1))
+    except Exception:
+        logger.exception("fleet_desk: booking conflicts unavailable")
+        booking_conflicts = []
     context = {
         **desk,
         "fleet_page": "desk",
+        "booking_conflicts": booking_conflicts,
         "tomorrow": desk["today"] + timedelta(days=1),
         "finder_payload": payload,
         "finder_default_unit": default_unit,
@@ -1545,6 +1611,233 @@ def _touch_planner_cache(start, back):
     while day < end and (day - start).days < 60:
         cache.delete(f"capacity_planner_{day.isoformat()}")
         day += timedelta(days=1)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Vehicle bookings — a few hours of one car's day, claimed by fleet
+# ════════════════════════════════════════════════════════════════════════════
+
+def _parse_clock(raw):
+    """'10:30' -> time, or None."""
+    from datetime import datetime as _dt
+
+    text = str(raw or "").strip()
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return _dt.strptime(text, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _booking_fields(data):
+    """Validate the booking sheet. Returns (fields, error)."""
+    valid_types = {key for key, _ in VehicleBooking.TYPE_CHOICES}
+    try:
+        # parse_date answers None for text that is not a date, but RAISES on a
+        # well-formed impossible one — 2026-02-30.
+        day = parse_date(str(data.get("date") or ""))
+    except ValueError:
+        day = None
+    if day is None:
+        return None, "Pick a date."
+    start, end = _parse_clock(data.get("start")), _parse_clock(data.get("end"))
+    if start is None or end is None:
+        return None, "Give a start and an end time."
+    if end <= start:
+        return None, "The end time has to be after the start time."
+    booking_type = str(data.get("booking_type") or "")
+    if booking_type not in valid_types:
+        return None, "Pick what the booking is for."
+    reason = str(data.get("reason") or "").strip()[:200]
+    if booking_type == "other" and not reason:
+        return None, "Say what the booking is for — \"Other\" needs a reason."
+    return {
+        "date": day,
+        "start_time": start,
+        "end_time": end,
+        "booking_type": booking_type,
+        "reason": reason,
+        "location": str(data.get("location") or "").strip()[:160],
+        "notes": str(data.get("notes") or "").strip(),
+        "is_hard": _flag(data.get("is_hard")),
+    }, None
+
+
+def _flag(raw):
+    """A JSON true — or the text a form sends for one. bool("false") is True,
+    which would turn a soft booking hard."""
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    return bool(raw)
+
+
+def _pk(raw):
+    """A positive whole-number id out of a JSON body, or None. A lookup with
+    'abc' raises inside the ORM, which is a 500 for a typo."""
+    if isinstance(raw, bool):
+        return None
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+# Someone else cancelled it (or it was never there) between this page loading
+# and the click. A conflict with the page, not a missing URL — so JSON the
+# sheet can show, not Django's HTML 404.
+_STALE_BOOKING = "That booking was cancelled or changed by someone else — reload the page."
+
+# A past booking is the record of what happened to the car, kept on purpose.
+_PAST_BOOKING = "That booking's day has gone — it is kept as a record and can't be changed."
+
+
+@login_required(login_url="login")
+@staff_member_required
+@require_POST
+def fleet_save_booking(request):
+    """JSON: book a car for part of a day, or change a booking.
+
+    ``id`` present = edit. Refuses outright only what cannot be true (an end
+    before a start, a date gone by, two bookings on one car at once, a car
+    that is off the road all that day) or what the user may not do (touch a
+    hard booking without being fleet, or rewrite one whose day has passed).
+    Landing on a trip already on the car is a DECISION, not an error: it
+    answers 409 ``needs_ack`` naming the trips, and saves when the caller sends
+    ``acknowledge: true``. An edit asks only about trips it brings INTO the
+    window — fixing a typo in the notes of a booking fleet already accepted a
+    clash on is not a second decision.
+
+    A booking someone else has cancelled answers 409 with a sentence; bad ids,
+    an impossible date or a retired car answer 400. Never a 500.
+    """
+    from datetime import datetime as _dt
+
+    data, error = _body(request)
+    if error:
+        return error
+    fields, message = _booking_fields(data)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    today = timezone.localdate()
+    booking = None
+    if data.get("id"):
+        booking_id = _pk(data.get("id"))
+        if booking_id is None:
+            return JsonResponse({"success": False, "error": _STALE_BOOKING}, status=400)
+        booking = (VehicleBooking.active().select_related("vehicle")
+                   .filter(pk=booking_id).first())
+        if booking is None:
+            return JsonResponse({"success": False, "error": _STALE_BOOKING}, status=409)
+        if booking.date < today:
+            # Moving it forward would rewrite the record into a plan.
+            return JsonResponse({"success": False, "error": _PAST_BOOKING}, status=400)
+        vehicle = (FleetVehicle.objects.with_open_downtimes()
+                   .filter(pk=booking.vehicle_id).first())
+    else:
+        # A new booking goes on a car the sheet offers: active units only.
+        vehicle_id = _pk(data.get("vehicle_id"))
+        vehicle = (FleetVehicle.objects.filter(is_active=True).with_open_downtimes()
+                   .filter(pk=vehicle_id).first() if vehicle_id else None)
+    if vehicle is None:
+        return JsonResponse({"success": False, "error": "Pick a car."}, status=400)
+
+    if not fleet_bookings.can_manage(request.user, booking, making_hard=fields["is_hard"]):
+        return JsonResponse({
+            "success": False,
+            "error": ("Only fleet can make, change or lift a hard booking. "
+                      "Ask the fleet manager, or save it as a soft booking."),
+        }, status=403)
+
+    if fields["date"] < today:
+        return JsonResponse({"success": False,
+                             "error": "That date has gone by — book today or later."},
+                            status=400)
+
+    if vehicle.is_out_of_service_on(fields["date"]):
+        return JsonResponse({
+            "success": False,
+            "error": (f"#{vehicle.vehicle_number} is off the road all that day "
+                      f"({vehicle.out_of_service_label(fields['date'])}), so there "
+                      f"is nothing to book around."),
+        }, status=400)
+
+    start = _dt.combine(fields["date"], fields["start_time"])
+    end = _dt.combine(fields["date"], fields["end_time"])
+    others = [b for b in fleet_bookings.bookings_for(fields["date"], [vehicle.id]).get(vehicle.id, [])
+              if booking is None or b.id != booking.id]
+    stacked = fleet_bookings.overlapping(others, start, end)
+    if stacked:
+        return JsonResponse({
+            "success": False,
+            "error": (f"#{vehicle.vehicle_number} is already booked "
+                      f"{stacked[0].window_label()} for {stacked[0].title()}. "
+                      f"Change that booking instead of stacking a second on it."),
+        }, status=400)
+
+    spans = fleet_bookings.unit_trip_spans(vehicle, fields["date"])
+    trips = fleet_bookings.trips_in(start, end, spans)
+    if trips and booking is not None and booking.date == fields["date"] \
+            and not (fields["is_hard"] and not booking.is_hard):
+        # Trips the saved window already covered were accepted when it was
+        # saved. Making it hard is a new decision about all of them.
+        accepted = {t["leg_id"] for t in
+                    fleet_bookings.trips_in(*fleet_bookings.span(booking), spans)}
+        trips = [t for t in trips if t["leg_id"] not in accepted]
+    if trips and not _flag(data.get("acknowledge")):
+        listed = fleet_bookings.and_list([fleet_bookings.trip_phrase(t) for t in trips])
+        ask = "Save it anyway?" if booking is not None else "Book it anyway?"
+        summary = (f"#{vehicle.vehicle_number} already has {listed} in that window. "
+                   + (f"A hard booking puts the car off-limits while those are on "
+                      f"it — dispatch will have to move them. {ask}"
+                      if fields["is_hard"] else
+                      f"Dispatch will see the booking and the clash. {ask}"))
+        return JsonResponse({
+            "success": False, "needs_ack": True, "error": summary, "summary": summary,
+            "trips": [{"start_label": t["start_label"], "end_label": t["end_label"],
+                       "driver": t["driver"]} for t in trips],
+        }, status=409)
+
+    old_date = booking.date if booking is not None else None
+    if booking is None:
+        booking = VehicleBooking(vehicle=vehicle, created_by=request.user)
+    for key, value in fields.items():
+        setattr(booking, key, value)
+    booking.updated_by = request.user
+    booking.save()
+    _touch_planner_cache(fields["date"], fields["date"] + timedelta(days=1))
+    if old_date is not None and old_date != fields["date"]:
+        _touch_planner_cache(old_date, old_date + timedelta(days=1))
+    return JsonResponse({"success": True, "id": booking.id, "label": booking.label()})
+
+
+@login_required(login_url="login")
+@staff_member_required
+@require_POST
+def fleet_cancel_booking(request, pk):
+    """JSON: cancel a booking. The row is kept, marked cancelled.
+
+    Not one whose day has gone: that is the record of what happened to the
+    car, and cancelling it would take it off that day's page. One already
+    cancelled by someone else answers a JSON 409, not an HTML 404.
+    """
+    booking = VehicleBooking.active().select_related("vehicle").filter(pk=pk).first()
+    if booking is None:
+        return JsonResponse({"success": False, "error": _STALE_BOOKING}, status=409)
+    if booking.date < timezone.localdate():
+        return JsonResponse({"success": False, "error": _PAST_BOOKING}, status=400)
+    if not fleet_bookings.can_manage(request.user, booking):
+        return JsonResponse({
+            "success": False,
+            "error": "Only fleet can lift a hard booking. Ask the fleet manager.",
+        }, status=403)
+    booking.cancelled_at = timezone.now()
+    booking.cancelled_by = request.user
+    booking.save(update_fields=["cancelled_at", "cancelled_by", "updated_at"])
+    _touch_planner_cache(booking.date, booking.date + timedelta(days=1))
+    return JsonResponse({"success": True})
 
 
 # ════════════════════════════════════════════════════════════════════════════

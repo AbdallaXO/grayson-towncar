@@ -44,6 +44,12 @@
       return need(day, tier).map(function (n) { return c - n; });
     }
     function unitDown(u, day) { return u.down.indexOf(day.date) >= 0; }
+    // Trips this car already has on the day. Taking it off the road means
+    // moving every one of them to another car, which the demand squares never
+    // see: pulling one Sprinter of five leaves the fleet fine, and the finder
+    // would happily pick the day that car has eight jobs.
+    function jobs(u, day) { return (u.jobs && u.jobs[day.date]) || 0; }
+    function jobsWords(n) { return n + (n === 1 ? ' trip' : ' trips'); }
     function startable(day, start, hours) {
       if (start + hours > SLOTS) return false;
       if (day.shop_open === false) return false;               // shut at the weekend
@@ -81,13 +87,20 @@
         for (var s = 0; s + hours <= SLOTS; s++) {
           if (!startable(day, s, hours)) continue;
           var c = cost(day, u.tier, s, hours);
-          out.push({ day: day, start: s, extra: c.extra, tightest: c.tightest });
+          out.push({ day: day, start: s, extra: c.extra, tightest: c.tightest, jobs: jobs(u, day) });
         }
       });
       // Days this unit tips into short or tight rank after days it doesn't,
       // whatever their squares say — booking one asks for an acknowledgement.
+      // Next, a day the car has nothing on beats any day it would have to be
+      // emptied for, and among those the fewest trips to move wins: "#004 has
+      // 8 trips that day" is not a best window however spare the fleet is.
+      // A day dispatch has not reached has nothing on the car YET — the ideal
+      // time to book it in, before anyone plans around it.
       out.sort(function (a, b) {
-        return (tips(a.day, u) - tips(b.day, u)) || (a.extra - b.extra)
+        return (tips(a.day, u) - tips(b.day, u))
+          || ((a.jobs > 0) - (b.jobs > 0)) || (a.jobs - b.jobs)
+          || (a.extra - b.extra)
           || (comfort(b.tightest) - comfort(a.tightest))
           || (a.day.idx - b.day.idx) || (a.start - b.start);
       });
@@ -199,14 +212,22 @@
     function impactLine(r, u) {
       var w = words(u);
       var left = r.tightest - 1;   // spare at the tightest hour once this unit is out
+      var own = r.jobs || 0;
       var line;
       if (r.extra === 0) {
+        // "Dispatch loses nothing" is only true when the car has nothing on.
+        // With trips on it the honest version is that the rest of the fleet
+        // can take them — the line under this one names them.
         if (left > 0) {
           line = left + ' ' + (left === 1 ? w.one : w.many) + ' still spare at the tightest hour with #' + u.number
-            + ' out. Dispatch loses nothing and no job gets farmed out.';
+            + ' out. ' + (own
+              ? 'The other cars can take its ' + jobsWords(own) + ' and no job gets farmed out.'
+              : 'Dispatch loses nothing and no job gets farmed out.');
         } else {
           line = 'Every ' + w.one + ' is committed at the tightest hour once #' + u.number
-            + ' is out, but none is double-booked. Nothing extra gets farmed out.';
+            + ' is out, but none is double-booked. ' + (own
+              ? 'Its ' + jobsWords(own) + ' can be covered without farming any out.'
+              : 'Nothing extra gets farmed out.');
         }
       } else {
         line = 'For ' + r.extra + (r.extra === 1 ? ' hour' : ' hours') + ' of this window every ' + w.one
@@ -240,7 +261,7 @@
     }
     return {
       P: P, SLOTS: SLOTS, unit: unit, words: words, fmtHour: fmtHour, need: need, have: have, spare: spare,
-      unitDown: unitDown, startable: startable, cost: cost, rank: rank, bestByDay: bestByDay, verdict: verdict,
+      unitDown: unitDown, jobs: jobs, jobsWords: jobsWords, startable: startable, cost: cost, rank: rank, bestByDay: bestByDay, verdict: verdict,
       cellClass: cellClass, cellLabel: cellLabel, cellHint: cellHint, crunch: crunch, impactLine: impactLine,
       describe: describe, stillFilling: stillFilling, fillingNote: fillingNote,
       capLabel: capLabel, nextDay: nextDay
@@ -351,7 +372,7 @@
       var d = days[state.pickDay] || days[0];
       var start = Math.min(state.pickStart, M.SLOTS - hours);
       var c = M.cost(d, u.tier, start, hours);
-      shown = { day: d, start: start, extra: c.extra, tightest: c.tightest };
+      shown = { day: d, start: start, extra: c.extra, tightest: c.tightest, jobs: M.jobs(u, d) };
     }
     return { ranked: ranked, rec: rec, shown: shown, picked: picked, byDay: M.bestByDay(ranked) };
   }
@@ -401,8 +422,11 @@
       days.forEach(function (day) {
         // The weekend rows were greyed and left unexplained on this grid while
         // the outlook labelled them — the same fact, said on one screen only.
+        var own = M.jobs(u, day);
         var note = M.unitDown(u, day) ? '#' + u.number + ' down'
-          : (day.shop_open === false ? 'shop closed' : (day.is_today ? 'today' : ''));
+          : (day.shop_open === false ? 'shop closed'
+            : [day.is_today ? 'today' : '', own ? M.jobsWords(own) + ' on #' + u.number : '']
+                .filter(Boolean).join(' · '));
         html += '<div class="fl-grid-row' + (day.shop_open === false ? ' closed' : '') + '"><div class="fl-grid-label">'
           + esc(day.wd + ' ' + day.short)
           + (note ? '<small>' + esc(note) + '</small>' : '')
@@ -436,17 +460,28 @@
           a += '<div class="fl-alt-title">Next best</div>';
           alts.forEach(function (r) {
             var d2 = M.describe(r, u, hours);
-            a += '<button type="button" class="fl-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time) + '</span></button>';
+            a += '<button type="button" class="fl-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time + (r.jobs ? ' · ' + M.jobsWords(r.jobs) + ' to move' : '')) + '</span></button>';
           });
         }
         if (w.rec) {
           a += '<button type="button" class="fl-link-btn" id="fw-why">' + (state.showWhy ? 'Hide the reasoning' : 'Why this window?') + '</button>';
           if (state.showWhy) {
             var wd = M.words(u);
-            var why = M.crunch(w.rec.day) + ' ' + w.rec.day.wd + ' ' + w.rec.day.dom
-              + ' is the soonest day with room to spare for a ' + wd.one
-              + ' right through the window, which is what puts it ahead of the other clear days —'
-              + ' a later day only looks emptier because its bookings have not arrived yet.';
+            var busyBefore = w.byDay.filter(function (r) {
+              return r.day.idx < w.rec.day.idx && r.jobs > 0;
+            }).length;
+            var why = M.crunch(w.rec.day) + ' ';
+            if (!w.rec.jobs) {
+              why += w.rec.day.wd + ' ' + w.rec.day.dom + ' is the soonest day #' + u.number
+                + ' has no trips of its own and a ' + wd.one + ' stays spare right through the window'
+                + (busyBefore
+                  ? ' — the days before it would mean moving its trips to other cars first.'
+                  : ', which puts it ahead of the other clear days — a later day only looks emptier because its bookings have not arrived yet.');
+            } else {
+              why += '#' + u.number + ' has trips on every day that leaves room for a ' + wd.one
+                + ', so ' + w.rec.day.wd + ' ' + w.rec.day.dom + ' is the one with the fewest to move ('
+                + w.rec.jobs + ').';
+            }
             var filling = M.fillingNote(w.rec.day);
             if (filling) why += ' ' + filling;
             why += ' The full outlook goes 28 days out.';
@@ -544,13 +579,13 @@
         if (w.picked) a += '<button type="button" class="ol-ghost" id="ol-clear">Back to the best window</button>';
         a += '</div><div class="ol-note" id="ol-book-note"></div></div>';
       }
-      var zero = w.byDay.filter(function (r) { return r.extra === 0; }).length;
+      var zero = w.byDay.filter(function (r) { return r.extra === 0 && !r.jobs; }).length;
       var alts = w.byDay.filter(function (r) { return !w.shown || r.day.idx !== w.shown.day.idx; }).slice(0, 4);
       a += '<div class="ol-alts"><div class="fl-band-eyebrow">' + (zero > 1 ? 'Other windows that cost nothing' : 'Next best windows') + '</div>';
       if (!alts.length) a += '<div class="fl-shop-note">Nothing else in this range.</div>';
       alts.forEach(function (r) {
         var d2 = M.describe(r, u, hours);
-        a += '<button type="button" class="ol-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time) + '</span></button>';
+        a += '<button type="button" class="ol-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time + (r.jobs ? ' · ' + M.jobsWords(r.jobs) + ' to move' : '')) + '</span></button>';
       });
       a += '</div></div>';
       elAnswer.innerHTML = a;
@@ -564,7 +599,12 @@
         var v = M.verdict(day, u);
         html += '<div class="ol-day' + (day.weekend ? ' weekend' : '') + (day.is_today ? ' is-today' : '') + '"><div class="ol-row">'
           + '<button type="button" class="ol-day-btn" data-day="' + day.idx + '"><span class="wd">' + esc(day.wd) + '</span><span class="dm">' + esc(day.dom) + '</span>'
-          + (day.is_today ? '<span class="today">today</span>' : '') + '</button>'
+          + (day.is_today ? '<span class="today">today</span>' : '')
+          + (M.jobs(u, day) && !M.unitDown(u, day)
+              ? '<span class="car" title="' + esc('#' + u.number + ' already has ' + M.jobsWords(M.jobs(u, day))
+                + ' this day. Booking it in means moving them to other cars.') + '">'
+                + esc(M.jobsWords(M.jobs(u, day)) + ' on #' + u.number) + '</span>'
+              : '') + '</button>'
           + cellsHTML(M, u, day, w.shown, hours, 'ol-cell')
           + '<div class="ol-right"><span class="ol-total">' + day.trips + '</span>'
           + (day.shop_open === false

@@ -89,12 +89,19 @@ class SwapSearchResult:
 # ── Helpers ───────────────────────────────────────────────────────────
 
 def _get_leg_vtype(leg) -> Optional[str]:
-    """Get vehicle type string for a leg from its reservation."""
-    vtype = getattr(
-        getattr(getattr(leg, "reservation", None), "vehicle", None),
-        "vehicle_type",
-        None,
-    )
+    """The vehicle class this leg needs: its own vehicle when it has one, else the
+    reservation's — Leg.effective_vehicle_type, the same read the scheduler makes.
+
+    A booking can be an SUV out and a Van back. Reading the reservation alone called
+    that Van leg an SUV job, and the swap search handed it to an SUV driver
+    (2026-09-28, leg 32975). Stubs without the property fall back to the reservation."""
+    vtype = getattr(leg, "effective_vehicle_type", None)
+    if vtype is None:
+        vtype = getattr(
+            getattr(getattr(leg, "reservation", None), "vehicle", None),
+            "vehicle_type",
+            None,
+        )
     return str(vtype) if vtype else None
 
 
@@ -195,6 +202,56 @@ def _get_conflicting_slots(
     return results
 
 
+def receiver_windows(driver_ids, target_date: date) -> Dict[int, dict]:
+    """Guard C windows for each receiving driver: their saved availability for the day,
+    run through feasibility_guards.get_effective_window (the observed-history stub)."""
+    from dispatching import feasibility_guards as fg
+    from drivers.models import Driver as _Driver
+
+    driver_ids = list(driver_ids)
+    drivers = {d.id: d for d in _Driver.objects.filter(id__in=driver_ids)}
+    windows = {}
+    for did in driver_ids:
+        configured = None
+        d = drivers.get(did)
+        if d:
+            eff = d.get_effective_availability(target_date)
+            mh = eff.get("max_hours")
+            configured = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                          "max_hours": (float(mh) if mh else None),
+                          "flexible": bool(eff.get("flexible"))}
+        windows[did] = fg.get_effective_window(did, configured=configured)
+    return windows
+
+
+def direct_fit(leg, driver_id: int, schedules: Dict[int, DriverDaySchedule],
+               driver_vtypes: Dict[int, str], target_date: date, cfg,
+               windows: Optional[dict] = None,
+               sharer_partners: Optional[Dict[int, Set[int]]] = None
+               ) -> Optional[FeasibilityResult]:
+    """Could ``driver_id`` take ``leg`` as the board stands, moving nothing else?
+
+    The one gate the swap search puts every placement through — the Swap Tester's
+    "Take Back" and the no-swap breakdown ask it too, so they apply the same rules:
+    car class, then the car-share partner's jobs (one physical car can't be in two
+    places), then turnaround + duty span (check_feasibility, Guards B and C).
+
+    Returns the FeasibilityResult, or None when the driver is out before feasibility
+    is asked — no schedule, wrong car, or the partner has the car then. Moving the
+    driver's own legs fixes none of those, so the search doesn't try."""
+    schedule = schedules.get(driver_id)
+    if schedule is None:
+        return None
+    if not _vehicle_compatible(driver_vtypes.get(driver_id), _get_leg_vtype(leg)):
+        return None
+    if sharer_partners and sharers_conflict(
+            leg, driver_id, sharer_partners, schedules, target_date):
+        return None
+    return check_feasibility(schedule, leg, target_date, cfg.inter_job_buffer,
+                            arrival_grace=cfg.arrival_grace_minutes,
+                            driver_window=(windows or {}).get(driver_id))
+
+
 def _budget_exceeded(iterations: int, start_time: float, max_iterations: int, time_limit_ms: int) -> bool:
     if iterations >= max_iterations:
         return True
@@ -251,6 +308,7 @@ def find_swaps(
     max_iterations: int = 5000,
     driver_windows: Optional[Dict[int, dict]] = None,
     sharer_partners: Optional[Dict[int, Set[int]]] = None,
+    frozen_leg_ids: Optional[Set[int]] = None,
 ) -> SwapSearchResult:
     """
     Search for swap chains that make room for target_leg.
@@ -273,6 +331,11 @@ def find_swaps(
         When supplied, any placement onto a driver is rejected if the candidate leg would
         overlap a car-share partner's jobs (one physical unit can't be in two places). Build
         it with scheduler.build_sharer_partners(). When None, no shared-car gating is applied.
+    frozen_leg_ids : OPTIONAL legs that must stay where they are — on the operating day,
+        runs already under way or gone by. They still fill their driver's day; the search
+        just never displaces them. Without it, a long day's EARLIEST job is the cheapest to
+        remove (it frees the 15-hour span), so a chain would hand a completed 4 AM run to
+        someone else. When None, nothing is frozen.
 
     Returns
     -------
@@ -314,20 +377,8 @@ def find_swaps(
         inhouse_driver_ids = [did for did in inhouse_driver_ids if did in driver_windows]
         _windows = driver_windows
     else:
-        from dispatching import feasibility_guards as fg
-        from drivers.models import Driver as _Driver
-        _drv_objs = {d.id: d for d in _Driver.objects.filter(id__in=inhouse_driver_ids)}
-
-        def _cfg_window(did):
-            d = _drv_objs.get(did)
-            if not d:
-                return None
-            eff = d.get_effective_availability(target_date)
-            mh = eff.get("max_hours")
-            return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                    "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
-
-        _windows = {did: fg.get_effective_window(did, configured=_cfg_window(did)) for did in inhouse_driver_ids}
+        _windows = receiver_windows(inhouse_driver_ids, target_date)
+    frozen = set(frozen_leg_ids or ())
 
     for depth_limit in range(1, max_depth + 1):
         if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
@@ -354,6 +405,7 @@ def find_swaps(
             time_limit_ms=time_limit_ms,
             windows=_windows,
             sharer_partners=sharer_partners,
+            frozen=frozen,
         )
 
         if solutions:
@@ -390,7 +442,7 @@ def find_swaps(
         diagnostic = _build_diagnostic(
             target_leg, target_vtype, inhouse_schedules,
             inhouse_driver_ids, driver_vtypes, all_legs_by_id, target_date, cfg,
-            windows=_windows, sharer_partners=sharer_partners,
+            windows=_windows, sharer_partners=sharer_partners, frozen=frozen,
         )
 
     return SwapSearchResult(
@@ -424,6 +476,7 @@ def _search(
     time_limit_ms: int,
     windows: dict = None,
     sharer_partners: dict = None,
+    frozen: Set[int] = frozenset(),
 ):
     """Recursive DFS: try to place leg_to_place on any compatible driver."""
     if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
@@ -457,24 +510,14 @@ def _search(
         if (leg_to_place.id, driver_id) in visited:
             continue
 
-        # Skip: vehicle incompatible
-        if not _vehicle_compatible(driver_vtypes.get(driver_id), leg_vtype):
+        # ── Try direct placement. None = wrong car, no schedule, or the car-share
+        # partner has the car then: displacing driver_id's OWN legs fixes none of
+        # those (the partner's car is not this driver's calendar) — skip wholesale.
+        feasibility = direct_fit(leg_to_place, driver_id, schedules, driver_vtypes,
+                                 target_date, cfg, windows, sharer_partners)
+        if feasibility is None:
             continue
-
-        schedule = schedules.get(driver_id)
-        if schedule is None:
-            continue
-
-        # Skip: one physical car. If placing this leg on driver_id would overlap a
-        # car-share partner's job, no amount of displacing driver_id's OWN legs helps
-        # (the conflict is the partner's car, not this driver's calendar) — skip wholesale.
-        if sharer_partners and sharers_conflict(
-                leg_to_place, driver_id, sharer_partners, schedules, target_date):
-            continue
-
-        # ── Try direct placement (Guards B turnaround + C window) ──
-        feasibility = check_feasibility(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
-                                        driver_window=windows.get(driver_id))
+        schedule = schedules[driver_id]
 
         if feasibility.feasible:
             pickup_str = leg_to_place.pickup_time.strftime("%I:%M %p").lstrip("0") if hasattr(leg_to_place.pickup_time, "strftime") else str(leg_to_place.pickup_time)
@@ -521,6 +564,9 @@ def _search(
             if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
                 return
 
+            # A run already under way or gone by stays put (see find_swaps).
+            if slot.leg_id in frozen:
+                continue
             displaced_leg = all_legs_by_id.get(slot.leg_id)
             if not displaced_leg:
                 continue
@@ -575,6 +621,7 @@ def _search(
                 time_limit_ms=time_limit_ms,
                 windows=windows,
                 sharer_partners=sharer_partners,
+                frozen=frozen,
             )
 
             if len(solutions) >= 20:
@@ -592,6 +639,7 @@ def _build_diagnostic(
     cfg,
     windows: dict = None,
     sharer_partners: dict = None,
+    frozen: Set[int] = frozenset(),
 ) -> List[DriverAttempt]:
     """Build a per-driver diagnostic report showing why no swap was found."""
     report = []
@@ -645,26 +693,24 @@ def _build_diagnostic(
         if not feas.feasible:
             # Try displacement for each slot
             for slot in schedule.slots:
+                if slot.leg_id in frozen:   # under way or gone by — not movable
+                    continue
                 modified = _build_modified_schedule(schedule, remove_leg_ids={slot.leg_id})
                 mod_feas = check_feasibility(modified, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
                                              driver_window=windows.get(driver_id))
                 if mod_feas.feasible:
                     # Could place target here if we remove this leg — can we rehome it?
+                    # Same gate the search uses, shared car included.
                     displaced_leg = all_legs_by_id.get(slot.leg_id)
                     rehomed = False
                     if displaced_leg:
-                        displaced_vtype = _get_leg_vtype(displaced_leg)
                         for other_did in inhouse_driver_ids:
                             if other_did == driver_id or other_did == current_driver_id:
                                 continue
-                            if not _vehicle_compatible(driver_vtypes.get(other_did), displaced_vtype):
-                                continue
-                            other_sched = inhouse_schedules.get(other_did)
-                            if other_sched is None:
-                                continue
-                            other_feas = check_feasibility(other_sched, displaced_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
-                                                           driver_window=windows.get(other_did))
-                            if other_feas.feasible:
+                            other_feas = direct_fit(displaced_leg, other_did, inhouse_schedules,
+                                                    driver_vtypes, target_date, cfg, windows,
+                                                    sharer_partners)
+                            if other_feas is not None and other_feas.feasible:
                                 rehomed = True
                                 break
 

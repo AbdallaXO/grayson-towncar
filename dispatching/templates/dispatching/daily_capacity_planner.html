@@ -850,6 +850,50 @@
         padding: 0 5px; border-radius: 3px; letter-spacing: .02em;
         text-transform: uppercase; white-space: nowrap;
     }
+    /* Fleet booked part of this car's day. A soft booking no trip sits inside
+       is plain information (calm, calendar icon — the car is usable, dispatch
+       is asked first on a clash); amber ⚠ only when a trip really lands in
+       it; red lock for hard (no trips in that window). The card itself stays
+       normal and draggable either way. */
+    .va-book-tag {
+        display: inline-flex; align-items: center; gap: 3px; max-width: 100%;
+        font-size: .56rem; font-weight: 600; color: #5b6272; background: #F5F3EE;
+        border: 1px solid #E5E1D6; padding: 0 5px; border-radius: 3px;
+        white-space: nowrap; letter-spacing: .01em;
+        overflow: hidden; text-overflow: ellipsis;
+    }
+    .va-book-tag i { font-size: .55rem; flex: 0 0 auto; color: #A8842F; }
+    .va-book-tag.conflict { color: #7A5E12; background: #FAF3DF; border-color: #E6D9AC; font-weight: 700; }
+    .va-book-tag.conflict i { color: #B7791F; }
+    .va-book-tag.hard { color: #A32A1F; background: #FAEDEA; border-color: #EBCFC9; font-weight: 700; }
+    .va-book-tag.hard i { color: #A32A1F; }
+    .va-book-tag.hard.conflict { color: #fff; background: #A32A1F; border-color: #A32A1F; }
+    .va-book-tag.hard.conflict i { color: #fff; }
+    /* Under a chauffeur card's header: the bookings on the car they hold. */
+    .va-book-line { display: flex; flex-wrap: wrap; gap: 3px; margin: -0.18rem 0 0.42rem; min-width: 0; }
+    /* Fleet bookings a bulk build runs into (Auto-Assign / Smart Builder preview). */
+    .bk-strip {
+        background: #fff; border: 1px solid #eadcb6; border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(26,36,64,.04); overflow: hidden;
+    }
+    .bk-strip-head {
+        display: flex; align-items: center; gap: 0.45rem;
+        padding: 0.45rem 0.75rem; background: #faf6ec; color: #6b5314;
+        font-size: 0.78rem; font-weight: 700; letter-spacing: .01em;
+    }
+    .bk-strip-head i { color: #a8842f; }
+    .bk-strip-count {
+        margin-left: auto; font-size: 0.66rem; font-weight: 700; color: #6b5314;
+        background: #fff; border: 1px solid #eadcb6; border-radius: 999px; padding: 0 7px;
+    }
+    .bk-strip-group { padding: 0.4rem 0.75rem 0.5rem; border-top: 1px solid #f3ecd9; }
+    .bk-strip-label {
+        display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.2rem;
+        font-size: 0.64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    }
+    .bk-strip-group.hard .bk-strip-label { color: #A32A1F; }
+    .bk-strip-group.soft .bk-strip-label { color: #7A5E12; }
+    .bk-strip-row { font-size: 0.77rem; color: #3a4156; line-height: 1.45; padding: 0.12rem 0 0.12rem 1.1rem; }
     /* Permit pips on a pool card — small, only shown when held. */
     .va-permit {
         font-size: .55rem; font-weight: 700; letter-spacing: .02em;
@@ -1298,6 +1342,14 @@
     .ds-quiet { padding: 0.3rem 1.05rem 0.5rem; font-size: 0.7rem; color: #6c757d; }
     .ds-warn { margin: 0.4rem 1.05rem 0; padding: 0.4rem 0.6rem; border-radius: 6px;
         background: rgba(180,83,10,0.10); color: #8a4008; font-size: 0.73rem; }
+    /* Fleet's booking of the car on this row — full width under name + picker. */
+    .ds-bk { grid-column: 2 / -1; display: flex; align-items: baseline; gap: 0.35rem;
+        margin-top: -0.1rem; font-size: 0.7rem; line-height: 1.4; }
+    .ds-bk[hidden] { display: none; }
+    .ds-bk.soft { color: #7A5E12; }
+    .ds-bk.hard { color: #A32A1F; font-weight: 600; }
+    .ds-bk.info { color: #6c757d; }
+    .ds-bk.info i { color: #A8842F; }
     .ds-foot { padding: 0.65rem 1.05rem; border-top: 1px solid #e9ecef;
         display: flex; align-items: center; gap: 0.5rem; }
     .ds-count { margin-right: auto; font-size: 0.73rem; color: #6c757d; }
@@ -1590,6 +1642,7 @@
                       {% elif p.expired %}<span class="va-permit expired" title="{{ p.label }} permit EXPIRED {{ p.expires_on }} — counts as no permit">{{ p.label }}</span>{% endif %}
                     {% endfor %}
                   {% endif %}
+                  {% for b in vehicle.booking_rows %}<span class="va-book-tag{% if b.hard %} hard{% endif %}{% if b.conflict %} conflict{% endif %}" data-hard="{{ b.hard|yesno:'1,0' }}" title="{{ b.title }}"><i class="bi bi-{{ b.icon|default:'calendar-event' }}"></i>{{ b.short }}</span>{% endfor %}
                 </div>
                 {% endfor %}
             </div>
@@ -1658,6 +1711,7 @@
                   {% endif %}
                 </div>
               </div>
+              {% if row.assignment.vehicle.booking_rows %}<div class="va-book-line">{% for b in row.assignment.vehicle.booking_rows %}<span class="va-book-tag{% if b.hard %} hard{% endif %}{% if b.conflict %} conflict{% endif %}" data-hard="{{ b.hard|yesno:'1,0' }}" title="{{ b.title }}"><i class="bi bi-{{ b.icon|default:'calendar-event' }}"></i>{{ b.short }}</span>{% endfor %}</div>{% endif %}
               {% if row.exc_badge %}
               <div class="va-exc-line">
                 <span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>
@@ -3101,6 +3155,8 @@
     </div>
 </div>
 
+{# Fleet-booking question (Continue Anyway / Cancel) — quick-assign, car moves, Day Setup, swaps, builder, auto-assign #}
+<script src="{% static 'js/booking-prompt.js' %}"></script>
 <script src="{% static 'js/timeline-dnd.js' %}"></script>
 
 <script>
@@ -3188,23 +3244,28 @@
         const origText = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning...';
 
-        fetch('{% url "update_leg_assignment" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}',
-            },
-            body: JSON.stringify({leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive}),
-        })
-        .then(r => r.json())
+        // A car fleet has booked while this trip runs is asked about before
+        // anything is written: soft → Continue Anyway / Cancel, hard → why not.
+        window.BookingPrompt.postWithBookingPrompt('{% url "update_leg_assignment" %}',
+            {leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive},
+            {csrfToken: '{{ csrf_token }}'})
         .then(data => {
+            if (data.cancelled) {
+                btn.classList.remove('assigning');
+                btn.innerHTML = origText;
+                return;
+            }
             if (data.success || data.status === 'success') {
                 btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Done';
                 btn.style.background = '#1b5e20';
                 // Advisory warnings for this assignment — survive the reload
-                // (rendered as the corner toast by timeline-dnd.js).
-                if (data.warnings && data.warnings.length && window.dndStashAssignWarnings) {
-                    window.dndStashAssignWarnings(data.warnings);
+                // (rendered as the corner toast by timeline-dnd.js). A fleet
+                // booking was already asked about and answered above; it does
+                // not come back as a toast.
+                const warnings = (data.warnings || []).filter(w =>
+                    !(w && (w.code === 'vehicle_booking' || w.code === 'vehicle_booking_hard')));
+                if (warnings.length && window.dndStashAssignWarnings) {
+                    window.dndStashAssignWarnings(warnings);
                 }
                 // Fade out the whole suggestion card and reload after a beat
                 const card = btn.closest('.suggested-driver') || btn.closest('.sg-alt-item');
@@ -3221,6 +3282,44 @@
             btn.innerHTML = origText;
             alert('Network error: ' + err);
         });
+    }
+
+    /* ── Fleet bookings in a bulk build (Auto-Assign, Smart Builder) ──
+       A preview lists every proposed trip that lands on a car fleet has booked
+       for part of the day ({leg_id, driver_id, text, hard}); the apply leaves
+       the HARD ones unassigned (refused_booking) and writes the soft ones
+       (booking_warnings). Server text goes in escaped — the reason is free
+       text fleet typed. */
+    function bookingStripHtml(items, hardLabel, softLabel) {
+        if (!items || !items.length) return '';
+        const esc = s => window.BookingPrompt.escapeHtml(s);
+        const groups = [
+            [items.filter(i => i.hard), hardLabel, 'hard', 'lock-fill'],
+            [items.filter(i => !i.hard), softLabel, 'soft', 'calendar-event'],
+        ];
+        let html = '<div class="bk-strip mb-3" role="note">';
+        html += '<div class="bk-strip-head"><i class="bi bi-calendar-event"></i>Fleet bookings'
+             + '<span class="bk-strip-count">' + items.length + '</span></div>';
+        groups.forEach(function(g) {
+            if (!g[0].length) return;
+            html += '<div class="bk-strip-group ' + g[2] + '"><div class="bk-strip-label"><i class="bi bi-' + g[3] + '"></i>' + esc(g[1]) + '</div>';
+            g[0].forEach(function(i) { html += '<div class="bk-strip-row">' + esc(i.text) + '</div>'; });
+            html += '</div>';
+        });
+        return html + '</div>';
+    }
+
+    // After an apply: what fleet's bookings changed about it. Resolves true
+    // when something was said (the caller reloads straight after).
+    function tellBookingOutcome(data, title) {
+        const BP = window.BookingPrompt;
+        const refused = (data && data.refused_booking) || [];
+        const soft = ((data && data.booking_warnings) || []).filter(w => !(w && w.hard));
+        if (!BP || (!refused.length && !soft.length)) return Promise.resolve(false);
+        const parts = [];
+        if (refused.length) parts.push('Left unassigned — the car is hard-booked by fleet:\n' + BP.listLines(refused));
+        if (soft.length) parts.push('Assigned, but the car is booked by fleet then:\n' + BP.listLines(soft));
+        return BP.tell(parts.join('\n\n'), {hard: refused.length > 0, title: title}).then(() => true);
     }
 
     // Auto-Assign: Step 1 (driver hours) → Step 2 (interactive preview) → Apply
@@ -3406,18 +3505,16 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Adding...';
             // 1. Create the REAL vehicle row through the validated Day Setup endpoint
-            //    (freed-unit options are deliberate shares: allow_share).
-            fetch('{% url "apply_day_setup" %}', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                body: JSON.stringify({
+            //    (freed-unit options are deliberate shares: allow_share). A car
+            //    fleet has booked over this chauffeur's trips is asked about
+            //    first (soft) or refused with the reason (hard).
+            window.BookingPrompt.postWithBookingPrompt('{% url "apply_day_setup" %}', {
                     date: document.getElementById('datePicker').value,
                     pairs: [{driver_id: opt.driver_id, vehicle_id: opt.vehicle_id, allow_share: !!opt.freed}],
                     snapshot: {},
-                }),
-            }).then(r => r.json()).then(res => {
+                }, {csrfToken: '{{ csrf_token }}'}).then(res => {
                 if (!res.success) {
-                    alert(res.error || 'Could not assign the vehicle');
+                    if (!res.cancelled) alert(res.error || 'Could not assign the vehicle');
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add this shift';
                     return;
@@ -3531,17 +3628,22 @@
             if (off && off.checked) { off.checked = false; off.dispatchEvent(new Event('change')); }
             const fin = function() { aaAdvisorDismissed.delete(sig); delete aaFoldUndoInfo[sig]; rePreview(); };
             if (!info.vehicle_id) { fin(); return; }
-            fetch('{% url "update_inhouse_vehicle_assignment" %}', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                body: JSON.stringify({driver_id: info.driver_id,
-                                      date: document.getElementById('datePicker').value,
-                                      vehicle_id: info.vehicle_id}),
-            }).then(r => r.json()).then(res => {
+            // Fleet may have booked the car over his trips since the fold: a soft
+            // booking asks Continue Anyway / Cancel (and gives it back on
+            // Continue), a hard one says why it can't go back.
+            window.BookingPrompt.postWithBookingPrompt('{% url "update_inhouse_vehicle_assignment" %}',
+                {driver_id: info.driver_id,
+                 date: document.getElementById('datePicker').value,
+                 vehicle_id: info.vehicle_id},
+                {csrfToken: '{{ csrf_token }}'}).then(res => {
                 // The endpoint re-runs the cert gate — if the give-back fails, say so and
                 // leave the board state visible; never silently pretend the undo worked.
-                if (!res.success) alert('Could not give the car back: ' + (res.error || 'unknown') +
-                                        ' — re-assign it by hand in Day Setup.');
+                if (res.cancelled) {
+                    alert('The car was not given back — re-assign it by hand in Day Setup if he still needs it.');
+                } else if (!res.success) {
+                    alert('Could not give the car back: ' + (res.error || 'unknown') +
+                          ' — re-assign it by hand in Day Setup.');
+                }
                 fin();
             }).catch(err => { alert('Error: ' + err); fin(); });
         };
@@ -3753,6 +3855,12 @@
                     html += '</div>';
                 }
             }
+
+            // Fleet bookings strip — trips this build puts on a car fleet has
+            // booked for part of the day. Hard ones are NOT applied (they stay
+            // unassigned); soft ones are, and are named here before Apply.
+            html += bookingStripHtml(data.booking_warnings || [],
+                'Won’t be applied — car hard-booked by fleet', 'Applied, but the car is booked by fleet then');
 
             // Span Governor warnings strip — over-cap rescues (red) + strict-cap blocks.
             const spanWarnings = data.span_warnings || [];
@@ -4049,7 +4157,10 @@
             .then(data => {
                 if (data.success) {
                     btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Done! Reloading...';
-                    setTimeout(function() { window.location.reload(); }, 1000);
+                    // Trips left off a hard-booked car, and soft bookings written
+                    // anyway — said before the reload wipes the modal.
+                    tellBookingOutcome(data, 'Auto-assign applied — fleet bookings')
+                        .then(told => setTimeout(function() { window.location.reload(); }, told ? 0 : 1000));
                 } else {
                     alert(data.error || 'Error applying assignments');
                     btn.disabled = false;
@@ -4149,6 +4260,17 @@
         .then(r => r.json())
         .then(data => {
             if (data.success) {
+                // Trips the restore left where they are because the car they
+                // would go back to is now hard-booked by fleet.
+                const skipped = data.skipped_booking || [];
+                if (skipped.length && window.BookingPrompt) {
+                    window.BookingPrompt.tell((data.message ? data.message + '\n\n' : '') +
+                        'Left as they are — the car is now hard-booked by fleet:\n' +
+                        window.BookingPrompt.listLines(skipped),
+                        {hard: true, title: 'Restored, except ' + skipped.length + ' trip' + (skipped.length === 1 ? '' : 's')})
+                      .then(() => window.location.reload());
+                    return;
+                }
                 alert(data.message);
                 window.location.reload();
             } else {
@@ -4523,7 +4645,7 @@
         if (data.warnings && data.warnings.length > 0) {
             warningsDiv.classList.remove('d-none');
             warningsDiv.innerHTML = data.warnings.map(w =>
-                '<div><i class="bi bi-exclamation-triangle me-1"></i>' + w + '</div>'
+                '<div><i class="bi bi-exclamation-triangle me-1"></i>' + window.BookingPrompt.escapeHtml(w) + '</div>'
             ).join('');
         } else {
             warningsDiv.classList.add('d-none');
@@ -4535,7 +4657,13 @@
         // Schedule list
         const listDiv = document.getElementById('sbScheduleList');
         const tripColors = { arrival: '#1565c0', 'return': '#2e7d32', cruise: '#e65100', other: '#6a1b9a' };
-        let html = '';
+        // New jobs that land on this chauffeur's car while fleet has it booked:
+        // listed up top, and tagged on their row. Hard ones Apply leaves out.
+        const sbBookings = data.booking_warnings || [];
+        const sbBookingByLeg = {};
+        sbBookings.forEach(function(b) { sbBookingByLeg[b.leg_id] = b; });
+        let html = bookingStripHtml(sbBookings,
+            'Won’t be applied — car hard-booked by fleet', 'Applied, but the car is booked by fleet then');
 
         data.schedule.forEach(function(slot) {
             let cls = slot.is_existing ? 'existing' : 'new-job';
@@ -4558,6 +4686,12 @@
             }
             if (slot.store_stop) {
                 html += '<span class="badge" style="font-size:0.55rem;padding:0.1rem 0.3rem;background:#2e7d32;color:#fff;" title="Publix grocery stop"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span> ';
+            }
+            const bk = sbBookingByLeg[slot.leg_id];
+            if (bk) {
+                html += '<span class="va-book-tag conflict' + (bk.hard ? ' hard' : '') + '" title="' + window.BookingPrompt.escapeHtml(bk.text) + '">'
+                     + '<i class="bi bi-' + (bk.hard ? 'lock-fill' : 'exclamation-triangle-fill') + '"></i>'
+                     + (bk.hard ? 'Car hard-booked — not applied' : 'Car booked by fleet') + '</span> ';
             }
             html += label;
             if (slot.cleared_time) {
@@ -4671,7 +4805,13 @@
             if (data.success && data.applied) {
                 btn.classList.add('d-none');
                 document.getElementById('sbApplied').classList.remove('d-none');
-                setTimeout(function() { window.location.reload(); }, 2000);
+                // Jobs left off because the car is hard-booked by fleet (and
+                // soft ones written) — said before the reload.
+                tellBookingOutcome({refused_booking: data.refused_booking,
+                                    booking_warnings: (data.booking_warnings || []).filter(w =>
+                                        !w.hard && !(data.refused_booking || []).some(r => r.leg_id === w.leg_id))},
+                                   'Schedule applied — fleet bookings')
+                    .then(told => setTimeout(function() { window.location.reload(); }, told ? 0 : 2000));
             } else {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Apply Schedule';
@@ -5298,17 +5438,44 @@
             // Out-of-service units are undraggable, so a drop here means the flag
             // landed after this page was rendered. The server is authoritative and
             // will answer 409 — pVaSave turns that into the override prompt.
-            if (pVaDrag.fromDriverId) pVaSave(pVaDrag.fromDriverId, null);
-            pVaSave(driverId, pVaDrag.vehicleId);
+            // A car dragged off another chauffeur goes to the receiver FIRST; the
+            // donor loses it only once that save (including a confirmed booking or
+            // out-of-service override) has succeeded — a refused or cancelled
+            // hand-over leaves the donor exactly as they were.
+            pVaSave(driverId, pVaDrag.vehicleId, false, false, pVaDrag.fromDriverId || null);
             pVaDrag = null;
         });
     });
 
-    function pVaSave(driverId, vehicleId, overrideOos) {
-        fetch("{% url 'update_inhouse_vehicle_assignment' %}", {
+    // The pool card's booking tags under a freshly drawn chip. Whether a trip
+    // sits inside a booking was measured against the car's previous holder, so
+    // the copy reads as plain information until the next load — except right
+    // after the dispatcher said "continue" to a clash with THIS chauffeur's trips.
+    function pVaBookingLine(poolCard, clashAccepted) {
+        if (!poolCard) return '';
+        const esc = s => window.BookingPrompt.escapeHtml(s);
+        const tags = Array.from(poolCard.querySelectorAll('.va-book-tag')).map(tag => {
+            const hard = tag.dataset.hard === '1';
+            const clash = clashAccepted && !hard;
+            const icon = hard ? 'lock-fill' : (clash ? 'exclamation-triangle-fill' : 'calendar-event');
+            // The pool's "Booking conflict — <the old holder's trips>" tail is
+            // about someone else now; the rest of the tooltip still holds.
+            const title = (tag.getAttribute('title') || '').replace(/\s*Booking conflict —.*$/, '');
+            return `<span class="va-book-tag${hard ? ' hard' : ''}${clash ? ' conflict' : ''}" data-hard="${hard ? '1' : '0'}"
+                title="${esc(title)}"><i class="bi bi-${icon}"></i>${esc(tag.textContent.trim())}</span>`;
+        });
+        return tags.length ? `<div class="va-book-line">${tags.join('')}</div>` : '';
+    }
+
+    // Resolves to the final response once every resend has run, or null when
+    // the dispatcher cancelled / the save was refused.
+    function pVaSave(driverId, vehicleId, overrideOos, overrideBooking, fromDriverId) {
+        const body = {driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null, override_oos: !!overrideOos, override_booking: !!overrideBooking};
+        if (fromDriverId && vehicleId) body.from_driver_id = parseInt(fromDriverId);
+        return fetch("{% url 'update_inhouse_vehicle_assignment' %}", {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-            body: JSON.stringify({driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null, override_oos: !!overrideOos}),
+            body: JSON.stringify(body),
         }).then(r => r.json()).then(data => {
             // Out of service — the one refusal a dispatcher is allowed to overrule,
             // because a stale flag must never strand a car that came back early.
@@ -5318,46 +5485,79 @@
                             + data.reason + '\n\n'
                             + 'Assign it anyway? Do this only if the car is genuinely back — '
                             + 'then clear the out-of-service dates on its fleet page.')) {
-                    pVaSave(driverId, vehicleId, true);
+                    return pVaSave(driverId, vehicleId, true, overrideBooking, fromDriverId);
                 }
-                return;
+                return null;
             }
-            if (!data.success) { if (data.error) alert(data.error); return; }
-            const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
-            if (!slot) return;
-            const area = slot.querySelector('.va-drv-vehicle');
-            if (vehicleId) {
-                const poolCard = document.querySelector(`#pVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
-                const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
-                const vType = poolCard ? poolCard.dataset.vehicleType : '';
-                const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
-                // Carry the out-of-service state onto the new chip, or an overridden
-                // assignment renders as a normal car until the next page load.
-                const vOos = poolCard ? (poolCard.dataset.oosLabel || '') : '';
-                area.innerHTML = `<div class="va-assigned-chip${vOos ? ' va-oos' : ''}" draggable="true"
-                    data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
-                    ${vOos ? `data-oos="1" data-oos-label="${vOos}" title="OUT OF SERVICE — ${vOos}"` : ''}
-                    data-vehicle-type="${vType}" data-from-driver="${driverId}">
-                    <span class="va-veh-num">#${vNum}</span>
-                    ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
-                    <button class="va-remove-btn" onclick="pVaRemove(${driverId})" title="Remove">&times;</button>
-                </div>`;
-                slot.dataset.assignedVehicleId = vehicleId;
-                slot.classList.remove('va-empty'); slot.classList.add('va-has');
-                // Re-attach drag
-                const chip = area.querySelector('.va-assigned-chip');
-                chip.addEventListener('dragstart', e => {
-                    pVaDrag = {vehicleId: chip.dataset.vehicleId, fromDriverId: chip.dataset.fromDriver};
-                    chip.classList.add('va-dragging'); e.dataTransfer.effectAllowed = 'move';
-                });
-                chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
-            } else {
-                area.innerHTML = '<span class="va-drop-hint">Needs vehicle</span>';
-                slot.dataset.assignedVehicleId = '';
-                slot.classList.remove('va-has'); slot.classList.add('va-empty');
+            // Fleet has booked part of this car's day over this chauffeur's
+            // trips. Soft: Continue Anyway / Cancel. Hard: said once, nothing to
+            // continue — fleet has to move it.
+            if (!data.success && data.booking_conflict) {
+                if (data.can_override && !overrideBooking) {
+                    return window.BookingPrompt.ask(data).then(go => go
+                        ? pVaSave(driverId, vehicleId, overrideOos, true, fromDriverId)
+                        : null);
+                }
+                return window.BookingPrompt.ask(Object.assign({}, data, {can_override: false})).then(() => null);
             }
-            pVaMarkInUse();
-        });
+            if (!data.success) { if (data.error) alert(data.error); return null; }
+            pVaDrawSlot(driverId, vehicleId, !!overrideBooking);
+            if (fromDriverId && vehicleId) {
+                // The server moves the car in one go when it knows the donor
+                // (answers cleared_driver_id); an older one does not, so the
+                // donor is cleared here — after.
+                if ('cleared_driver_id' in data) {
+                    if (data.cleared_driver_id) pVaDrawSlot(data.cleared_driver_id, null, false);
+                } else {
+                    return pVaSave(fromDriverId, null).then(() => data);
+                }
+            }
+            return data;
+        }).catch(err => { console.error('Vehicle assignment failed:', err); return null; });
+    }
+
+    // Draw one chauffeur card's car: the chip (or "Needs vehicle" when
+    // vehicleId is null) and the fleet-booking line under the card's header.
+    function pVaDrawSlot(driverId, vehicleId, clashAccepted) {
+        const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
+        if (!slot) return;
+        const area = slot.querySelector('.va-drv-vehicle');
+        const oldLine = slot.querySelector('.va-book-line');
+        if (oldLine) oldLine.remove();
+        if (vehicleId) {
+            const poolCard = document.querySelector(`#pVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
+            const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
+            const vType = poolCard ? poolCard.dataset.vehicleType : '';
+            const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
+            // Carry the out-of-service state onto the new chip, or an overridden
+            // assignment renders as a normal car until the next page load.
+            const vOos = poolCard ? window.BookingPrompt.escapeHtml(poolCard.dataset.oosLabel || '') : '';
+            area.innerHTML = `<div class="va-assigned-chip${vOos ? ' va-oos' : ''}" draggable="true"
+                data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
+                ${vOos ? `data-oos="1" data-oos-label="${vOos}" title="OUT OF SERVICE — ${vOos}"` : ''}
+                data-vehicle-type="${vType}" data-from-driver="${driverId}">
+                <span class="va-veh-num">#${vNum}</span>
+                ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
+                <button class="va-remove-btn" onclick="pVaRemove(${driverId})" title="Remove">&times;</button>
+            </div>`;
+            const line = pVaBookingLine(poolCard, clashAccepted);
+            const head = slot.querySelector('.va-c-head');
+            if (line && head) head.insertAdjacentHTML('afterend', line);
+            slot.dataset.assignedVehicleId = vehicleId;
+            slot.classList.remove('va-empty'); slot.classList.add('va-has');
+            // Re-attach drag
+            const chip = area.querySelector('.va-assigned-chip');
+            chip.addEventListener('dragstart', e => {
+                pVaDrag = {vehicleId: chip.dataset.vehicleId, fromDriverId: chip.dataset.fromDriver};
+                chip.classList.add('va-dragging'); e.dataTransfer.effectAllowed = 'move';
+            });
+            chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
+        } else {
+            area.innerHTML = '<span class="va-drop-hint">Needs vehicle</span>';
+            slot.dataset.assignedVehicleId = '';
+            slot.classList.remove('va-has'); slot.classList.add('va-empty');
+        }
+        pVaMarkInUse();
     }
 
     window.pVaRemove = function(driverId) { pVaSave(driverId, null); };
@@ -5412,14 +5612,22 @@
                 vaCopyBtn.disabled = false;
                 if (!data.success) { alert(data.error || 'Failed'); return; }
 
+                var esc = s => window.BookingPrompt.escapeHtml(s);   // server text is never markup
                 var hasOff = data.drivers.some(d => d.is_off_today);
+                // Fleet's bookings on the day being built, said BEFORE the copy:
+                // a car hard-booked over its chauffeur's trips will not be copied
+                // (unticked, locked); a soft one will, with its booking named.
+                var notesByDriver = {};
+                (data.booking_notes || []).forEach(function(n) {
+                    (notesByDriver[n.driver_id] = notesByDriver[n.driver_id] || []).push(n);
+                });
                 var overlay = document.createElement('div');
                 overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
                 var modal = document.createElement('div');
                 modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:480px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
 
                 var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#f8f9fa;border-radius:12px 12px 0 0;">'
-                    + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-arrow-repeat me-2"></i>Copy from ' + data.source_date + '</div>'
+                    + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-arrow-repeat me-2"></i>Copy from ' + esc(data.source_date) + '</div>'
                     + '<div style="font-size:0.75rem;color:#6c757d;">' + data.drivers.length + ' driver' + (data.drivers.length !== 1 ? 's' : '') + ' · Uncheck any to skip</div>'
                     + '</div>';
 
@@ -5428,14 +5636,25 @@
                     body += '<div style="background:#fff3cd;border:1px solid #ffecb5;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#664d03;">'
                         + '<i class="bi bi-exclamation-triangle me-1"></i><strong>Some drivers are off today</strong> — they are unchecked by default.</div>';
                 }
+                if ((data.booking_notes || []).length) {
+                    body += '<div style="background:#faf6ec;border:1px solid #eadcb6;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#6b5314;">'
+                        + '<i class="bi bi-calendar-event me-1"></i><strong>Fleet has booked some of these cars today</strong> — a hard-booked car is not copied; a soft one is, with its booking below.</div>';
+                }
                 data.drivers.forEach(function(d) {
-                    var checked = !d.is_off_today;
-                    body += '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:0.82rem;">'
-                        + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' value="' + d.driver_id + '" style="width:16px;height:16px;accent-color:#198754;">'
-                        + '<span style="flex:1;font-weight:' + (d.is_off_today ? '400' : '600') + ';' + (d.is_off_today ? 'color:#999;' : '') + '">' + d.driver_name + '</span>'
-                        + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + d.vehicle_number + ' <span style="color:#aaa;font-weight:400;">' + d.vehicle_type + '</span></span>'
+                    var notes = notesByDriver[d.driver_id] || [];
+                    var hardBooked = notes.some(function(n) { return n.hard; });
+                    var checked = !d.is_off_today && !hardBooked;
+                    body += '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;' + (notes.length ? '' : 'border-bottom:1px solid #f0f0f0;') + 'cursor:' + (hardBooked ? 'default' : 'pointer') + ';font-size:0.82rem;">'
+                        + '<input type="checkbox" ' + (checked ? 'checked' : '') + (hardBooked ? ' disabled' : '') + ' value="' + d.driver_id + '" style="width:16px;height:16px;accent-color:#198754;">'
+                        + '<span style="flex:1;font-weight:' + (d.is_off_today ? '400' : '600') + ';' + (d.is_off_today || hardBooked ? 'color:#999;' : '') + '">' + esc(d.driver_name) + '</span>'
+                        + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + esc(d.vehicle_number) + ' <span style="color:#aaa;font-weight:400;">' + esc(d.vehicle_type) + '</span></span>'
                         + (d.is_off_today ? '<span style="background:#dc3545;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;">OFF</span>' : '')
                         + '</label>';
+                    notes.forEach(function(n, i) {
+                        body += '<div style="margin:0 0 0 26px;padding:0 0 ' + (i === notes.length - 1 ? '8px' : '4px') + ';' + (i === notes.length - 1 ? 'border-bottom:1px solid #f0f0f0;' : '') + 'font-size:0.72rem;line-height:1.4;color:' + (n.hard ? '#A32A1F' : '#7A5E12') + ';">'
+                            + '<i class="bi bi-' + (n.hard ? 'lock-fill' : 'calendar-event') + ' me-1"></i>'
+                            + (n.hard ? '<strong>Not copied.</strong> ' : '') + esc(n.text) + '</div>';
+                    });
                 });
                 body += '</div>';
 
@@ -5468,7 +5687,18 @@
                         if (result.success) {
                             confirmBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Done! Reloading...';
                             confirmBtn.classList.replace('btn-primary', 'btn-success');
-                            setTimeout(() => location.reload(), 800);
+                            // What the copy did around fleet's bookings, before the
+                            // reload wipes it: hard-booked cars skipped, soft ones
+                            // copied with their booking.
+                            var skipped = result.skipped_booking || [];
+                            var soft = result.booking_warnings || [];
+                            if (!skipped.length && !soft.length) { setTimeout(() => location.reload(), 800); return; }
+                            var BP = window.BookingPrompt;
+                            var parts = [];
+                            if (skipped.length) parts.push('Not copied — hard-booked by fleet:\n' + BP.listLines(skipped));
+                            if (soft.length) parts.push('Copied — the car is booked by fleet for part of the day:\n' + BP.listLines(soft));
+                            BP.tell(parts.join('\n\n'), {hard: !!skipped.length, title: 'Cars copied — fleet bookings'})
+                              .then(() => location.reload());
                         } else {
                             alert(result.error || 'Failed');
                             confirmBtn.disabled = false;
@@ -5790,15 +6020,23 @@
             if (rs) return '<span class="ds-tag flat">' + esc(rs) + '</span>';
             return '';
         }
+        // Fleet's part-day bookings on a unit ("Booked 10a–12p Tire service"),
+        // printed beside it in the picker so a hand-picked car is never chosen
+        // blind; data-booking lets the row say it again under the picker.
+        var freeBooking = {};
+        (data.free_units || []).forEach(function(u) { if (u.booking) freeBooking[u.id] = u.booking; });
+        function bookingAttr(b) { return b ? ' data-booking="' + esc(b) + '"' : ''; }
+        function bookingTail(b) { return b ? ' · ' + esc(b) : ''; }
         function vehSelect(r) {
             var opts = r.unit_options || [];
             var html = '<select class="ds-veh" ' + (r.checked ? '' : 'disabled') + '>';
             html += '<option value="">— no car —</option>';
             if (!opts.length) {
-                if (r.vehicle_id) html += '<option value="' + r.vehicle_id + '" selected>' + esc(r.vehicle_label) + '</option>';
+                if (r.vehicle_id) html += '<option value="' + r.vehicle_id + '" selected' + bookingAttr(freeBooking[r.vehicle_id]) + '>'
+                    + esc(r.vehicle_label) + bookingTail(freeBooking[r.vehicle_id]) + '</option>';
                 (data.free_units || []).forEach(function(u) {
                     if (u.id === r.vehicle_id) return;
-                    html += '<option value="' + u.id + '">' + esc(u.label) + '</option>';
+                    html += '<option value="' + u.id + '"' + bookingAttr(u.booking) + '>' + esc(u.label) + bookingTail(u.booking) + '</option>';
                 });
                 return html + '</select>';
             }
@@ -5808,18 +6046,32 @@
                 if (!list.length) return '';
                 var g = '<optgroup label="' + esc(label) + '">';
                 list.forEach(function(o) {
-                    g += '<option value="' + o.id + '"' + (o.id === r.vehicle_id ? ' selected' : '') + '>'
+                    g += '<option value="' + o.id + '"' + (o.id === r.vehicle_id ? ' selected' : '') + bookingAttr(o.booking) + '>'
                         + esc(o.label) + ' — ' + esc(o.note)
-                        + (o.rarely_used ? ' (rarely used)' : '') + '</option>';
+                        + (o.rarely_used ? ' (rarely used)' : '') + bookingTail(o.booking) + '</option>';
                 });
                 return g + '</optgroup>';
             }
             html += group('Free now', free);
             html += group('Would take it from someone', taken.map(function(o) {
-                return {id: o.id, label: o.label, rarely_used: o.rarely_used,
+                return {id: o.id, label: o.label, rarely_used: o.rarely_used, booking: o.booking,
                         note: o.held_by + ' loses it · ' + o.note};
             }));
             return html + '</select>';
+        }
+        // The suggested car is booked over this chauffeur's trips: say so under
+        // the row — soft, Apply will ask; hard, Apply will refuse. Tied to that
+        // car: picking another hides it (and names the new car's bookings).
+        function bookingNote(r) {
+            var html = '';
+            if (r.booking_note) {
+                html += '<div class="ds-bk ' + (r.booking_hard ? 'hard' : 'soft') + '" data-bk-vid="' + (r.vehicle_id || '') + '">'
+                    + '<i class="bi bi-' + (r.booking_hard ? 'lock-fill' : 'exclamation-triangle-fill') + '"></i>'
+                    + '<span>' + esc(r.booking_note)
+                    + (r.booking_hard ? ' Apply will refuse this car for him.' : ' Apply will ask before giving it to him.')
+                    + '</span></div>';
+            }
+            return html + '<div class="ds-bk info" data-bk-pick hidden></div>';
         }
 
         var groupTitles = {locked: 'Already set', suggested: 'Crew',
@@ -5878,6 +6130,7 @@
                 body += locked
                     ? '<span style="font-size:0.76rem;font-weight:600;color:#6c757d;">' + dot(r.vehicle_label) + esc(r.vehicle_label) + '</span>'
                     : '<span class="ds-carwrap">' + vehSelect(r) + '</span>';
+                body += bookingNote(r);
                 body += '</div>';
             });
             if (isBench) body += '</div>';
@@ -5954,6 +6207,13 @@
                 var chips = '';
                 var planLine = (mp.handoff_band === 'amber' && mp.handoff_reason)
                     ? '<div class="dsx-mint-s" style="color:#8A6A12;">' + esc(mp.handoff_reason) + '</div>' : '';
+                // Fleet has this car booked over the shift's trips — soft: Apply
+                // asks; hard: Apply refuses it.
+                if (mp.booking_note) {
+                    planLine += '<div class="dsx-mint-s" style="color:' + (mp.booking_hard ? '#A32A1F' : '#7A5E12') + ';">'
+                        + '<i class="bi bi-' + (mp.booking_hard ? 'lock-fill' : 'exclamation-triangle-fill') + ' me-1"></i>'
+                        + esc(mp.booking_note) + '</div>';
+                }
                 body += '<div class="dsx-mint" data-mint-idx="' + i + '"'
                     + ' data-driver-id="' + mp.driver_id + '" data-vehicle-id="' + mp.vehicle_id + '"'
                     + ' data-ps="' + mp.planned_start_hour + '" data-pe="' + mp.planned_end_hour + '"'
@@ -6308,17 +6568,43 @@
         });
         modal.querySelectorAll('.ds-veh').forEach(function(sel) { sel.addEventListener('change', dsRefresh); });
         modal.querySelectorAll('.dsx-mint-check').forEach(function(cb) { cb.addEventListener('change', dsRefresh); });
+        // A different car picked by hand: the suggested car's booking note no
+        // longer applies; the picked car's bookings (if any) are named instead —
+        // Apply still checks them against this chauffeur's trips.
+        modal.querySelectorAll('.ds-veh').forEach(function(sel) {
+            sel.addEventListener('change', function() {
+                var row = sel.closest('.ds-row');
+                var note = row.querySelector('.ds-bk[data-bk-vid]');
+                if (note) note.hidden = String(sel.value) !== note.dataset.bkVid;
+                var pick = row.querySelector('[data-bk-pick]');
+                if (!pick) return;
+                var opt = sel.options[sel.selectedIndex];
+                var booking = opt && opt.dataset.booking;
+                var showPick = !!booking && !(note && !note.hidden);
+                pick.hidden = !showPick;
+                pick.innerHTML = showPick
+                    ? '<i class="bi bi-calendar-event"></i><span>' + esc(opt.textContent.split(' — ')[0].split(' · ')[0].trim())
+                      + ': ' + esc(booking) + '. Apply checks it against his trips.</span>'
+                    : '';
+            });
+        });
         dsRefresh();
 
         modal.querySelector('.ds-apply').addEventListener('click', function() {
             var btn = this;
             btn.disabled = true;
             btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Applying...';
-            fetch('{% url "apply_day_setup" %}', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', pairs: dsCollect(), snapshot: data.snapshot || {}}),
-            }).then(r => r.json()).then(result => {
+            // A car fleet has booked over a chauffeur's trips: soft → Continue
+            // Anyway / Cancel (resent with override_booking), hard → said, and
+            // nothing is written.
+            window.BookingPrompt.postWithBookingPrompt('{% url "apply_day_setup" %}',
+                {date: '{{ selected_date|date:"Y-m-d" }}', pairs: dsCollect(), snapshot: data.snapshot || {}},
+                {csrfToken: '{{ csrf_token }}'}).then(result => {
+                if (result.cancelled) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Apply';
+                    return;
+                }
                 if (result.success) {
                     btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Done! Reloading...';
                     setTimeout(() => location.reload(), 800);
@@ -6884,27 +7170,39 @@
             var dateVal = document.getElementById('datePicker').value;
             var movesPayload = moves.map(function(m) { return {leg_id: m.leg_id, to_driver_id: m.to_driver_id}; });
 
-            fetch('{% url "execute_swap" %}', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken},
-                body: JSON.stringify({date: dateVal, moves: movesPayload})
-            })
-            .then(function(r) {
-                if (!r.ok && r.status === 403) {
-                    throw new Error('Session expired or permission denied. Please refresh the page and try again.');
-                }
-                return r.json().catch(function() {
-                    throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
-                });
-            })
-            .then(function(data) {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Swap failed: ' + (data.error || 'Unknown error'));
-                }
-            })
-            .catch(function(err) { alert('Swap error: ' + err.message); });
+            // Fleet's bookings are judged for the whole swap before anything is
+            // written: a hard one refuses it (said, nothing to continue); soft
+            // ones are asked once — Continue Anyway resends with override_booking.
+            function send(overrideBooking) {
+                var body = {date: dateVal, moves: movesPayload};
+                if (overrideBooking) body.override_booking = true;
+                fetch('{% url "execute_swap" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken},
+                    body: JSON.stringify(body)
+                })
+                .then(function(r) {
+                    if (!r.ok && r.status === 403) {
+                        throw new Error('Session expired or permission denied. Please refresh the page and try again.');
+                    }
+                    return r.json().catch(function() {
+                        throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
+                    });
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        window.location.reload();
+                    } else if (window.BookingPrompt && window.BookingPrompt.isRefusal(data)) {
+                        var soft = window.BookingPrompt.isSoft(data) && !overrideBooking;
+                        window.BookingPrompt.ask(soft ? data : Object.assign({}, data, {can_override: false}))
+                            .then(function(go) { if (go && soft) send(true); });
+                    } else {
+                        alert('Swap failed: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(function(err) { alert('Swap error: ' + err.message); });
+            }
+            send(false);
         };
     })();
 </script>

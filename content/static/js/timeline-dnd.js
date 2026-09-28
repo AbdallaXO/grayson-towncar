@@ -50,15 +50,53 @@
   // ── Assignment API call ──
   // live_override (set via the held-day "Edit live" toggle) forces a write to the
   // live schedule even when the date is held — for emergency same-day changes.
-  function assignLeg(legId, driverId) {
+  // overrideBooking: the dispatcher has already answered "Continue Anyway" to
+  // the soft fleet booking on this car (the conflict modal led with it, or the
+  // move is an undo back to where the trip was) — without it the server asks
+  // first (409) and writes nothing.
+  function assignLeg(legId, driverId, overrideBooking) {
+    var body = { leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive };
+    if (overrideBooking) body.override_booking = true;
     return fetch('/dispatching/update-leg-assignment/', {
       method: 'POST',
       headers: {
         'X-CSRFToken': getCSRF(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive }),
+      body: JSON.stringify(body),
     }).then(function (r) { return r.json(); });
+  }
+
+  // A booking refusal from the server: {booking_conflict, can_override, error}.
+  function isBookingRefusal(resp) {
+    return !!(resp && resp.success === false && resp.booking_conflict);
+  }
+
+  // Say a booking refusal out loud. Soft → Promise<true> on Continue Anyway;
+  // hard → shown, Promise<false>. booking-prompt.js does the asking when the
+  // page loaded it; otherwise the toast (hard) / confirm (soft) stand in.
+  function askBooking(resp) {
+    if (window.BookingPrompt) return window.BookingPrompt.ask(resp);
+    if (resp && resp.can_override) {
+      return Promise.resolve(window.confirm((resp.error || 'This car is booked by fleet at that time.') +
+                                            '\n\nOK = Continue Anyway.   Cancel = leave it.'));
+    }
+    showWarningsToast([{ severity: 'warning',
+      text: 'Not assigned. ' + ((resp && resp.error) || 'This car is hard-booked by fleet at that time.') }]);
+    return Promise.resolve(false);
+  }
+
+  // The booking sentence check-feasibility answers with (a soft clash only —
+  // a hard one comes back as hard_block + reason).
+  function bookingWarning(result) {
+    return (result && typeof result.booking_warning === 'string' && result.booking_warning) || '';
+  }
+
+  // Feasibility warnings other than the booking sentence (so it is never
+  // printed twice, whichever list the server put it in).
+  function otherWarnings(result) {
+    var bw = bookingWarning(result);
+    return ((result && result.warnings) || []).filter(function (w) { return w && w !== bw; });
   }
 
   // ── Unassign (set driver to empty) ──
@@ -140,29 +178,72 @@
   }
 
   // ── Show conflict modal ──
+  // The page's own markup (title, "Assign Anyway") is the default. When fleet's
+  // booking of the car is the ONLY thing to say, the modal becomes the booking
+  // question itself — "Vehicle booked by fleet", the sentence, Continue Anyway
+  // / Cancel — and goes back to the page's wording when it closes.
+  var modalDefaults = null;
+
   function showConflictModal(result, onConfirm, onCancel) {
     var modal = document.getElementById('dndConflictModal');
     if (!modal) { onCancel(); return; }
 
+    var titleEl = modal.querySelector('.modal-title');
+    var confirmBtn = modal.querySelector('.dnd-conflict-confirm');
+    var cancelBtn = modal.querySelector('.dnd-conflict-cancel');
+    if (!modalDefaults) {
+      modalDefaults = {
+        title: titleEl ? titleEl.innerHTML : '',
+        confirm: confirmBtn ? confirmBtn.innerHTML : '',
+      };
+    }
+
+    var booking = bookingWarning(result);
+    var others = otherWarnings(result);
+    var bookingOnly = !!booking && result.feasible === true && !others.length &&
+                      !result.vehicle_mismatch_detail;
+
     var body = modal.querySelector('.modal-body');
     var html = '';
-    if (result.reason) {
+    if (booking) {
+      html += '<p class="mb-2"><i class="bi bi-calendar-event me-2" style="color:#C8A24A;"></i>' +
+              escapeHtml(booking) + '</p>';
+    }
+    // "Issue:" is for a schedule that does not fit. A feasible result's reason
+    // is a remark ("No other trips — fully available", "181min buffer") and
+    // must never headline a warning about something else.
+    if (result.reason && result.feasible === false) {
       html += '<p><strong>Issue:</strong> ' + escapeHtml(result.reason) + '</p>';
     }
     if (result.vehicle_mismatch_detail) {
       html += '<p><i class="bi bi-exclamation-triangle text-warning me-1"></i>' + escapeHtml(result.vehicle_mismatch_detail) + '</p>';
     }
-    if (result.warnings && result.warnings.length) {
+    if (others.length) {
       html += '<ul>';
-      result.warnings.forEach(function (w) { html += '<li>' + escapeHtml(w) + '</li>'; });
+      others.forEach(function (w) { html += '<li>' + escapeHtml(w) + '</li>'; });
       html += '</ul>';
     }
     body.innerHTML = html;
 
-    var bsModal = new bootstrap.Modal(modal);
+    if (titleEl) {
+      titleEl.innerHTML = bookingOnly
+        ? '<i class="bi bi-calendar-event me-2" style="color:#C8A24A;"></i>Vehicle booked by fleet'
+        : modalDefaults.title;
+    }
+    if (confirmBtn) {
+      if (bookingOnly) confirmBtn.textContent = 'Continue Anyway';
+      else confirmBtn.innerHTML = modalDefaults.confirm;
+    }
+    // Back to the page's own wording once the modal has faded out (not on the
+    // click — the title would visibly flip during the fade).
+    function restoreDefaults() {
+      modal.removeEventListener('hidden.bs.modal', restoreDefaults);
+      if (titleEl) titleEl.innerHTML = modalDefaults.title;
+      if (confirmBtn) confirmBtn.innerHTML = modalDefaults.confirm;
+    }
+    modal.addEventListener('hidden.bs.modal', restoreDefaults);
 
-    var confirmBtn = modal.querySelector('.dnd-conflict-confirm');
-    var cancelBtn = modal.querySelector('.dnd-conflict-cancel');
+    var bsModal = new bootstrap.Modal(modal);
 
     function cleanup() {
       confirmBtn.removeEventListener('click', onConfirmClick);
@@ -223,7 +304,10 @@
   }
 
   // ── Execute the assignment ──
-  function executeAssignment(slotEl, targetRow, targetDriverId, targetDriverName) {
+  // bookingConfirmed: the dispatcher has already read the fleet-booking
+  // sentence in the conflict modal and chosen to continue, so the write goes
+  // with override_booking and the server does not ask a second time.
+  function executeAssignment(slotEl, targetRow, targetDriverId, targetDriverName, bookingConfirmed) {
     var legId = slotEl.dataset.legId;
     var customerName = slotEl.dataset.customer || 'Job';
     var timeStr = slotEl.dataset.time || '';
@@ -239,14 +323,19 @@
     if (targetDriverId === 'unassigned') {
       promise = unassignLeg(legId);
     } else {
-      promise = assignLeg(legId, targetDriverId);
+      promise = assignLeg(legId, targetDriverId, !!bookingConfirmed);
     }
 
     promise.then(function (resp) {
       if (resp.success) {
         feasibilityCache.clear();
         // Advisory warnings for the assignment just made — survive the reload.
-        if (resp.warnings && resp.warnings.length) stashAssignWarnings(resp.warnings);
+        // A booking the dispatcher has just said "continue" to is a decision
+        // already made; it must not come back as a toast after the reload.
+        var warnings = (resp.warnings || []).filter(function (w) {
+          return !(bookingConfirmed && w && (w.code === 'vehicle_booking' || w.code === 'vehicle_booking_hard'));
+        });
+        if (warnings.length) stashAssignWarnings(warnings);
         // Show success toast briefly then reload to update layout
         showUndoToast(
           customerName + ' ' + timeStr + ': ' + srcName + ' → ' + tgtName,
@@ -259,15 +348,31 @@
             if (origDriverId === 'unassigned') {
               undoPromise = unassignLeg(legId);
             } else {
-              undoPromise = assignLeg(legId, origDriverId);
+              // Putting the trip back where it was is not a new decision: a
+              // soft booking on the original car does not ask again. A hard
+              // one still refuses, and says so.
+              undoPromise = assignLeg(legId, origDriverId, true);
             }
             undoPromise.then(function (r) {
-              if (r.success) window.location.reload();
+              if (r.success) { window.location.reload(); return; }
+              if (isBookingRefusal(r)) { askBooking(r); return; }
+              showErrorToast((r && r.error) || 'Undo failed');
             });
           }
         );
         // Reload after short delay so user sees the toast
         setTimeout(function () { window.location.reload(); }, 1200);
+      } else if (isBookingRefusal(resp) && !bookingConfirmed) {
+        // Fleet booked the car after the schedule was checked (or the check
+        // was cached). Ask now; nothing has been written.
+        askBooking(resp).then(function (go) {
+          if (go && resp.can_override) {
+            executeAssignment(slotEl, targetRow, targetDriverId, targetDriverName, true);
+          }
+        });
+      } else if (isBookingRefusal(resp)) {
+        // Refused even though the dispatcher continued — a hard booking.
+        askBooking(Object.assign({}, resp, { can_override: false }));
       } else {
         showErrorToast(resp.error || 'Assignment failed');
       }
@@ -461,7 +566,9 @@
         if (targetDriverId && targetDriverId !== sourceDriverId && targetDriverId !== 'unassigned') {
           checkFeasibility(draggedLegId, targetDriverId).then(function (result) {
             if (!row.classList.contains('dnd-over')) return;
-            if (result.feasible === true && (!result.warnings || !result.warnings.length)) {
+            if (result.hard_block) {
+              row.classList.add('dnd-infeasible');
+            } else if (result.feasible === true && !otherWarnings(result).length && !bookingWarning(result)) {
               row.classList.add('dnd-feasible');
             } else if (result.feasible === true) {
               row.classList.add('dnd-warning');
@@ -525,15 +632,26 @@
 
       // Check feasibility before committing
       checkFeasibility(draggedLegId, targetDriverId).then(function (result) {
-        if (result.feasible === true && (!result.warnings || !result.warnings.length)) {
+        // Fleet has hard-booked this chauffeur's car across the trip. The
+        // server refuses the write, so offering "assign anyway" would only
+        // lead to a second refusal — say why, once, with nothing to continue.
+        if (result.hard_block) {
+          askBooking({ success: false, booking_conflict: true, hard: true, can_override: false,
+                       error: result.reason || 'This car is hard-booked by fleet at that time.' });
+          return;
+        }
+        // The modal led with the booking sentence, so "continue" there is the
+        // dispatcher's answer to it — the write carries override_booking.
+        var askedBooking = !!bookingWarning(result);
+        if (result.feasible === true && !otherWarnings(result).length && !askedBooking) {
           executeAssignment(slotEl, row, targetDriverId, targetDriverName);
         } else if (result.feasible === true) {
           showConflictModal(result, function () {
-            executeAssignment(slotEl, row, targetDriverId, targetDriverName);
+            executeAssignment(slotEl, row, targetDriverId, targetDriverName, askedBooking);
           }, function () { /* cancelled */ });
         } else if (result.feasible === false) {
           showConflictModal(result, function () {
-            executeAssignment(slotEl, row, targetDriverId, targetDriverName);
+            executeAssignment(slotEl, row, targetDriverId, targetDriverName, askedBooking);
           }, function () { /* cancelled */ });
         } else {
           showErrorToast('Could not verify schedule — try again');

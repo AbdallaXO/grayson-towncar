@@ -205,7 +205,7 @@
   .fl-grid-row.closed .fl-grid-label { color: var(--fl-muted-light); }
   .fl-grid-head { font-size: 0.66rem; color: var(--fl-muted-light); font-weight: 600; text-align: center; }
   .fl-grid-label { font-size: 0.74rem; font-weight: 600; color: var(--fl-ink); white-space: nowrap; }
-  .fl-grid-label small { display: block; font-size: 0.62rem; color: var(--fl-muted-light); font-weight: 500; }
+  .fl-grid-label small { display: block; font-size: 0.62rem; color: var(--fl-muted-light); font-weight: 500; white-space: normal; line-height: 1.25; }
   .fl-cell { height: 34px; border: 1px solid transparent; border-radius: 5px; font-size: 0.68rem; font-weight: 600; font-variant-numeric: tabular-nums; padding: 0; transition: var(--fl-t); width: 100%; }
   .fl-cell.sp-neg { background: var(--fl-critical-tint); color: var(--fl-critical); }
   .fl-cell.sp-0 { background: var(--fl-caution-tint); color: var(--fl-caution); }
@@ -272,6 +272,10 @@
   .ol-day.weekend .ol-day-btn .wd { color: var(--fl-muted-light); }
   .ol-day-btn .dm { font-size: 0.76rem; font-weight: 500; color: var(--fl-muted-light); white-space: nowrap; }
   .ol-day-btn .today { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fl-gold); white-space: nowrap; }
+  /* The chosen car already has trips this day — booking it in means moving them.
+     Its own line under the date: the label column has no room beside it. */
+  .ol-day-btn:has(.car) { flex-wrap: wrap; row-gap: 1px; }
+  .ol-day-btn .car { flex-basis: 100%; font-size: 0.62rem; font-weight: 600; color: var(--fl-muted); white-space: nowrap; }
   .ol-cell { height: 30px; }
   .ol-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
   .ol-total { font-size: 0.74rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fl-muted); }
