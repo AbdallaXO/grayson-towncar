@@ -777,6 +777,58 @@
                 </dd>
               </dl>
 
+              {% comment %}
+                Fee history — its own block, not folded into Private Notes, because
+                that field renders on the chauffeur's board, their completed trips
+                and their weekly schedule. Gratuity is the only money note a driver
+                should see. This page is staff-only, so the $20 trail lives here.
+              {% endcomment %}
+              {% if leg.fee_events or leg.fee_outstanding %}
+                <div class="gt-fee-log{% if leg.fee_outstanding %} gt-fee-log-owed{% endif %}">
+                  <div class="gt-fee-log-head">
+                    <i class="bi bi-receipt"></i>
+                    After-hours fee
+                    <span class="gt-fee-log-tag">staff only</span>
+                  </div>
+
+                  {% if leg.fee_outstanding %}
+                    <div class="gt-fee-owed">
+                      <div class="gt-fee-owed-top">
+                        <span class="gt-fee-owed-amt">${{ leg.fee_outstanding }} not collected</span>
+                        <button type="button"
+                                class="gt-fee-decide"
+                                data-leg-id="{{ leg.id }}"
+                                data-fee="{{ leg.fee_outstanding }}"
+                                data-guest="{{ reservation.customer.first_name|title }} {{ reservation.customer.last_name|title }}"
+                                data-pickup="{{ leg.pickup_time|time:'g:i A' }}"
+                                data-total="{{ reservation.total_price }}"
+                                data-card="{{ reservation.customer.card_last4|default:'' }}">
+                          Decide now
+                        </button>
+                      </div>
+                      <div class="gt-fee-owed-why">
+                        Pickup is {{ leg.pickup_time|time:"g:i A" }}, inside the 10 PM&ndash;6 AM window.
+                        {% if leg.fee_moved_by %}
+                          Moved there by <strong>{{ leg.fee_moved_by }}</strong>{% if leg.fee_moved_at %} on {{ leg.fee_moved_at|date:"M j, g:i A" }}{% endif %}, and left undecided.
+                        {% elif leg.fee_moved_at %}
+                          Set on {{ leg.fee_moved_at|date:"M j, g:i A" }}, and left undecided.
+                        {% else %}
+                          Booked at that time and never charged.
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endif %}
+
+                  {% for ev in leg.fee_events %}
+                    <div class="gt-fee-row">
+                      <span class="gt-fee-amt">${{ ev.amount }}</span>
+                      <span class="gt-fee-reason">{{ ev.reason }}</span>
+                      <span class="gt-fee-meta">{{ ev.who }} &middot; {{ ev.when|date:"M j, g:i A" }}</span>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
               <!-- View Full History Button -->
               {% with history=leg.status_history.all %}
                 {% if history|length > 0 %}
@@ -1431,6 +1483,18 @@
     </div>
   </div>
 
+  {% comment %}
+    Brings in window.askAfterHoursFee and window.resolveAfterHoursPrompt — the $20
+    dialog the leg edit below raises when a pickup moves into the 10 PM-6 AM window.
+    Same dialog the flight match uses, so the wording and the three answers stay in
+    one place.
+
+    Comment tag rather than the hash form: hash comments are SINGLE-LINE ONLY, so
+    spread over three lines one stops commenting and renders onto the trip card as
+    visible text. Which is exactly what it did here.
+  {% endcomment %}
+  {% include "dispatching/_flight_match_confirm.html" %}
+
   <script>
       document.addEventListener('DOMContentLoaded', function() {
           // Helper: submit leg assignment update
@@ -1776,6 +1840,42 @@
               });
           });
 
+          // "Decide now" on an outstanding fee — the way back into the dialog
+          // after someone dismissed it. Same three answers, same endpoint.
+          document.querySelectorAll('.gt-fee-decide').forEach(btn => {
+              btn.addEventListener('click', function () {
+                  if (!window.askAfterHoursFee) return;
+                  const d = this.dataset;
+                  const fee = parseFloat(d.fee || '0');
+                  const total = parseFloat(d.total || '0');
+                  window.askAfterHoursFee({
+                      leg_id: d.legId,
+                      fee_amount: fee.toFixed(2),
+                      guest_name: (d.guest || '').trim() || 'the guest',
+                      pickup_at: d.pickup,
+                      current_total: total.toFixed(2),
+                      new_total: (total + fee).toFixed(2),
+                      has_card: !!d.card,
+                      card_last4: d.card || ''
+                  }).then(answer => {
+                      if (!answer) return;
+                      return fetch('/dispatching/legs/' + d.legId + '/afterhours-decision/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': '{{ csrf_token }}'
+                          },
+                          body: JSON.stringify({ answer: answer })
+                      }).then(r => r.json()).then(res => {
+                          if (res && res.afterhours && res.afterhours.message) {
+                              alert(res.afterhours.message);
+                          }
+                          window.location.reload();
+                      });
+                  });
+              });
+          });
+
           // Leg edit form submission
           document.querySelectorAll('.leg-edit-form').forEach(form => {
               form.addEventListener('submit', function(e) {
@@ -1820,7 +1920,20 @@
                       })
                       .then(response => response.json())
                       .then(data => {
+                          // The edit is already saved. If it moved the pickup into
+                          // the 10 PM-6 AM window, ask the $20 question now —
+                          // dismissing it leaves the time changed and the fee on
+                          // the board as a task, never silently dropped.
+                          if (data && data.success && window.resolveAfterHoursPrompt) {
+                              return window.resolveAfterHoursPrompt(data);
+                          }
+                          return data;
+                      })
+                      .then(data => {
                           if (data.success) {
+                              if (data.afterhours && data.afterhours.message) {
+                                  alert(data.afterhours.message);
+                              }
                               // Reload the page to show all updated data (driver, date, etc.)
                               window.location.reload();
                           } else {
@@ -2841,6 +2954,83 @@
   </div>
 
   <style>
+      /* After-hours fee log — its own block on the leg, staff-only.
+         Champagne rule and tag to match the house gold without shouting: this is
+         a quiet record, not an alert. Deliberately distinct from Private Notes
+         so nobody folds the two back together — that field goes to drivers. */
+      .gt-fee-log {
+          margin-top: .85rem;
+          border-left: 3px solid #C9A227;
+          background: rgba(201, 162, 39, .07);
+          border-radius: 0 8px 8px 0;
+          padding: .6rem .8rem;
+      }
+      .gt-fee-log-head {
+          display: flex;
+          align-items: center;
+          gap: .4rem;
+          font-size: .78rem;
+          font-weight: 700;
+          letter-spacing: .04em;
+          text-transform: uppercase;
+          color: #8a6d15;
+          margin-bottom: .45rem;
+      }
+      .gt-fee-log-tag {
+          margin-left: auto;
+          font-size: .62rem;
+          font-weight: 600;
+          letter-spacing: .08em;
+          padding: .12rem .4rem;
+          border-radius: 3px;
+          background: rgba(138, 109, 21, .14);
+          color: #8a6d15;
+      }
+      .gt-fee-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: .3rem .6rem;
+          padding: .28rem 0;
+          font-size: .86rem;
+          line-height: 1.4;
+      }
+      .gt-fee-row + .gt-fee-row { border-top: 1px solid rgba(201, 162, 39, .18); }
+      .gt-fee-amt { font-weight: 700; font-variant-numeric: tabular-nums; color: #2c3e50; }
+      .gt-fee-reason { color: #2c3e50; flex: 1 1 14rem; min-width: 0; }
+      .gt-fee-meta { color: #7f8c9b; font-size: .78rem; white-space: nowrap; }
+      @media (max-width: 575px) {
+          .gt-fee-meta { white-space: normal; flex-basis: 100%; }
+      }
+
+      /* Money that is still owed reads differently from money already settled —
+         warm red rather than champagne. A dismissed dialog is a fair choice, but
+         the trip must not look finished while the $20 isn't. */
+      .gt-fee-log-owed { border-left-color: #A8281E; background: rgba(168, 40, 30, .06); }
+      .gt-fee-log-owed .gt-fee-log-head { color: #8d2118; }
+      .gt-fee-log-owed .gt-fee-log-tag { background: rgba(141, 33, 24, .12); color: #8d2118; }
+      .gt-fee-owed { padding-bottom: .1rem; }
+      .gt-fee-owed-top {
+          display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+      }
+      .gt-fee-owed-amt {
+          font-weight: 700; color: #8d2118; font-size: .95rem;
+          font-variant-numeric: tabular-nums;
+      }
+      .gt-fee-decide {
+          margin-left: auto; cursor: pointer; font: inherit; font-size: .8rem;
+          font-weight: 600; padding: .28rem .7rem; border-radius: 6px;
+          border: 1px solid #8d2118; background: #8d2118; color: #fff;
+          transition: background .15s ease;
+      }
+      .gt-fee-decide:hover { background: #6f1a13; border-color: #6f1a13; }
+      .gt-fee-decide:focus-visible { outline: 2px solid #1d6fd6; outline-offset: 2px; }
+      .gt-fee-owed-why {
+          margin-top: .3rem; font-size: .82rem; line-height: 1.45; color: #5d4340;
+      }
+      .gt-fee-owed-why strong { color: #8d2118; }
+      .gt-fee-owed + .gt-fee-row { border-top: 1px solid rgba(141, 33, 24, .2); margin-top: .4rem; }
+
       /* Reservation History Modal */
       #reservationHistoryModal .modal-header {
           background: linear-gradient(135deg, #1a1a2e 0%, #2a2a3e 100%);

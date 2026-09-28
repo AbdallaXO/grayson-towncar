@@ -36,7 +36,34 @@ logger = logging.getLogger(__name__)
 # SIMPLE MODEL REGISTRATIONS
 # =============================================
 
-admin.site.register([UserProfile, NewsLetter])
+admin.site.register([NewsLetter])
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    """Roles and, for the fleet role, the hours that person actually works.
+
+    The shift pair is not decoration: the fleet inspection round only offers
+    cars that can be walked between these two times, so a fleet manager whose
+    hours are wrong here is handed a list of cars they cannot reach.
+    """
+
+    list_display = ("user", "phone_number", "is_driver", "is_travel_agent",
+                    "is_fleet_manager", "shift_start", "shift_end")
+    list_filter = ("is_driver", "is_travel_agent", "is_fleet_manager")
+    search_fields = ("user__username", "user__email", "user__first_name",
+                     "user__last_name", "phone_number")
+    autocomplete_fields = ("user",)
+    fieldsets = (
+        (None, {"fields": ("user", "phone_number")}),
+        ("Role", {"fields": ("is_driver", "is_travel_agent", "is_fleet_manager")}),
+        ("Working hours", {
+            "fields": ("shift_start", "shift_end"),
+            "description": "Used by the fleet inspection round to decide which "
+                           "cars are walkable today. Leave at 7:30 AM – 4:00 PM "
+                           "unless this person works different hours.",
+        }),
+    )
 
 
 @admin.register(PartnerForm)

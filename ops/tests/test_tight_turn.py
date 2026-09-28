@@ -4,18 +4,21 @@ Run with:  ./manage.py test ops.tests.test_tight_turn
 
 Covers:
   * classify_turn() tier thresholds — the founder's rule (driver arrival vs the RAW
-    flight arrival, no deplaning padding): >=15 min after → red "won't make it",
-    0..15 min after → amber "tight", before the flight → no flag.
+    flight arrival, no deplaning padding): >10 min after → red "won't make it",
+    1..10 min after → amber "tight but makes it", before the flight → no flag.
   * Leg.flight_timing_flag() board signal — amber 'watch' for early arrivals
     (15..19 min), red 'alert' at >= 20 min either direction.
-  * _scan_driver_overlaps() raising the right task type, and escalation amber→red
-    closing the softer flag.
+  * _scan_driver_overlaps() filing a Driver Conflict for red and NOTHING for amber
+    (the tight_turn task was retired 2026-09-22 — the driver makes the meet
+    deadline, so there was nothing to do), and a red turn closing any legacy
+    tight_turn row still open on the leg.
 """
 from datetime import date, datetime, time
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
@@ -204,6 +207,11 @@ class DriverOverlapScanTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free), \
              patch("ops.tasks._get_raw_arrival_dt", return_value=raw_arrival):
+            # The scanner files on the SECOND consecutive sighting (ops.tasks
+            # TURN_CONFIRM_*): one tick to prove the turn is not a wobble. These
+            # tests are about what gets filed, so run the two ticks here.
+            cache.clear()
+            _scan_driver_overlaps()
             return _scan_driver_overlaps()
 
     def _open(self, task_type):
@@ -213,10 +221,15 @@ class DriverOverlapScanTests(_TurnFixtureMixin, TestCase):
             status__in=list(OperationalTask.OPEN_STATUSES),
         )
 
-    def test_amber_creates_tight_turn_task(self):
-        self._run_scan(datetime(2026, 6, 1, 9, 20))  # 10 min after → amber
-        self.assertTrue(self._open(OperationalTask.TaskType.TIGHT_TURN).exists())
+    def test_amber_files_nothing(self):
+        # 10 min after the gate → inside the meet deadline → not a task. The
+        # board's driver timeline shows the thin gap; Ops Control stays quiet.
+        for raw in (datetime(2026, 6, 1, 9, 29), datetime(2026, 6, 1, 9, 25),
+                    datetime(2026, 6, 1, 9, 20)):
+            self._run_scan(raw)
+        self.assertFalse(self._open(OperationalTask.TaskType.TIGHT_TURN).exists())
         self.assertFalse(self._open(OperationalTask.TaskType.DRIVER_CONFLICT).exists())
+        self.assertEqual(OperationalTask.objects.count(), 0)
 
     def test_red_creates_driver_conflict_task(self):
         self._run_scan(datetime(2026, 6, 1, 9, 0))  # 30 min after → red
@@ -318,6 +331,8 @@ class DriverConflictKeoiTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks.timezone.localdate", return_value=TARGET), \
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free):
+            cache.clear()
+            _scan_driver_overlaps()  # first sighting is remembered, not filed
             return _scan_driver_overlaps()
 
     def _open_keoi(self):
@@ -356,6 +371,8 @@ class ConflictKeoiTakedownTests(_TurnFixtureMixin, TestCase):
              patch("ops.tasks.timezone.localdate", return_value=TARGET), \
              patch("ops.tasks._reposition_minutes", return_value=0), \
              patch("ops.tasks._estimate_leg_end_time", return_value=driver_free):
+            cache.clear()
+            _scan_driver_overlaps()  # first sighting is remembered, not filed
             return _scan_driver_overlaps()
 
     def _run_autoclose(self, driver_free=None):

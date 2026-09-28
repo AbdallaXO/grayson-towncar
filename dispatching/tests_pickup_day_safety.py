@@ -108,10 +108,16 @@ class _PickupFixture:
             flight_information=flight,
         )
 
-    def _match(self, leg, confirm=None):
+    def _match(self, leg, confirm=None, afterhours=None):
+        # `afterhours` answers the fee gate. These fixtures use an 11:25 PM
+        # arrival, which is inside the 10 PM-6 AM window as well as on the wrong
+        # day, so a match here raises BOTH questions. Passing the fee answer keeps
+        # each test below about the guard it was written for.
         body = {"leg_id": leg.id}
         if confirm:
             body["confirm"] = confirm
+        if afterhours:
+            body["afterhours"] = afterhours
         return self.client.post(
             reverse("match_leg_time_to_flight"),
             data=json.dumps(body),
@@ -148,7 +154,7 @@ class WrongDayMatchGuardTests(_PickupFixture, TestCase):
 
     def test_confirm_move_date_moves_both_date_and_time(self):
         leg = self._leg()
-        response = self._match(leg, confirm="move_date")
+        response = self._match(leg, confirm="move_date", afterhours="waive")
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["success"])
@@ -161,7 +167,7 @@ class WrongDayMatchGuardTests(_PickupFixture, TestCase):
     def test_confirm_keep_date_moves_time_only(self):
         """Still available — but only as a deliberate, recorded choice."""
         leg = self._leg()
-        response = self._match(leg, confirm="keep_date")
+        response = self._match(leg, confirm="keep_date", afterhours="waive")
 
         self.assertEqual(response.status_code, 200)
         leg.refresh_from_db()

@@ -452,6 +452,12 @@ def _run_scheduler():
 
 def start_samsara_scheduler():
     """Start the poller once per process. Safe to call multiple times."""
+    from django.conf import settings
+    if not settings.OUTBOUND_AUTOMATION_ENABLED:
+        logger.warning(
+            "Outbound automation is OFF (not production); Samsara poller not started."
+        )
+        return
     global _scheduler_started
     with _lock:
         if _scheduler_started:

@@ -95,6 +95,9 @@ urlpatterns = [
     path("fleet/inspections/", fleet_views.fleet_inspections, name="fleet_inspections"),
     path("fleet/inspections/<int:pk>/", fleet_views.fleet_inspect_vehicle,
          name="fleet_inspect_vehicle"),
+    # Every unit's service intervals as one grid, so setting one is not a
+    # visit to a vehicle page.
+    path("fleet/service/", fleet_views.fleet_service, name="fleet_service"),
     path("fleet/outlook/", fleet_views.fleet_outlook, name="fleet_outlook"),
     path("fleet/report/", fleet_views.fleet_report, name="fleet_report"),
     path("fleet/<int:pk>/", fleet_views.fleet_detail, name="fleet_detail"),
@@ -115,11 +118,6 @@ urlpatterns = [
     path("fleet/<int:pk>/issue/", fleet_views.fleet_report_issue, name="fleet_report_issue"),
     path("fleet/issue/<int:pk>/resolve/", fleet_views.fleet_resolve_issue,
          name="fleet_resolve_issue"),
-    # Standard service intervals, per unit or fleet-wide.
-    path("fleet/<int:pk>/standard-intervals/", fleet_views.fleet_apply_standard_intervals,
-         name="fleet_apply_standard_intervals"),
-    path("fleet/standard-intervals/", fleet_views.fleet_apply_standard_intervals_all,
-         name="fleet_apply_standard_intervals_all"),
     # In-page editing so the fleet job never needs the Django admin.
     path("fleet/<int:pk>/details/", fleet_views.fleet_update_details,
          name="fleet_update_details"),
@@ -214,6 +212,9 @@ urlpatterns = [
     path("match-leg-time-to-flight/", views.match_leg_time_to_flight, name="match_leg_time_to_flight"),
     path("match-all-leg-times-to-flight/", views.match_all_leg_times_to_flight, name="match_all_leg_times_to_flight"),
     path("legs/<int:leg_id>/charge-afterhours-fee/", views.charge_afterhours_fee, name="charge_afterhours_fee"),
+    path("legs/<int:leg_id>/settle-afterhours-fee/", views.settle_afterhours_fee_view, name="settle_afterhours_fee"),
+    # Answers the dialog raised AFTER a retime has already saved.
+    path("legs/<int:leg_id>/afterhours-decision/", views.afterhours_decision, name="afterhours_decision"),
     path("charge-all-afterhours-fees/", views.charge_all_afterhours_fees, name="charge_all_afterhours_fees"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path("dismiss-flight-review/", views.dismiss_flight_review, name="dismiss_flight_review"),
@@ -576,6 +577,8 @@ urlpatterns = [
     path("task-queue/cancel/", ops_views.task_cancel, name="task_cancel"),
     path("task-queue/release/", ops_views.task_release, name="task_release"),
     path("task-queue/log-comm/", ops_views.task_log_comm, name="task_log_comm"),
+    path("task-queue/lead-contacted/", ops_views.task_lead_contacted, name="task_lead_contacted"),
+    path("task-queue/lead-stop-sequence/", ops_views.task_lead_stop_sequence, name="task_lead_stop_sequence"),
     path("task-queue/create/", ops_views.task_create_manual, name="task_create_manual"),
     path("task-queue/contact-form/update-status/", ops_views.contact_form_update_status, name="contact_form_update_status"),
     path("task-queue/contact-form/delete/", ops_views.contact_form_delete, name="contact_form_delete"),

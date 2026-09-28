@@ -126,6 +126,19 @@
               <span class="fl-badge {% if c.recurring or c.severity == 'Critical' %}critical{% else %}caution{% endif %}">{% if c.recurring %}Recurring{% else %}{{ c.severity }}{% endif %}</span>
               <span>Reported {{ c.since }}, seen on {{ c.seen }} poll{{ c.seen|pluralize }}. Full history on the car's page.</span>
             </div>
+            {% comment %}
+              Everything above the raw code is a plain-English note WE wrote, not
+              anything the vehicle said. Read cold it sounds like a diagnosis —
+              "it cannot pass emissions in this state" is a sentence somebody
+              books work against — and this is a demo build besides. Say so
+              where the note is actually read, not in a footer nobody reaches.
+            {% endcomment %}
+            <div class="p fl-code-caveat">
+              Written for this fleet in plain English — not a mechanic's diagnosis,
+              and this is a demo build, so a note here can be wrong. The code and
+              the car's own wording above it are what the vehicle actually
+              reported. Ring the shop before spending money on it.
+            </div>
           </div>
           {% endfor %}
           {% endif %}
@@ -177,11 +190,10 @@
       <div class="fl-setup">
         <div class="t">
           <strong>No service intervals set</strong> on {{ setup_intervals.title|cut:" have no service intervals"|cut:" has no service intervals" }}, so nothing can ever come due.
-          <span class="s">Adds oil, tires, brakes and inspection at sensible distances &mdash;
-          longer oil on the Sprinters. No dates are invented: each car stays quiet until
-          its last service is logged or its windshield sticker is read in.</span>
+          <span class="s">Set them on the Service board, where every unit and every
+          interval is one grid &mdash; the gaps are the empty squares.</span>
         </div>
-        <button type="button" class="fl-btn-small" id="applyStandard">Add the intervals</button>
+        <a class="fl-btn-small" href="{% url 'fleet_service' %}">Open the Service board</a>
       </div>
       {% elif setup_baselines %}
       <div class="fl-setup">
@@ -349,8 +361,7 @@
     today: "{% url 'fleet_car_today' 0 %}",
     close: "{% url 'fleet_close_downtime' 0 %}",
     remove: "{% url 'fleet_delete_downtime' 0 %}",
-    outlook: "{% url 'fleet_outlook' %}",
-    standard: "{% url 'fleet_apply_standard_intervals_all' %}"
+    outlook: "{% url 'fleet_outlook' %}"
   };
   var TODAY = '{{ today|date:"Y-m-d" }}', TOMORROW = '{{ tomorrow|date:"Y-m-d" }}';
   if (!FW) {
@@ -496,14 +507,6 @@
   }
   document.querySelectorAll('[data-cancel]').forEach(function (b) {
     b.addEventListener('click', function () { cancelBooking(b.getAttribute('data-cancel'), b.getAttribute('data-unit')); });
-  });
-  var std = document.getElementById('applyStandard');
-  if (std) std.addEventListener('click', function () {
-    if (!confirm('Add the standard intervals to every active unit that lacks them? Baselines start from today\'s odometer.')) return;
-    FW.post(URLS.standard, {}, CSRF).then(function (d) {
-      d.success ? done('Intervals added on ' + d.vehicles + ' unit' + (d.vehicles === 1 ? '' : 's'))
-                : FW.toast(d.error || 'Could not apply', false);
-    });
   });
 })();
 </script>

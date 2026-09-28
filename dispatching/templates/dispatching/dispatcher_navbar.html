@@ -2,7 +2,18 @@
 {% if request.user.is_staff or request.user.is_superuser %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top" style="z-index: 1030;">
   <div class="container bg-navbar-dark">
+    {% comment %}
+      The wordmark names the room you are standing in, so it cannot say
+      "Dispatching" to the one member of staff who has no dispatch board. It was
+      also the only link on his bar that left the fleet pages — one click on what
+      looks like a logo and he was on the dispatch dashboard wondering what he
+      had broken.
+    {% endcomment %}
+    {% if fleet_nav %}
+    <a class="navbar-brand" href="{% url 'fleet_desk' %}"><span class="fw-bold text-white" style="font-size: 1.2rem;">Fleet</span></a>
+    {% else %}
     <a class="navbar-brand" href="{% url 'dashboard' %}"><span class="fw-bold text-white" style="font-size: 1.2rem;">Dispatching</span></a>
+    {% endif %}
     <button class="navbar-toggler"
             type="button"
             data-bs-toggle="collapse"
@@ -38,6 +49,10 @@
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_inspections' or request.resolver_match.url_name == 'fleet_inspect_vehicle' %}active{% endif %}"
              href="{% url 'fleet_inspections' %}" title="This week's inspection round"><i class="bi bi-clipboard2-check me-1"></i>Inspections</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_service' %}active{% endif %}"
+             href="{% url 'fleet_service' %}" title="Every unit's service intervals"><i class="bi bi-wrench-adjustable me-1"></i>Service</a>
         </li>
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_outlook' %}active{% endif %}"

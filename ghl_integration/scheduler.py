@@ -86,6 +86,10 @@ def _run_scheduler():
 
 def _run_batch_tasks():
     """Execute the scheduled batch tasks."""
+    from django.conf import settings
+    if not settings.OUTBOUND_AUTOMATION_ENABLED:
+        logger.warning("Outbound automation is OFF (not production); batch skipped.")
+        return
     from ghl_integration.tasks import (
         batch_send_unsent_leads, process_follow_up_batch,
         retry_failed_syncs, alert_dead_letter_syncs,
@@ -219,6 +223,12 @@ def start_scheduler():
     Start the background scheduler if not already running.
     Safe to call multiple times — only starts once per process.
     """
+    from django.conf import settings
+    if not settings.OUTBOUND_AUTOMATION_ENABLED:
+        logger.warning(
+            "Outbound automation is OFF (not production); follow-up scheduler not started."
+        )
+        return
     global _scheduler_started
 
     with _lock:

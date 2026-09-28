@@ -2522,12 +2522,56 @@ class Leg(models.Model):
     def afterhours_fee_outstanding(self):
         """Decimal after-hours fee OWED BUT NOT YET applied/charged for this leg,
         based on the effective (delay-aware) pickup time. Returns 0 when out of
-        the window or already collected — a leg booked late already carries the
-        fee (afterhours_fee == 20), so it returns 0 and shows no 'owed' flag."""
+        the window or already collected.
+
+        Collected means either of two things, because ``afterhours_fee`` is a
+        second copy of a fact the money already records, and it drifts: legs get
+        created with it at 0 even when the booking itemised the $20, and a
+        reservation edit can re-zero one that was set. So the booking's own
+        additional charges are consulted too — if they already cover the
+        after-hours fees its late legs carry, the money is in and there is
+        nothing to chase.
+        """
         from .utils import afterhours_fee_owed
         owed = afterhours_fee_owed(self.effective_afterhours_time())
+        if not owed:
+            return Decimal("0.00")
         applied = self.afterhours_fee or Decimal("0.00")
-        return owed - applied if owed > applied else Decimal("0.00")
+        if applied >= owed:
+            return Decimal("0.00")
+        if self.booking_carries_afterhours_fee():
+            return Decimal("0.00")
+        return owed - applied
+
+    def booking_carries_afterhours_fee(self):
+        """True when the reservation's additional charges cover an after-hours
+        fee for every late leg on it — i.e. the fee was priced in at booking.
+
+        Uses prefetched legs when the caller supplied them (the board renders a
+        page of legs at a time and must not pay a query per row)."""
+        from .utils import AFTERHOURS_FEE_AMOUNT, afterhours_fee_owed
+
+        reservation = self.reservation if self.reservation_id else None
+        if reservation is None:
+            return False
+        additional = reservation.additional_charges or Decimal("0.00")
+        if additional <= 0:
+            return False
+
+        cache = getattr(reservation, "_prefetched_objects_cache", None)
+        legs = cache["legs"] if cache and "legs" in cache else reservation.legs.all()
+        # Cancelled legs owe nothing, so counting them raises the bar for the
+        # legs that did run — on reservation 14369 a cancelled 4 AM leg made the
+        # 11 PM leg that actually ran demand $40, and it kept reporting owed
+        # against a booking the guest had already paid the fee on.
+        late_legs = sum(
+            1 for leg in legs
+            if leg.status != "cancelled"
+            and afterhours_fee_owed(leg.effective_afterhours_time())
+        )
+        if not late_legs:
+            return False
+        return additional >= AFTERHOURS_FEE_AMOUNT * late_legs
 
     def get_trip_type_display(self):
         """

@@ -165,3 +165,68 @@ def recheck_lead_conversions(lead_qs, *, dry_run=False, now=None, batch_size=500
         )
 
     return report
+
+
+# ── "this person has already booked" guard ────────────────────────────────────
+# Conversion marks exactly ONE lead per reservation (see
+# reservations.signals.auto_convert_lead_on_reservation, which takes the single
+# most recent open lead). So a person can be a paying, confirmed customer while
+# the lead in front of you still reads "new":
+#
+#   * round-trip quotes create twin leads and only one of them gets marked;
+#   * a lead created AFTER the booking can never be matched by that signal;
+#   * a booking made under a spouse's or travel agent's email shares only a phone.
+#
+# Anything that decides whether to message someone by reading ``lead.converted``
+# alone therefore keeps selling a ride the person has already paid for — 248 such
+# messages reached 145 people before this guard existed, one of them on the
+# morning of the trip while a driver was already assigned to collect her.
+
+# Reservation statuses that mean "this booking is not happening". Both spellings
+# are present in the data.
+DEAD_RESERVATION_STATUSES = frozenset({"cancelled", "canceled"})
+
+
+def already_booked_reservation(lead):
+    """The Reservation this lead's person has already booked for the lead's own
+    pickup date, or None.
+
+    Matches the reservation's customer on email or last-10-digit phone — the only
+    identity the booking and lead sides share. Returns the reservation itself so
+    callers can record WHICH booking suppressed the message.
+
+    Deliberately scoped to ``lead.pickup_date``. An unscoped identity match would
+    silence genuine new enquiries from previous customers, which is the common
+    case rather than the rare one, and a lead with no pickup date is left alone
+    for the same reason.
+    """
+    from .models import Reservation
+
+    if lead is None or lead.pickup_date is None:
+        return None
+
+    lead_email = norm_email(lead.email)
+    lead_phone = getattr(lead, "normalized_phone", "") or norm_phone(
+        getattr(lead, "phone", "")
+    )
+    if not lead_email and not lead_phone:
+        return None
+
+    # Bounded by the trips running on ONE date (tens of rows), not by the booking
+    # history, so this stays cheap enough to run per task inside the send loop.
+    candidates = (
+        Reservation.objects.filter(legs__pickup_date=lead.pickup_date)
+        .select_related("customer")
+        .distinct()
+    )
+    for reservation in candidates:
+        if (reservation.status or "").lower() in DEAD_RESERVATION_STATUSES:
+            continue
+        customer = reservation.customer
+        if customer is None:
+            continue
+        if lead_email and norm_email(customer.email) == lead_email:
+            return reservation
+        if lead_phone and norm_phone(customer.phone_number) == lead_phone:
+            return reservation
+    return None

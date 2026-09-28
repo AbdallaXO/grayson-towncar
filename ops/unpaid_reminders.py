@@ -56,6 +56,15 @@ logger = logging.getLogger(__name__)
 EXCLUDE_TRAVEL_AGENT = True
 RECENT_STAFF_CONTACT_HOURS = 6
 
+# Automated reminder emails go out between 8 AM and 9 PM Eastern only — the
+# same window the lead texts keep (ghl_integration/timing.py). Measured over
+# 1–21 September 2026: 93 reminders went at 2 AM and 118 at 8 PM Eastern,
+# because the scheduler runs all night and a reservation entering the 14-day
+# horizon fires its booking-relative stages back to back. A cycle that lands in
+# the quiet hours defers; nothing is lost, the next daytime cycle sends it.
+# The auto-cancel flag is not an email and is not deferred.
+QUIET_HOURS_DEFER = True
+
 # Minimum hours between two automated reminder emails to the same reservation.
 # The three-day and final-24h stage windows are adjacent at ttp=24h, so without
 # this guard a reservation crossing 24h-to-pickup between two scheduler cycles
@@ -131,6 +140,9 @@ class UnpaidReminderEngine:
 
     def process(self) -> ReminderResult:
         """Walk all eligible reservations and act on each."""
+        if not self.dry_run and not settings.OUTBOUND_AUTOMATION_ENABLED:
+            logger.warning("Outbound automation is OFF (not production); reminder engine idle.")
+            return self.result
         for reservation in self._candidate_queryset():
             try:
                 self.process_one(reservation)
@@ -148,6 +160,8 @@ class UnpaidReminderEngine:
         ("sent:first" / "flagged" / "skipped:<reason>" / "dup_blocked" / None).
         Public so the management command can target one reservation by uuid.
         """
+        if not self.dry_run and not settings.OUTBOUND_AUTOMATION_ENABLED:
+            return self._skip(reservation, "automation_disabled")
         action = self._classify_and_act(reservation)
         self.result.actions.append(
             {
@@ -187,10 +201,10 @@ class UnpaidReminderEngine:
                 # Booked at least 2h ago — even the earliest reminder can't
                 # fire any sooner.
                 created_at__lte=booking_cutoff,
-                # Not on staff hold.
+                # Not on staff hold. (Suspected duplicates are NOT filtered
+                # here: they are re-checked per reservation so the flag clears
+                # itself once the paid twin is gone.)
                 unpaid_auto_reminder_hold=False,
-                # Not already flagged as suspected duplicate.
-                unpaid_duplicate_suspected=False,
                 # Has unsent SOMETHING (any stage_field NULL OR auto-cancel
                 # flag NULL). Use a Q-OR; cheap because the indexes exist.
             )
@@ -240,9 +254,13 @@ class UnpaidReminderEngine:
         if not reservation.customer or not reservation.customer.email:
             return self._skip(reservation, "no_email")
 
-        # 7. Already flagged duplicate
+        # 7. Already flagged duplicate — still one? The flag used to be
+        #    permanent until an admin cleared it by hand, which left genuine
+        #    bookings silenced after their twin was deleted.
         if reservation.unpaid_duplicate_suspected:
-            return self._skip(reservation, "duplicate_suspected")
+            if self._is_duplicate(reservation):
+                return self._skip(reservation, "duplicate_suspected")
+            self._clear_duplicate_flag(reservation)
 
         # 8. Pickup must exist and not be in the past
         pickup_dt = reservation.first_pickup_dt
@@ -269,9 +287,16 @@ class UnpaidReminderEngine:
             self._flag_for_auto_cancel(reservation)
             return "flagged"
 
-        # Email stage — but throttle adjacent-window stages (e.g. three_day →
-        # final) so a reservation crossing 24h-to-pickup between two cycles
-        # doesn't get two reminders 30 minutes apart.
+        # Email stage — never in the middle of the night. Defer to the next
+        # daytime cycle; the stage window is still open then.
+        if QUIET_HOURS_DEFER:
+            from ghl_integration.timing import is_within_send_window
+            if not is_within_send_window(self.now):
+                return self._skip(reservation, "quiet_hours")
+
+        # Throttle adjacent-window stages (e.g. three_day → final) so a
+        # reservation crossing 24h-to-pickup between two cycles doesn't get
+        # two reminders 30 minutes apart.
         last_auto = self._last_auto_reminder_at(reservation)
         if last_auto is not None and (
             self.now - last_auto
@@ -327,11 +352,16 @@ class UnpaidReminderEngine:
         # more than 24h away (don't double up on the near-pickup reminders).
         if time_to_pickup > timedelta(hours=24):
             since_booking = now - booking_dt
-            # Stage 2: 24h after booking, gated on stage 1
+            # Stage 2: a full day after the FIRST reminder went, not after the
+            # booking. A reservation booked weeks ago only enters the engine's
+            # 14-day horizon later; measured off the booking date both stages
+            # were "due" at once and the second followed the first by the bare
+            # six-hour minimum — Mary Tomasso, 2026-09-19: 8:14 PM, then 2:20 AM.
+            first_sent = reservation.unpaid_first_reminder_sent_at
             if (
-                since_booking >= timedelta(hours=24)
+                first_sent is not None
+                and now - first_sent >= timedelta(hours=24)
                 and reservation.unpaid_second_reminder_sent_at is None
-                and reservation.unpaid_first_reminder_sent_at is not None
             ):
                 return STAGE_SECOND
             # Stage 1: 2h after booking
@@ -518,12 +548,16 @@ class UnpaidReminderEngine:
         return len(unique_ids) >= 2 and reservation.pk in unique_ids
 
     def _handle_duplicate(self, reservation: Reservation) -> None:
+        """Pause reminders on a suspected duplicate. No task is filed: the
+        Duplicate Reservations page already lists it with a verdict, and the
+        "Possible duplicate" tasks this used to raise were never worked
+        (founder decision 2026-09-22)."""
         self.result.dup_blocked += 1
         logger.info(
             f"Skipped reservation {reservation.id}: suspected duplicate "
             f"(name+phone+pickup_date matches another live reservation)"
         )
-        if self.dry_run:
+        if self.dry_run or reservation.unpaid_duplicate_suspected:
             return
 
         Reservation.objects.filter(pk=reservation.pk).update(
@@ -531,27 +565,17 @@ class UnpaidReminderEngine:
         )
         reservation.unpaid_duplicate_suspected = True
 
-        create_task(
-            task_type=OperationalTask.TaskType.PAYMENT_CHASE,
-            title=(
-                f"Possible duplicate reservation #{reservation.id} — "
-                f"{reservation.customer.get_full_name()}"
-            ),
-            description=(
-                "The unpaid-reminder engine flagged this reservation as a "
-                "possible duplicate (same last name + phone last-10 + pickup "
-                "date as another live reservation). Reminders are paused. "
-                "Resolve via /duplicate-reservations/, then clear "
-                "unpaid_duplicate_suspected to re-enable reminders."
-            ),
-            due_at=self.now,
-            priority=OperationalTask.Priority.HIGH,
-            reservation=reservation,
-            metadata={
-                "trigger": "duplicate_suspected",
-                "automated": True,
-            },
+    def _clear_duplicate_flag(self, reservation: Reservation) -> None:
+        logger.info(
+            f"Reservation {reservation.id}: no longer a suspected duplicate, "
+            f"reminders resume"
         )
+        if self.dry_run:
+            return
+        Reservation.objects.filter(pk=reservation.pk).update(
+            unpaid_duplicate_suspected=False,
+        )
+        reservation.unpaid_duplicate_suspected = False
 
     # ── Helpers ───────────────────────────────────────────────────────────
 

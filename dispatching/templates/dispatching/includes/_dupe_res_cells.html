@@ -1,0 +1,35 @@
+{% comment %}Per-reservation cells (first leg row only): vehicle, payment, notes. Expects `res`, `leg_count`, `kind`.{% endcomment %}
+<td rowspan="{{ leg_count }}">
+  <div class="small">
+    <div class="fw-bold mb-1">{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</div>
+    <div>{{ res.passenger_count }} Passengers</div>
+    <div>{{ res.luggage_count }} Suitcases
+      {% if res.luggage_type %}
+        <span class="badge {% if res.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %}" style="font-size: .6rem;">{{ res.get_luggage_type_display }}</span>
+      {% endif %}
+    </div>
+    {% if res.need_carseats %}
+      <div class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats: {{ res.display_carseats }}</div>
+    {% else %}
+      <div class="text-muted"><em>No car seats</em></div>
+    {% endif %}
+  </div>
+</td>
+<td rowspan="{{ leg_count }}">
+  <div class="fw-bold">${{ res.total_price }}</div>
+  <span class="status-pill {% if kind == 'keep' %}keep{% else %}{{ res.dupe_verdict.tier }}{% endif %} mt-1">{{ res.payment_status|title }}</span>
+</td>
+<td rowspan="{{ leg_count }}">
+  <div class="small">
+    {% if res.special_requests %}
+      <div><strong>Customer:</strong> {{ res.special_requests }}</div>
+    {% endif %}
+    {% if res.private_notes %}
+      <div><strong>Private:</strong> {{ res.private_notes }}</div>
+    {% endif %}
+    {% if res.store_stop %}
+      <span class="badge bg-success text-white mt-1"><i class="bi bi-shop me-1"></i>Publix Stop</span>
+    {% endif %}
+    {% if not res.special_requests and not res.private_notes and not res.store_stop %}<span class="text-muted">&mdash;</span>{% endif %}
+  </div>
+</td>

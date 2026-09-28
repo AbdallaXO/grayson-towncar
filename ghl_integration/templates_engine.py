@@ -78,3 +78,12 @@ def render_follow_up_message(template_str, lead, extra=None):
     except Exception as e:
         logger.error(f"Error rendering template for lead #{lead.id}: {e}")
         return template_str
+
+
+def template_needs_price(template_str):
+    """True when the template quotes the website price. A lead the website
+    could not price (a custom route — the ones that raise a QUOTE NEEDED task)
+    has no {estimated_price}, and the renderer fills it with an empty string:
+    "your quoted rate of  for the October 27 trip". Sixty of those went out
+    between August and September 2026. Senders check this and skip the step."""
+    return "{estimated_price}" in (template_str or "")

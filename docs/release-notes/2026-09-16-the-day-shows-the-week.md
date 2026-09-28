@@ -1,10 +1,10 @@
 ---
 date: 2026-09-16
 audience: Dispatchers
-title: The day now covers a week, and leads with the cars that have room
+title: The day now covers a week
 ---
 
-# The day now covers a week, and leads with the cars that have room
+# The day now covers a week
 
 ## Send this to the team
 
@@ -15,8 +15,8 @@ title: The day now covers a week, and leads with the cars that have room
 > 2. Days that are built look exactly as before. Days nobody has assigned yet
 >    show the trips booked and what that weekday normally takes to run — and no
 >    car rows at all, because which car is free that day is not known yet.
-> 3. Cars with the most room now come **first**, so the ones standing still are
->    at the top instead of the bottom.
+> 3. Rows sit in car-number order now, always — #001, #002, #003 — instead of
+>    busiest-first. A car's row no longer moves from one morning to the next.
 >
 > Every trip on a row now shows its start and finish time without hovering, and
 > on a phone the clock becomes a plain list you can actually read.
@@ -45,7 +45,7 @@ exactly what a shop day should be planned against.
 **Expect to be asked:**
 - *"Why can't I see which car is free on Saturday?"* — Nobody has assigned it
   yet. The Outlook plans that far out without naming a car.
-- *"The order changed."* — Cars with the longest usable gap lead now; the page
-  exists to find room, and the busiest car is the one you can't act on.
+- *"The order changed."* — Rows are fixed by car number now instead of by how
+  busy each car is, so #7 is always #7's row — a glance, not a search.
 - *"Addresses got shorter on my phone."* — Only the venue is shown in the list;
   the full address is still there when you hover on a computer.

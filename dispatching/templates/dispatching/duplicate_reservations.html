@@ -1,19 +1,21 @@
 {% extends "main.html" %}
 {% load static %}
-
 {% block extra_css %}
 <style>
   :root {
     --dupe-keep-bg: #f1faf3;
     --dupe-keep-border: #2f9e57;
-    --dupe-unpaid-bg: #fff8e6;
-    --dupe-unpaid-border: #e0a309;
+    --dupe-safe-bg: #fff8e6;
+    --dupe-safe-border: #e0a309;
+    --dupe-review-bg: #eef4fb;
+    --dupe-review-border: #3b6fb6;
+    --dupe-hold-bg: #fdf1f1;
+    --dupe-hold-border: #c9484f;
     --dupe-done-bg: #f3f4f6;
     --dupe-done-border: #9aa0a6;
   }
   .dupe-page-title { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
-  .dupe-subtitle { font-size: 0.8rem; color: #6b7280; }
-
+  .dupe-subtitle { font-size: 0.8rem; color: #6b7280; max-width: 62ch; }
   .dupe-stat {
     border: 1px solid #e5e7eb;
     border-radius: 10px;
@@ -23,8 +25,11 @@
   }
   .dupe-stat .stat-num { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
   .dupe-stat .stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
-  .dupe-stat.danger .stat-num { color: #dc3545; }
-
+  .dupe-stat.safe .stat-num { color: #b8860b; }
+  .dupe-stat.review .stat-num { color: #3b6fb6; }
+  .dupe-stat.hold .stat-num { color: #c9484f; }
+  .dupe-legend { font-size: 0.75rem; color: #4b5563; }
+  .dupe-legend .status-pill { vertical-align: middle; margin-right: 0.2rem; }
   .dupe-card {
     border: 1px solid #e5e7eb;
     border-radius: 10px;
@@ -39,7 +44,6 @@
   .dupe-card .group-name { font-size: 0.95rem; font-weight: 700; }
   .dupe-card .group-meta { font-size: 0.75rem; color: #6b7280; }
   .dupe-card .group-meta i { opacity: 0.7; }
-
   .dupe-table { font-size: 0.82rem; }
   .dupe-table th {
     font-size: 0.68rem;
@@ -56,16 +60,16 @@
     vertical-align: top;
     border-color: #eef0f2;
   }
-
-  .dupe-keep { background-color: var(--dupe-keep-bg) !important; }
-  .dupe-unpaid { background-color: var(--dupe-unpaid-bg) !important; }
-  .dupe-done { background-color: var(--dupe-done-bg) !important; }
-
-  /* Left accent stripe on the row's first cell */
-  .dupe-table tbody tr.dupe-keep > td:first-child   { box-shadow: inset 3px 0 0 var(--dupe-keep-border); }
-  .dupe-table tbody tr.dupe-unpaid > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-unpaid-border); }
-  .dupe-table tbody tr.dupe-done > td:first-child   { box-shadow: inset 3px 0 0 var(--dupe-done-border); }
-
+  .dupe-keep   { background-color: var(--dupe-keep-bg) !important; }
+  .dupe-safe   { background-color: var(--dupe-safe-bg) !important; }
+  .dupe-review { background-color: var(--dupe-review-bg) !important; }
+  .dupe-hold   { background-color: var(--dupe-hold-bg) !important; }
+  .dupe-done   { background-color: var(--dupe-done-bg) !important; }
+  .dupe-table tbody tr.dupe-keep   > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-keep-border); }
+  .dupe-table tbody tr.dupe-safe   > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-safe-border); }
+  .dupe-table tbody tr.dupe-review > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-review-border); }
+  .dupe-table tbody tr.dupe-hold   > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-hold-border); }
+  .dupe-table tbody tr.dupe-done   > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-done-border); }
   .status-pill {
     display: inline-block;
     font-size: 0.65rem;
@@ -74,11 +78,23 @@
     text-transform: uppercase;
     padding: 0.18rem 0.5rem;
     border-radius: 999px;
+    white-space: nowrap;
   }
   .status-pill.keep   { background: #2f9e57; color: #fff; }
-  .status-pill.dupe   { background: #e0a309; color: #1a1a1a; }
+  .status-pill.safe   { background: #e0a309; color: #1a1a1a; }
+  .status-pill.review { background: #3b6fb6; color: #fff; }
+  .status-pill.hold   { background: #c9484f; color: #fff; }
   .status-pill.done   { background: #9aa0a6; color: #fff; }
-
+  .select-cell { min-width: 96px; }
+  .select-cell .form-check-input { width: 1.05rem; height: 1.05rem; cursor: pointer; }
+  .why-cell { min-width: 220px; }
+  .why-list { margin: 0; padding-left: 1rem; font-size: 0.76rem; line-height: 1.35; }
+  .why-list li + li { margin-top: 0.2rem; }
+  .why-list.hold li::marker { color: var(--dupe-hold-border); }
+  .why-list.review li::marker { color: var(--dupe-review-border); }
+  .why-safe, .why-keep { font-size: 0.76rem; color: #4b5563; line-height: 1.35; }
+  .why-keep i { color: var(--dupe-keep-border); }
+  .why-safe i { color: #b8860b; }
   .res-link {
     font-size: 0.7rem;
     font-weight: 600;
@@ -90,25 +106,21 @@
     text-decoration: none;
   }
   .res-link:hover { background: #f3f4f6; color: #111; }
-
   .res-email { font-size: 0.72rem; color: #6b7280; word-break: break-all; }
-
   .empty-state {
     border: 1px dashed #d1d5db;
     border-radius: 12px;
     background: #fff;
   }
+  .dupe-toolbar { position: sticky; top: 0; z-index: 5; background: #fff; padding: 0.5rem 0; border-bottom: 1px solid #eef0f2; margin-bottom: 0.75rem; }
 </style>
 {% endblock extra_css %}
-
 {% block newsletter %}{% endblock newsletter %}
 {% block footer %}{% endblock footer %}
-
 {% block content %}
   {% block navbar %}
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
-
   <div class="container-fluid py-3">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
@@ -117,34 +129,49 @@
           <i class="bi bi-files me-2"></i>Duplicate Reservations
         </div>
         <div class="dupe-subtitle">
-          Same last name + phone, same pickup day &mdash; one paid, one unpaid. Card-saved reservations are excluded. Sorted by upcoming dates first.
+          Same last name and phone, same pickup day, one paid and one not. Each unpaid twin is sorted:
+          <strong>Safe to delete</strong> is the identical trip booked from the website before the paid one;
+          <strong>Check first</strong> differs only in route or vehicle; <strong>Hold</strong> has a reason it may be a real second booking.
         </div>
       </div>
       <div class="d-flex gap-2 align-items-center">
-        {% if total_unpaid > 0 %}
-        <button class="btn btn-sm btn-danger" id="cancelAllBtn" onclick="cancelAll()">
-          <i class="bi bi-trash me-1"></i>Delete All {{ total_unpaid }} Unpaid
-        </button>
-        {% endif %}
         <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-dark">
           <i class="bi bi-arrow-left me-1"></i>Dashboard
         </a>
       </div>
     </div>
-
     <!-- Summary -->
-    <div class="d-flex gap-2 mb-3 flex-wrap">
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-stretch">
       <div class="dupe-stat">
         <div class="stat-num">{{ total_groups }}</div>
         <div class="stat-label">Groups</div>
       </div>
-      <div class="dupe-stat danger">
-        <div class="stat-num">{{ total_unpaid }}</div>
-        <div class="stat-label">Unpaid Dupes</div>
+      <div class="dupe-stat safe">
+        <div class="stat-num">{{ safe_count }}</div>
+        <div class="stat-label">Safe to delete</div>
+      </div>
+      <div class="dupe-stat review">
+        <div class="stat-num">{{ review_count }}</div>
+        <div class="stat-label">Check first</div>
+      </div>
+      <div class="dupe-stat hold">
+        <div class="stat-num">{{ hold_count }}</div>
+        <div class="stat-label">Hold</div>
       </div>
     </div>
-
     {% if duplicate_groups %}
+    <!-- Toolbar -->
+    <div class="dupe-toolbar d-flex flex-wrap gap-2 align-items-center">
+      <button class="btn btn-sm btn-outline-warning text-dark" id="selectSafeBtn" onclick="toggleSelectSafe()" {% if not safe_count %}disabled{% endif %}>
+        <i class="bi bi-check2-square me-1"></i>Select all {{ safe_count }} safe
+      </button>
+      <button class="btn btn-sm btn-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>
+        <i class="bi bi-trash me-1"></i>Delete selected (<span id="selectedCount">0</span>)
+      </button>
+      <span class="dupe-legend ms-auto">
+        Tick any row to add it to the selection. Every delete is checked again on the server: a booking that got paid in the meantime is refused.
+      </span>
+    </div>
     {% for group in duplicate_groups %}
     <div class="card dupe-card mb-3" id="group-{{ forloop.counter }}">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -153,263 +180,33 @@
           {% if group.customer.phone_number %}<span class="group-meta"><i class="bi bi-telephone me-1"></i>{{ group.customer.phone_number }}</span>{% endif %}
           <span class="group-meta"><i class="bi bi-calendar3 me-1"></i>{{ group.pickup_date|date:"D, M d Y" }}</span>
         </div>
-        <span class="status-pill dupe">{{ group.unpaid|length }} unpaid</span>
+        <div class="d-flex gap-1">
+          {% if group.safe_count %}<span class="status-pill safe">{{ group.safe_count }} safe</span>{% endif %}
+          <span class="status-pill done">{{ group.unpaid|length }} unpaid</span>
+        </div>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-bordered mb-0 dupe-table">
             <thead class="table-light">
               <tr>
-                <th style="width: 56px;"></th>
+                <th style="width: 96px;"></th>
                 <th style="width: 150px;">Res / Email</th>
                 <th>Trip Details</th>
                 <th>Pickup / Dropoff</th>
                 <th style="width: 140px;">Vehicle</th>
                 <th style="width: 110px;">Payment</th>
                 <th>Notes</th>
+                <th>Why</th>
                 <th style="width: 90px;"></th>
               </tr>
             </thead>
             <tbody>
               {% for res in group.paid %}
-              {% with legs=res.legs.all leg_count=res.legs.all|length %}
-              {% for leg in legs %}
-              <tr class="dupe-keep">
-                {% if forloop.first %}
-                <td class="text-center" rowspan="{{ leg_count }}">
-                  <span class="status-pill keep">Keep</span>
-                </td>
-                <!-- Customer -->
-                <td rowspan="{{ leg_count }}">
-                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
-                  <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
-                </td>
-                {% endif %}
-                <!-- Trip Details (per-leg) -->
-                <td>
-                  <div class="d-flex align-items-center gap-1 mb-1">
-                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">{{ res.trip_type|title }}</span>
-                    <span class="badge bg-secondary" style="font-size: 0.65rem;">Leg {{ forloop.counter }}/{{ leg_count }}</span>
-                  </div>
-                  {% if leg.flight_information %}
-                    <div class="text-primary mb-1 small">
-                      <i class="bi bi-airplane me-1"></i>
-                      {% if leg.flight_information.airline_display_name %}
-                        {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
-                      {% else %}
-                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
-                      {% endif %}
-                      {% if leg.flight_information.flight_iata %}
-                        <span class="text-muted">({{ leg.flight_information.flight_iata }})</span>
-                      {% endif %}
-                    </div>
-                    {% if leg.flight_information.status %}
-                      <span class="badge bg-secondary mb-1" style="font-size: 0.65rem;">{{ leg.flight_information.status }}</span>
-                    {% endif %}
-                  {% endif %}
-                  {% if leg.cruise_information %}
-                    <div class="mb-1">
-                      <span class="badge bg-dark text-white" style="font-size: 0.7rem;">
-                        <i class="bi bi-ship me-1"></i>
-                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                        {% elif leg.cruise_information.cruise_line %}
-                          {{ leg.cruise_information.cruise_line }}
-                        {% elif leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.ship_name }}
-                        {% endif %}
-                      </span>
-                    </div>
-                  {% endif %}
-                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
-                  <div class="fw-bold">{{ leg.pickup_time|time:"g:i A" }}</div>
-                  {% if leg.cleared_time %}
-                    <div class="small text-muted mt-1">
-                      <i class="bi bi-clock"></i> Clearing ~{{ leg.cleared_time }}
-                      {% if leg.duration_display %}({{ leg.duration_display }}){% endif %}
-                    </div>
-                  {% endif %}
-                </td>
-                <!-- Locations (per-leg) -->
-                <td>
-                  <div class="small mb-1">
-                    <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
-                  </div>
-                  <div class="small">
-                    <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
-                  </div>
-                  {% if leg.private_notes %}
-                    <div class="small mt-1 text-muted"><strong>Leg Notes:</strong> {{ leg.private_notes }}</div>
-                  {% endif %}
-                </td>
-                {% if forloop.first %}
-                <!-- Vehicle & Passengers -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="small">
-                    <div class="fw-bold mb-1">{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</div>
-                    <div>{{ res.passenger_count }} Passengers</div>
-                    <div>{{ res.luggage_count }} Suitcases
-                      {% if res.luggage_type %}
-                        <span class="badge {% if res.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %}" style="font-size: .6rem;">{{ res.get_luggage_type_display }}</span>
-                      {% endif %}
-                    </div>
-                    {% if res.need_carseats %}
-                      <div class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats: {{ res.display_carseats }}</div>
-                    {% else %}
-                      <div class="text-muted"><em>No car seats</em></div>
-                    {% endif %}
-                  </div>
-                </td>
-                <!-- Payment -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="fw-bold">${{ res.total_price }}</div>
-                  <span class="status-pill keep mt-1">{{ res.payment_status|title }}</span>
-                </td>
-                <!-- Notes -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="small">
-                    {% if res.special_requests %}
-                      <div><strong>Customer:</strong> {{ res.special_requests }}</div>
-                    {% endif %}
-                    {% if res.private_notes %}
-                      <div><strong>Private:</strong> {{ res.private_notes }}</div>
-                    {% endif %}
-                    {% if res.store_stop %}
-                      <span class="badge bg-success text-white mt-1"><i class="bi bi-shop me-1"></i>Publix Stop</span>
-                    {% endif %}
-                  </div>
-                </td>
-                <!-- Actions -->
-                <td class="text-center" rowspan="{{ leg_count }}">
-                  <div class="text-muted" style="font-size: 0.68rem;">Created<br>{{ res.created_at|date:"M d, g:i A" }}</div>
-                </td>
-                {% endif %}
-              </tr>
+                {% include "dispatching/includes/_dupe_reservation_rows.html" with res=res kind="keep" %}
               {% endfor %}
-              {% endwith %}
-              {% endfor %}
-
               {% for res in group.unpaid %}
-              {% with legs=res.legs.all leg_count=res.legs.all|length %}
-              {% for leg in legs %}
-              <tr class="{% if forloop.first %}dupe-unpaid unpaid-row{% else %}dupe-unpaid{% endif %}" {% if forloop.first %}data-uuid="{{ res.uuid }}"{% endif %}>
-                {% if forloop.first %}
-                <td class="text-center" rowspan="{{ leg_count }}">
-                  <span class="status-pill dupe">Dupe</span>
-                </td>
-                <!-- Customer -->
-                <td rowspan="{{ leg_count }}">
-                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
-                  <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
-                </td>
-                {% endif %}
-                <!-- Trip Details (per-leg) -->
-                <td>
-                  <div class="d-flex align-items-center gap-1 mb-1">
-                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">{{ res.trip_type|title }}</span>
-                    <span class="badge bg-secondary" style="font-size: 0.65rem;">Leg {{ forloop.counter }}/{{ leg_count }}</span>
-                  </div>
-                  {% if leg.flight_information %}
-                    <div class="text-primary mb-1 small">
-                      <i class="bi bi-airplane me-1"></i>
-                      {% if leg.flight_information.airline_display_name %}
-                        {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
-                      {% else %}
-                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
-                      {% endif %}
-                      {% if leg.flight_information.flight_iata %}
-                        <span class="text-muted">({{ leg.flight_information.flight_iata }})</span>
-                      {% endif %}
-                    </div>
-                    {% if leg.flight_information.status %}
-                      <span class="badge bg-secondary mb-1" style="font-size: 0.65rem;">{{ leg.flight_information.status }}</span>
-                    {% endif %}
-                  {% endif %}
-                  {% if leg.cruise_information %}
-                    <div class="mb-1">
-                      <span class="badge bg-dark text-white" style="font-size: 0.7rem;">
-                        <i class="bi bi-ship me-1"></i>
-                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                        {% elif leg.cruise_information.cruise_line %}
-                          {{ leg.cruise_information.cruise_line }}
-                        {% elif leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.ship_name }}
-                        {% endif %}
-                      </span>
-                    </div>
-                  {% endif %}
-                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
-                  <div class="fw-bold">{{ leg.pickup_time|time:"g:i A" }}</div>
-                  {% if leg.cleared_time %}
-                    <div class="small text-muted mt-1">
-                      <i class="bi bi-clock"></i> Clearing ~{{ leg.cleared_time }}
-                      {% if leg.duration_display %}({{ leg.duration_display }}){% endif %}
-                    </div>
-                  {% endif %}
-                </td>
-                <!-- Locations (per-leg) -->
-                <td>
-                  <div class="small mb-1">
-                    <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
-                  </div>
-                  <div class="small">
-                    <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
-                  </div>
-                  {% if leg.private_notes %}
-                    <div class="small mt-1 text-muted"><strong>Leg Notes:</strong> {{ leg.private_notes }}</div>
-                  {% endif %}
-                </td>
-                {% if forloop.first %}
-                <!-- Vehicle & Passengers -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="small">
-                    <div class="fw-bold mb-1">{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</div>
-                    <div>{{ res.passenger_count }} Passengers</div>
-                    <div>{{ res.luggage_count }} Suitcases
-                      {% if res.luggage_type %}
-                        <span class="badge {% if res.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %}" style="font-size: .6rem;">{{ res.get_luggage_type_display }}</span>
-                      {% endif %}
-                    </div>
-                    {% if res.need_carseats %}
-                      <div class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats: {{ res.display_carseats }}</div>
-                    {% else %}
-                      <div class="text-muted"><em>No car seats</em></div>
-                    {% endif %}
-                  </div>
-                </td>
-                <!-- Payment -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="fw-bold">${{ res.total_price }}</div>
-                  <span class="status-pill dupe mt-1">{{ res.payment_status|title }}</span>
-                </td>
-                <!-- Notes -->
-                <td rowspan="{{ leg_count }}">
-                  <div class="small">
-                    {% if res.special_requests %}
-                      <div><strong>Customer:</strong> {{ res.special_requests }}</div>
-                    {% endif %}
-                    {% if res.private_notes %}
-                      <div><strong>Private:</strong> {{ res.private_notes }}</div>
-                    {% endif %}
-                    {% if res.store_stop %}
-                      <span class="badge bg-success text-white mt-1"><i class="bi bi-shop me-1"></i>Publix Stop</span>
-                    {% endif %}
-                  </div>
-                </td>
-                <!-- Actions -->
-                <td class="text-center" rowspan="{{ leg_count }}">
-                  <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
-                          style="font-size: 0.75rem;"
-                          onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
-                    <i class="bi bi-trash me-1"></i>Delete
-                  </button>
-                  <div class="text-muted mt-1" style="font-size: 0.68rem;">{{ res.created_at|date:"M d, g:i A" }}</div>
-                </td>
-                {% endif %}
-              </tr>
-              {% endfor %}
-              {% endwith %}
+                {% include "dispatching/includes/_dupe_reservation_rows.html" with res=res kind="dupe" %}
               {% endfor %}
             </tbody>
           </table>
@@ -425,7 +222,6 @@
     </div>
     {% endif %}
   </div>
-
   <!-- Confirm Modal -->
   <div class="modal fade" id="confirmModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -438,120 +234,160 @@
         </div>
         <div class="modal-footer py-1">
           <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">No, keep it</button>
-          <button type="button" class="btn btn-sm btn-danger" id="confirmModalYes">Yes, delete it</button>
+          <button type="button" class="btn btn-sm btn-danger" id="confirmModalYes">Yes, delete</button>
         </div>
       </div>
     </div>
   </div>
 {% endblock %}
-
 {% block extra_js %}
 <script>
 const csrfToken = '{{ csrf_token }}';
+const deleteUrl = "{% url 'cancel_duplicate_reservation' %}";
+
+async function deleteOne(uuid) {
+  const resp = await fetch(deleteUrl, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+    body: JSON.stringify({reservation_uuid: uuid})
+  });
+  return resp.json();
+}
+
+function markDone(mainRow) {
+  // Grey out this reservation's rows (multi-leg rows follow the main row until
+  // the next row that carries a uuid).
+  const allRows = mainRow.closest('tbody').querySelectorAll('tr');
+  let found = false;
+  for (const row of allRows) {
+    if (row === mainRow) { found = true; }
+    else if (found && row.dataset.uuid) { break; }
+    if (found) {
+      row.classList.remove('unpaid-row', 'dupe-safe', 'dupe-review', 'dupe-hold');
+      row.classList.add('dupe-done');
+    }
+  }
+  const pill = mainRow.querySelector('td:first-child .status-pill');
+  if (pill) { pill.className = 'status-pill done d-block mt-2'; pill.textContent = 'Deleted'; }
+  const box = mainRow.querySelector('.dupe-check');
+  if (box) { box.checked = false; box.disabled = true; }
+  const btn = mainRow.querySelector('.cancel-btn');
+  if (btn) btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Deleted</small>';
+  updateSelectionCount();
+}
+
+function showError(mainRow, message) {
+  const btn = mainRow.querySelector('.cancel-btn');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-trash me-1"></i>Delete';
+  }
+  let note = mainRow.querySelector('.dupe-error');
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'dupe-error text-danger mt-1';
+    note.style.fontSize = '0.7rem';
+    mainRow.querySelector('td:last-child').appendChild(note);
+  }
+  note.textContent = message;
+}
+
+function selectedBoxes() {
+  return Array.from(document.querySelectorAll('.dupe-check:checked:not(:disabled)'));
+}
+
+function updateSelectionCount() {
+  const n = selectedBoxes().length;
+  document.getElementById('selectedCount').textContent = n;
+  document.getElementById('deleteSelectedBtn').disabled = n === 0;
+  const safeBoxes = Array.from(document.querySelectorAll('.dupe-check[data-tier="safe"]:not(:disabled)'));
+  const selectBtn = document.getElementById('selectSafeBtn');
+  if (selectBtn) {
+    const allSafeChecked = safeBoxes.length > 0 && safeBoxes.every(b => b.checked);
+    selectBtn.innerHTML = allSafeChecked
+      ? '<i class="bi bi-square me-1"></i>Clear selection'
+      : `<i class="bi bi-check2-square me-1"></i>Select all ${safeBoxes.length} safe`;
+    selectBtn.disabled = safeBoxes.length === 0 && n === 0;
+  }
+}
+
+function toggleSelectSafe() {
+  const safeBoxes = Array.from(document.querySelectorAll('.dupe-check[data-tier="safe"]:not(:disabled)'));
+  const allSafeChecked = safeBoxes.length > 0 && safeBoxes.every(b => b.checked);
+  if (allSafeChecked) {
+    document.querySelectorAll('.dupe-check:checked').forEach(b => { b.checked = false; });
+  } else {
+    safeBoxes.forEach(b => { b.checked = true; });
+  }
+  updateSelectionCount();
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target.classList && e.target.classList.contains('dupe-check')) updateSelectionCount();
+});
 
 function cancelOne(btn, uuid, resId) {
   const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+  const row = btn.closest('tr');
+  const tier = row.dataset.tier;
   document.getElementById('confirmModalBody').innerHTML =
-    `Delete Reservation <strong>#${resId}</strong>?<br>
-     <small class="text-danger">This is permanent and cannot be undone.</small>`;
-
+    `Delete reservation <strong>#${resId}</strong>?` +
+    (tier !== 'safe' ? `<br><small class="text-danger">This one is marked <strong>${tier === 'hold' ? 'Hold' : 'Check first'}</strong>. Read the Why column before you do.</small>` : '') +
+    `<br><small class="text-danger">This is permanent and cannot be undone.</small>`;
   document.getElementById('confirmModalYes').onclick = async function() {
     modal.hide();
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
     try {
-      const resp = await fetch("{% url 'cancel_duplicate_reservation' %}", {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-        body: JSON.stringify({reservation_uuid: uuid})
-      });
-      const data = await resp.json();
-
-      if (data.success) {
-        // Update all rows belonging to this reservation (multi-leg)
-        const mainRow = btn.closest('tr');
-        const allRows = mainRow.closest('tbody').querySelectorAll('tr');
-        // Find the main row index and mark subsequent sibling leg rows too
-        let found = false;
-        for (const row of allRows) {
-          if (row === mainRow) { found = true; }
-          else if (found && row.dataset.uuid) { break; } // next reservation
-          if (found) {
-            row.classList.remove('unpaid-row', 'dupe-unpaid');
-            row.classList.add('dupe-done');
-          }
-        }
-        const firstBadge = mainRow.querySelector('td:first-child .status-pill');
-        if (firstBadge) {
-          firstBadge.className = 'status-pill done';
-          firstBadge.textContent = 'Done';
-        }
-        btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
-      } else {
-        alert('Error: ' + data.error);
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
-      }
+      const data = await deleteOne(uuid);
+      if (data.success) markDone(row);
+      else showError(row, data.error || 'Could not delete.');
     } catch (err) {
-      alert('Network error: ' + err.message);
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+      showError(row, 'Network error: ' + err.message);
     }
   };
   modal.show();
 }
 
-function cancelAll() {
-  const rows = document.querySelectorAll('.unpaid-row');
-  if (rows.length === 0) return;
-
+function deleteSelected() {
+  const boxes = selectedBoxes();
+  if (boxes.length === 0) return;
+  const nonSafe = boxes.filter(b => b.dataset.tier !== 'safe').length;
   const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
   document.getElementById('confirmModalBody').innerHTML =
-    `Delete <strong>all ${rows.length} unpaid duplicates</strong>?<br>
-     <small class="text-danger">This is permanent and cannot be undone.</small>`;
-
+    `Delete the <strong>${boxes.length}</strong> selected reservation${boxes.length === 1 ? '' : 's'}?` +
+    (nonSafe ? `<br><small class="text-danger"><strong>${nonSafe}</strong> of them ${nonSafe === 1 ? 'is' : 'are'} not marked safe.</small>` : '') +
+    `<br><small class="text-danger">This is permanent and cannot be undone.</small>`;
   document.getElementById('confirmModalYes').onclick = async function() {
     modal.hide();
-    const cancelAllBtn = document.getElementById('cancelAllBtn');
-    cancelAllBtn.disabled = true;
-    cancelAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working...';
-
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working…';
     let success = 0, fail = 0;
-    for (const row of rows) {
-      const uuid = row.dataset.uuid;
+    for (const box of boxes) {
+      const row = box.closest('tr');
       const btn = row.querySelector('.cancel-btn');
-      if (!btn) continue;
-
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       try {
-        const resp = await fetch("{% url 'cancel_duplicate_reservation' %}", {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-          body: JSON.stringify({reservation_uuid: uuid})
-        });
-        const data = await resp.json();
-        if (data.success) {
-          success++;
-          row.classList.remove('unpaid-row', 'dupe-unpaid');
-          row.classList.add('dupe-done');
-          const firstBadge = row.querySelector('td:first-child .status-pill');
-          if (firstBadge) {
-            firstBadge.className = 'status-pill done';
-            firstBadge.textContent = 'Done';
-          }
-          btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
-        } else {
-          fail++;
-        }
-      } catch {
-        fail++;
+        const data = await deleteOne(box.dataset.uuid);
+        if (data.success) { success++; markDone(row); }
+        else { fail++; showError(row, data.error || 'Could not delete.'); }
+      } catch (err) {
+        fail++; showError(row, 'Network error: ' + err.message);
       }
     }
-
-    cancelAllBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${success} deleted${fail ? ', ' + fail + ' failed' : ''}`;
-    cancelAllBtn.classList.replace('btn-danger', 'btn-success');
+    deleteBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${success} deleted${fail ? ', ' + fail + ' refused' : ''}`;
+    deleteBtn.classList.replace('btn-danger', fail ? 'btn-warning' : 'btn-success');
+    setTimeout(() => {
+      deleteBtn.classList.remove('btn-success', 'btn-warning');
+      deleteBtn.classList.add('btn-danger');
+      deleteBtn.innerHTML = '<i class="bi bi-trash me-1"></i>Delete selected (<span id="selectedCount">0</span>)';
+      updateSelectionCount();
+    }, 4000);
   };
   modal.show();
 }
+
+updateSelectionCount();
 </script>
 {% endblock %}

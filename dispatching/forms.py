@@ -478,6 +478,20 @@ class DispatcherPricingForm(forms.Form):
         help_text="Gratuity amount to include in the total price"
     )
 
+    # Only rendered when the trip has a 10 PM-6 AM pickup and the extras don't
+    # already cover the fee. The dispatcher is the only one who knows whether a
+    # manually quoted price has the $20 inside it — asking now beats raising a
+    # task days later for someone who can no longer tell.
+    afterhours_fee_included = forms.ChoiceField(
+        choices=[
+            ('yes', "Yes — the $20 is in this price"),
+            ('no', "No — we're not charging it"),
+        ],
+        required=False,
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+        label="After-hours fee",
+    )
+
     private_notes = forms.CharField(
         widget=forms.Textarea(
             attrs={

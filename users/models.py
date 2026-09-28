@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum, Count, Q
+from datetime import time
 from decimal import Decimal
 from reservations.models import Reservation
 import logging
@@ -27,9 +28,62 @@ class UserProfile(models.Model):
         help_text="Runs the fleet. Lands on the Fleet desk after login, sees the "
                   "fleet top bar, and receives the fleet alert texts (if enabled).",
     )
+    # ── When this person is actually at work ────────────────────────────────
+    # The fleet round is walked on foot, in the yard, by one person on a shift.
+    # A car whose only hole in the day opens at 7 PM is not walkable by someone
+    # who left at four, and offering it as today's inspection wastes the one
+    # resource the round has. These two times are what "today" means for that
+    # person; nothing else in the app reads them yet.
+    #
+    # Stored per profile rather than as a company constant because the hours
+    # belong to the PERSON — a second fleet hand on an evening shift wants the
+    # evening windows, and would be handed the morning ones by a global.
+    shift_start = models.TimeField(
+        default=time(7, 30),
+        help_text="Start of this person's working day. The fleet inspection "
+                  "round only offers cars that can be walked between these hours.",
+    )
+    shift_end = models.TimeField(
+        default=time(16, 0),
+        help_text="End of this person's working day.",
+    )
+
+    def shift_window(self):
+        """This person's working day as a (start, end) pair of times.
+
+        Falls back to the field defaults rather than returning None: every
+        caller wants a window, and a profile saved before these fields existed
+        should read as the standard 7:30–4 day, not as "no hours at all".
+        """
+        start = self.shift_start or time(7, 30)
+        end = self.shift_end or time(16, 0)
+        # An end at or before the start is a data-entry slip, not an overnight
+        # shift — this fleet's round is a daytime walk. Fall back rather than
+        # hand the round a negative window it would read as "nothing walkable".
+        if end <= start:
+            return time(7, 30), time(16, 0)
+        return start, end
 
     def __str__(self):
         return self.user.email
+
+
+# The working day anyone gets who has no profile row of their own. Same pair the
+# two fields default to, kept here so a caller holding only a ``User`` never has
+# to reach for a UserProfile that may not exist.
+DEFAULT_SHIFT = (time(7, 30), time(16, 0))
+
+
+def shift_for(user):
+    """The working day of ``user`` as a (start, end) pair of times.
+
+    Safe for an anonymous or profile-less user, which is the normal case for
+    every account that is not a member of staff.
+    """
+    profile = getattr(user, "profile", None)
+    if profile is None:
+        return DEFAULT_SHIFT
+    return profile.shift_window()
 
 
 class PartnerForm(models.Model):
@@ -467,9 +521,15 @@ class TravelAgent(models.Model):
                     # Link the agent payout to the agency payout
                     agency_payout.agent_payouts.add(agent_payout)
 
-                    # Update agency's total paid commission
-                    self.agency.total_paid_commission += commission_total
-                    self.agency.save(update_fields=["total_paid_commission"])
+                    # NOT `+= commission_total`. Creating the payout above fires
+                    # users.signals.handle_agency_payout_changes, which reads
+                    # `instance.agency` — the very object held here — and has
+                    # already added the amount to it. Adding again on top counted
+                    # every agency payout twice: 22 of 50 agencies ended up
+                    # showing exactly 2x the money that actually left the bank.
+                    # Syncing from the payout rows is also self-healing, so an
+                    # agency that already drifted corrects on its next payout.
+                    self.agency.sync_paid_commission()
 
                 # Double-check that total_paid_commission matches payouts
                 self.sync_paid_commission()
@@ -805,9 +865,12 @@ class Agency(models.Model):
                 # Link all agent payouts to this agency payout
                 agency_payout.agent_payouts.set(processed_payouts)
 
-                # Update agency's total paid commission
-                self.total_paid_commission += total_amount
-                self.save(update_fields=["total_paid_commission"])
+                # NOT `+= total_amount` — see the matching note in
+                # TravelAgent.process_commission_payment. The post_save receiver
+                # on AgencyCommissionPayout has already added this amount to this
+                # same object; adding it again is what doubled the figure staff
+                # read on the Affiliate Explorer and the agency detail page.
+                self.sync_paid_commission()
 
                 return agency_payout, total_amount
 

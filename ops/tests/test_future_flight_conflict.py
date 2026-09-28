@@ -188,14 +188,14 @@ class SubThresholdDriftTests(_FutureBoardFixture):
         self.assertEqual(self._conflict_tasks().count(), 1)
         self.assertEqual(self._tight_turn_tasks().count(), 0)
 
-    def test_a_smaller_drift_inside_the_grace_is_amber(self):
-        """A drift small enough to stay inside TIGHT_TURN_RED_AFTER_MIN (10) is still
-        re-examined, but correctly triaged as "keep an eye on it" — not a false
-        CRITICAL emergency. This is the exact alert-fatigue bug the driver-conflict
-        severity fix targets, on the future-board code path."""
+    def test_a_smaller_drift_inside_the_grace_files_nothing_on_a_future_board(self):
+        """A drift small enough to stay inside TIGHT_TURN_RED_AFTER_MIN (10) is not
+        a CRITICAL emergency — and on a FUTURE board it is not a task at all.
+        Measured 2026-09-21 over 60 days: 321 future-board tight turns, not one of
+        which ended in a driver move. The same-day scan watches it on the day."""
         self._build_board(days_out=1, flight_arrival_time=time(14, 10))  # 7 min drift
         _scan_flight_mismatches()
-        self.assertEqual(self._tight_turn_tasks().count(), 1)
+        self.assertEqual(self._tight_turn_tasks().count(), 0)
         self.assertEqual(self._conflict_tasks().count(), 0)
 
     def test_it_does_not_pester_the_guest_over_thirteen_minutes(self):

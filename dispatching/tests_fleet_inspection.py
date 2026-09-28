@@ -6,7 +6,7 @@ The two rules worth protecting are that the week resets itself on Monday with
 nothing to run, and that walking the same car twice never makes two records the
 count would double.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -29,11 +29,35 @@ def _ninety_minutes(leg, target_date):
     return datetime.combine(target_date, leg.pickup_time) + timedelta(minutes=90)
 
 
+# The fleet manager's working day. Windows outside it are not windows he can use.
+SHIFT = (time(7, 30), time(16, 0))
+
+
+def _window(day, start, end, *, handoff=False, flight=False):
+    """One hole in a car's day, shaped the way ``fleet_day.gaps_between`` builds
+    them. ``needed`` is deliberately the SHOP figure here, as it is in real rows
+    — the round must not be reading it."""
+    from business.datefmt import time12
+    a, b = datetime.combine(day, start), datetime.combine(day, end)
+    return {"start": a, "end": b, "needed": 120,
+            "minutes": int((b - a).total_seconds() // 60),
+            "handoff": handoff, "flight_dependent": flight,
+            "usable": True, "from_label": time12(a), "to_label": time12(b)}
+
+
+def _working(number, windows, trips=6):
+    windows = list(windows)
+    return {"number": number, "state": "working", "trips": trips, "note": "",
+            "longest_gap": windows[0] if windows else None,
+            "gaps": windows,
+            "usable_windows": [w for w in windows if w["minutes"] >= 120]}
+
+
 class _InspectFixture(_FleetFixture):
-    def week(self, day=WED, day_rows=None):
+    def week(self, day=WED, day_rows=None, shift=None):
         loaded = fleet_inspection.load_week(day)
         return fleet_inspection.build_week(
-            loaded, day_rows=day_rows,
+            loaded, day_rows=day_rows, shift=shift,
             last_seen=fleet_inspection.last_seen_map(loaded["units"]))
 
     def inspected(self, unit, day=WED, outcome="ok", **kw):
@@ -398,3 +422,137 @@ class StickerBaselineTests(_InspectFixture):
                                 {"state_oil": "ok", "service_due_miles": "162000"})
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(VehicleInspection.objects.filter(vehicle=unit).exists())
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The round is walked by a person on a shift
+#
+# The complaint these protect: the round offered cars "Free 7:04 PM – 11:04 PM"
+# to a manager who goes home at four.
+# ════════════════════════════════════════════════════════════════════════════
+
+class ShiftTests(_InspectFixture):
+    def test_an_evening_window_is_not_a_window(self):
+        """The exact tile the fleet manager complained about."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(19, 4), time(23, 4))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertTrue(tile["off_shift"])
+        self.assertEqual(tile["window_minutes"], 0)
+        self.assertNotIn("7:04 PM", tile["today"])
+
+    def test_it_says_why_instead_of_naming_a_time_it_cannot_use(self):
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(19, 4), time(23, 4))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertEqual(tile["today"], "No gap before 4:00 PM")
+
+    def test_a_morning_window_survives_and_is_named(self):
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(9, 0), time(11, 30))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertFalse(tile["off_shift"])
+        self.assertEqual(tile["today"], "Free 9:00 AM – 11:30 AM")
+
+    def test_an_hour_in_the_middle_of_the_day_is_enough_to_walk_a_car(self):
+        """The round used to measure a walk-around against the cost of a garage
+        visit — 90 minutes of service plus 30 to get the car to the bay and back
+        — and so called a clear hour unreachable. Nothing is driven anywhere."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(10, 0), time(11, 8))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertFalse(tile["off_shift"])
+        self.assertEqual(tile["today"], "Free 10:00 AM – 11:08 AM")
+
+    def test_a_gap_behind_an_airport_arrival_still_pays_the_flight_hour(self):
+        """It starts when the aircraft lands, so an hour of it is not there."""
+        self.unit("1")
+        self.unit("2")
+        rows = [_working("1", [_window(WED, time(10, 0), time(11, 8), flight=True)]),
+                _working("2", [_window(WED, time(10, 0), time(11, 8))])]
+        week = self.week(day_rows=rows, shift=SHIFT)
+        self.assertTrue(self.tile(week, "1")["off_shift"])
+        self.assertFalse(self.tile(week, "2")["off_shift"])
+
+    def test_a_handoff_is_not_a_window(self):
+        """The one gap where the car may be moving rather than parked."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(10, 0), time(12, 0), handoff=True)])]
+        self.assertTrue(self.tile(self.week(day_rows=rows, shift=SHIFT), "1")["off_shift"])
+
+    def test_a_window_straddling_the_end_of_shift_is_cut_at_the_end_of_shift(self):
+        """Free 2 PM – 6 PM is two hours to a man who leaves at four, and the
+        tile must say four, not six — he would stand there waiting for a car
+        that is already gone."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(14, 0), time(18, 0))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertEqual(tile["today"], "Free 2:00 PM – 4:00 PM")
+        self.assertEqual(tile["window_minutes"], 120)
+
+    def test_a_straddling_window_too_short_once_cut_is_dropped(self):
+        """Fifteen minutes of a three-hour gap falling before four o'clock is
+        fifteen minutes, and you cannot walk a car in fifteen minutes."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(15, 45), time(19, 0))])]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertTrue(tile["off_shift"])
+
+    def test_a_reachable_car_is_suggested_over_an_evening_one(self):
+        self.unit("1")
+        self.unit("2")
+        rows = [_working("1", [_window(WED, time(19, 0), time(23, 0))]),
+                _working("2", [_window(WED, time(9, 0), time(11, 30))])]
+        week = self.week(day_rows=rows, shift=SHIFT)
+        self.assertEqual([t["number"] for t in week["suggested"]], ["2"])
+        self.assertFalse(week["suggestion_is_fallback"])
+
+    def test_the_list_is_not_padded_with_cars_he_cannot_reach(self):
+        """Five tiles where four are out all day is a worse morning than one
+        tile that is true."""
+        for n in range(1, 7):
+            self.unit(str(n))
+        evening = [_window(WED, time(19, 0), time(23, 0))]
+        rows = [_working("2", evening), _working("3", evening), _working("4", evening),
+                _working("5", evening), _working("6", evening),
+                _working("1", [_window(WED, time(9, 0), time(11, 30))])]
+        week = self.week(day_rows=rows, shift=SHIFT)
+        self.assertEqual([t["number"] for t in week["suggested"]], ["1"])
+
+    def test_with_nothing_reachable_it_offers_one_car_and_admits_it(self):
+        """The round never goes silent — but it never pretends either."""
+        for n in range(1, 4):
+            self.unit(str(n))
+        evening = [_window(WED, time(19, 0), time(23, 0))]
+        week = self.week(day_rows=[_working(str(n), evening) for n in range(1, 4)],
+                         shift=SHIFT)
+        self.assertEqual(len(week["suggested"]), 1)
+        self.assertTrue(week["suggestion_is_fallback"])
+        self.assertEqual(week["off_shift_count"], 3)
+
+    def test_an_unbuilt_board_is_not_an_unreachable_fleet(self):
+        """Silence about a car is not a claim that it is out. Day Setup not
+        having run must never empty the round."""
+        for n in range(1, 4):
+            self.unit(str(n))
+        week = self.week(day_rows=None, shift=SHIFT)
+        self.assertEqual(len(week["suggested"]), 3)
+        self.assertFalse(week["suggestion_is_fallback"])
+
+    def test_a_car_standing_still_is_free_for_the_whole_shift(self):
+        self.unit("1")
+        rows = [{"number": "1", "state": "open", "trips": 0,
+                 "note": "No chauffeur", "longest_gap": None, "usable_windows": []}]
+        tile = self.tile(self.week(day_rows=rows, shift=SHIFT), "1")
+        self.assertEqual(tile["window_minutes"], 510)      # 7:30 to 4:00
+        self.assertEqual(tile["today"], "Sitting still today")
+
+    def test_an_evening_shift_gets_the_evening_windows(self):
+        """The hours are the person's, not the company's — which is the whole
+        reason they live on a profile."""
+        self.unit("1")
+        rows = [_working("1", [_window(WED, time(19, 4), time(23, 4))])]
+        tile = self.tile(
+            self.week(day_rows=rows, shift=(time(15, 0), time(23, 59))), "1")
+        self.assertFalse(tile["off_shift"])
+        self.assertEqual(tile["today"], "Free 7:04 PM – 11:04 PM")

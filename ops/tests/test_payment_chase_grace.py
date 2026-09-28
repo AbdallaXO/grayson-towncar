@@ -17,7 +17,9 @@ from django.test import TestCase
 from django.utils import timezone
 
 from ops.models import OperationalTask
-from ops.tasks import UNPAID_TASK_BOOKING_GRACE, _scan_unpaid_reservations
+from ops.tasks import (
+    PAYMENT_CHASE_DAYS_AHEAD, UNPAID_TASK_BOOKING_GRACE, _scan_unpaid_reservations,
+)
 from rates.models import Location, Rate, Route, Vehicle
 from reservations.models import Customer, Leg, Reservation
 
@@ -87,13 +89,43 @@ class PaymentChaseGraceTests(TestCase):
         self.assertFalse(self._chase_tasks(res).exists())
 
     def test_task_created_once_grace_expires(self):
-        """Same reservation past the grace window is fair game."""
+        """Same reservation past the grace window, trip inside the chase window."""
         res = self._unpaid_reservation(
             booked_ago=UNPAID_TASK_BOOKING_GRACE + timedelta(hours=1),
-            pickup_in=timedelta(days=5),
+            pickup_in=timedelta(days=2),
         )
         _scan_unpaid_reservations()
         self.assertTrue(self._chase_tasks(res).exists())
+
+    def test_no_task_while_the_trip_is_still_far_out(self):
+        """Past the booking grace but the trip is a week away: nothing to chase yet.
+        Untouched unpaid bookings pay themselves in a median 10 hours, and the
+        reminder engine is already emailing the guest. The task comes back on its
+        own PAYMENT_CHASE_DAYS_AHEAD days before the trip."""
+        res = self._unpaid_reservation(
+            booked_ago=UNPAID_TASK_BOOKING_GRACE + timedelta(hours=1),
+            pickup_in=timedelta(days=PAYMENT_CHASE_DAYS_AHEAD + 2),
+        )
+        _scan_unpaid_reservations()
+        self.assertFalse(self._chase_tasks(res).exists())
+
+    def test_an_open_chase_that_is_now_too_early_closes_itself(self):
+        """A task filed under the old rule for a trip a week out closes on the next
+        scan, with a note that says when it will be back."""
+        res = self._unpaid_reservation(
+            booked_ago=UNPAID_TASK_BOOKING_GRACE + timedelta(hours=1),
+            pickup_in=timedelta(days=PAYMENT_CHASE_DAYS_AHEAD + 3),
+        )
+        early = OperationalTask.objects.create(
+            task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+            title="Unpaid $100: Alice Tester", due_at=timezone.now(),
+            reservation=res, metadata={},
+        )
+        _scan_unpaid_reservations()
+        early.refresh_from_db()
+        self.assertEqual(early.status, OperationalTask.Status.COMPLETED)
+        self.assertIn("too early", early.resolution_notes)
+        self.assertEqual(self._chase_tasks(res).filter(status="pending").count(), 0)
 
     def test_grace_holds_even_for_an_imminent_pickup(self):
         """Booked an hour ago, rolling in 6h — the pickup date doesn't shorten
@@ -118,7 +150,7 @@ class PaymentChaseGraceTests(TestCase):
 
         res = self._unpaid_reservation(
             booked_ago=UNPAID_TASK_BOOKING_GRACE + timedelta(hours=1),
-            pickup_in=timedelta(days=5),
+            pickup_in=timedelta(days=2),
         )
         Payment.objects.create(
             reservation=res, amount=Decimal("100.00"), status="paid",

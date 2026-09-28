@@ -45,6 +45,35 @@ def afterhours_fee_owed(pickup_time):
     return AFTERHOURS_FEE_AMOUNT if is_afterhours_time(pickup_time) else Decimal("0.00")
 
 
+def afterhours_marker_at_booking(
+    pickup_time, *, fee_included, additional_charges, afterhours_total
+):
+    """The after-hours marker a leg should be created with.
+
+    ``fee_included`` is the dispatcher's own answer on the pricing screen —
+    True ("it's in my price"), False ("not charging it"), or None when nobody
+    was asked (an online booking, or one already in flight when this shipped).
+
+    Their answer wins, because they are the only one who knows whether a
+    manually quoted $195 has the $20 inside it. Inferring it from
+    ``additional_charges`` is the fallback, and only when every late leg on the
+    booking is covered — $20 of charges does not pay two fees.
+
+    Leaving it at zero is deliberate, not a failure: an unmarked late leg
+    surfaces once so someone can decide, which is the whole point of the flag.
+    """
+    if not is_afterhours_time(pickup_time):
+        return Decimal("0.00")
+    if fee_included is True:
+        return AFTERHOURS_FEE_AMOUNT
+    if fee_included is False:
+        return Decimal("0.00")
+    charges = additional_charges or Decimal("0.00")
+    if afterhours_total and charges >= afterhours_total:
+        return AFTERHOURS_FEE_AMOUNT
+    return Decimal("0.00")
+
+
 def _run_in_background(func, *args, **kwargs):
     """Run a function in a background daemon thread to avoid blocking the request."""
     def _wrapper():

@@ -322,6 +322,9 @@ class PrePickupNudgeEngine:
         ).first()
         if not row:
             return variant, None
+        from .templates_engine import template_needs_price
+        if template_needs_price(row.message_template) and not lead.estimated_price:
+            return variant, None
         return variant, render_follow_up_message(row.message_template, lead, extra=ctx)
 
     def _send_nudge(self, lead, variant, ctx, message=None) -> str:
@@ -337,6 +340,10 @@ class PrePickupNudgeEngine:
             if not template_row:
                 logger.warning(f"No active pre-pickup template for variant '{variant}'")
                 return self._skip(lead, "no_template")
+            from .templates_engine import template_needs_price
+            if template_needs_price(template_row.message_template) and not lead.estimated_price:
+                # The nudge quotes the website price; this lead never got one.
+                return self._skip(lead, "no_price")
             message = render_follow_up_message(template_row.message_template, lead, extra=ctx)
 
         if self.dry_run:
@@ -421,15 +428,26 @@ class PrePickupNudgeEngine:
 
     def _has_booked_sibling(self, lead) -> bool:
         """
-        True if a DIFFERENT lead sharing this person's phone OR email has already
-        booked (converted). This is the duplicate-lead safety net: it does NOT
-        rely on the duplicate twins being merged or converted together — a single
-        converted lead anywhere on the same phone/email suppresses the nudge. Only
-        ever suppresses a send, so it cannot cause an erroneous text. Mirrors the
-        phone_already_nudged sibling guard.
+        True if this person has already booked the trip we are about to nudge
+        about. Only ever suppresses a send, so it cannot cause an erroneous text.
+
+        Two tests, because a converted Lead is weaker evidence than a Reservation:
+
+        1. A Reservation on this lead's own pickup date whose customer matches by
+           email or phone. This is the authoritative one — conversion marks only a
+           single lead per booking, so round-trip twins, leads created after the
+           booking, and bookings under a spouse's email leave every Lead row
+           looking unconverted while the person is a paying customer.
+        2. The original sibling test: any DIFFERENT lead on the same phone/email
+           marked converted. Kept because it still catches bookings whose customer
+           record shares neither identifier with the lead.
         """
         from django.db.models import Q
+        from reservations.lead_matching import already_booked_reservation
         from reservations.models import Lead
+
+        if already_booked_reservation(lead) is not None:
+            return True
 
         ident = Q()
         if lead.normalized_phone:

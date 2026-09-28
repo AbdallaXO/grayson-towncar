@@ -15,6 +15,7 @@ from django.db import transaction
 import stripe
 import stripe.error
 import logging
+import hashlib
 import json
 import threading
 import uuid
@@ -53,6 +54,7 @@ from drivers.models import (
 from drivers.availability import format_exception_badge, availability_block_bands, format_shift_preference
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate, Location
+from urllib.parse import quote as _urlquote
 from users.emails import send_reservation_confirmation
 from reservations.conversions import send_purchase_event
 from payment.webhook import save_card_to_customer
@@ -1432,6 +1434,7 @@ def schedule_board(request):
                 setattr(slot, _k, _v)
             for _k, _v in _slot_keoi(_sleg).items():
                 setattr(slot, _k, _v)
+            slot.flight_disruption, slot.flight_status = _flight_disruption(_sleg)
 
         # Affiliate capacity read-out (replaces the vehicle column on that board).
         # Mirrors AffiliateProfile's capacity model: a single-chain affiliate is one
@@ -1608,6 +1611,8 @@ def schedule_board(request):
             'vehicle_type': str(_vtype) if _vtype else '',
             'vehicle_abbr': _vabbr,
             'flight_info': _flight_str,
+            'flight_disruption': _flight_disruption(leg)[0],
+            'flight_status': _flight_disruption(leg)[1],
             'status': leg.status or '',
             'position_pct': _pos,
             'width_pct': _wid,
@@ -1711,6 +1716,38 @@ def schedule_board(request):
             _req = next((d for d in board_drivers if str(d.id) == driver_filter), None)
             driver_filter_dropped = str(_req) if _req else "That driver"
             driver_filter = ""
+
+    # ── Vehicle-type filter (Unassigned row only) ───────────────────────────
+    # Narrow the BACKLOG to one or more vehicle types — "just show me the van
+    # jobs still needing a driver". Driver lanes are never touched: what is
+    # already assigned is the day as it stands, and the point of the filter is
+    # to work the backlog one vehicle class at a time. The hiding happens in
+    # the browser — every backlog chip carries data-vehicle — so the rows, the
+    # header counts and the axis stay exactly as they are. The server's job is
+    # the honest option list: the types that actually have an unassigned job
+    # today, with counts, in the fleet's own order. A type that is ticked but
+    # has no backlog job today stays in the list (count 0) so it can be
+    # unticked, and the URL keeps it — the filter must survive a quiet day in
+    # the middle of a week of paging forward.
+    _vehicle_counts = {}
+    for _s in unassigned_timeline_slots:
+        _k = _s["vehicle_type"] or ""
+        _vehicle_counts[_k] = _vehicle_counts.get(_k, 0) + 1
+    _vehicle_choices = list(Vehicle.VEHICLE_TYPES) + [("none", "No vehicle set")]
+    _vehicle_valid = {_k for _k, _ in _vehicle_choices}
+    vehicle_filter = []
+    for _k in (request.GET.get("vehicle") or "").split(","):
+        _k = _k.strip()
+        if _k in _vehicle_valid and _k not in vehicle_filter:
+            vehicle_filter.append(_k)
+    board_vehicle_options = []
+    for _k, _lbl in _vehicle_choices:
+        _n = _vehicle_counts.get("" if _k == "none" else _k, 0)
+        if _n or _k in vehicle_filter:
+            board_vehicle_options.append({"key": _k, "label": _lbl, "count": _n})
+    vehicle_filter_qs = (
+        "&vehicle=" + _urlquote(",".join(vehicle_filter), safe="") if vehicle_filter else ""
+    )
 
     # Overnight tail (same night-crew rule as the dashboard): tomorrow's
     # 12-2 AM jobs shown as a read-only strip at the end of TONIGHT's board.
@@ -1833,6 +1870,10 @@ def schedule_board(request):
         "filtered_driver_name": filtered_driver_name,
         "filtered_driver_legs": filtered_driver_legs,
         "driver_filter_dropped": driver_filter_dropped,
+        # ── Vehicle-type filter (browser-side; see above) ──
+        "vehicle_filter": vehicle_filter,
+        "vehicle_filter_qs": vehicle_filter_qs,
+        "board_vehicle_options": board_vehicle_options,
         # ── Passenger search ──
         "focus_leg_id": focus_leg_id,
         "focus_note": focus_note,
@@ -2258,6 +2299,65 @@ def reservation_details(request, id):
     for leg in _res_legs:
         leg.samsara_vehicle = _assign_lookup.get((leg.driver_id, leg.pickup_date))
 
+    # Fee history, pinned per leg as `leg.fee_events`.
+    #
+    # This is deliberately NOT on the leg's notes. Drivers read that field — it
+    # renders on their board, their completed trips and their weekly schedule —
+    # so anything written there about our money is money admin shown to the
+    # chauffeur. This page is staff-only (is_staff is checked at the top), which
+    # is what makes it the right home for it.
+    #
+    # One query for the whole reservation rather than one per leg: the board
+    # renders every leg on the trip and an N+1 here is a page of them.
+    from ops.models import StaffActivity
+
+    _fee_events = {}
+    for act in (
+        StaffActivity.objects.filter(
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED,
+            metadata__reservation_id=reservation.id,
+        )
+        .select_related("user")
+        .order_by("-created_at")
+    ):
+        _leg_id = (act.metadata or {}).get("leg_id")
+        if _leg_id is None:
+            continue
+        _fee_events.setdefault(_leg_id, []).append(
+            {
+                "when": act.created_at,
+                "who": (act.metadata or {}).get("settled_by")
+                or (act.user.get_full_name() or act.user.username if act.user else "system"),
+                "amount": (act.metadata or {}).get("amount", ""),
+                "reason": (act.metadata or {}).get("reason", ""),
+            }
+        )
+    for leg in _res_legs:
+        leg.fee_events = _fee_events.get(leg.id, [])
+
+        # An UNSETTLED fee has to be visible on the trip itself, not only as a
+        # task on the board. Dismissing the dialog is a legitimate choice — think
+        # about it later — but it must leave a mark here, naming who moved the
+        # pickup into the window and left the $20 uncollected. Otherwise the trip
+        # looks finished and the money quietly isn't.
+        leg.fee_outstanding = afterhours_outstanding_for(leg)
+        leg.fee_moved_by = None
+        leg.fee_moved_at = leg.pickup_time_changed_at
+        if leg.fee_outstanding:
+            # The first history row carrying the CURRENT time is the one that set
+            # it — so its author is who moved the pickup.
+            mover = (
+                leg.history.filter(pickup_time=leg.pickup_time)
+                .order_by("history_date")
+                .first()
+            )
+            if mover is not None:
+                if mover.history_user:
+                    leg.fee_moved_by = (
+                        mover.history_user.get_full_name() or mover.history_user.username
+                    )
+                leg.fee_moved_at = mover.history_date or leg.pickup_time_changed_at
+
     context = {
         "reservation": reservation,
         "total_legs": len(reservation.legs.all()),
@@ -2634,6 +2734,13 @@ def modify_reservation(request, id):
                     if reservation.legs.count() >= i
                     else None
                 )
+                # Read the pickup BEFORE the form binds. ModelForm._post_clean
+                # mutates the instance during is_valid(), so after that point the
+                # old time is already gone — the same trap the gratuity note above
+                # documents.
+                _leg_time_before = getattr(leg_instance, "pickup_time", None)
+                _leg_date_before = getattr(leg_instance, "pickup_date", None)
+
                 leg_form = LegForm(
                     request.POST, instance=leg_instance, prefix=leg_prefix
                 )
@@ -2641,6 +2748,24 @@ def modify_reservation(request, id):
                     leg = leg_form.save(commit=False)
                     leg.reservation = updated_reservation
                     leg.save()
+
+                    # This screen can retime a leg into the 10 PM-6 AM window and
+                    # said nothing at all — no dialog and, unlike every other
+                    # path, no task either. The three-answer dialog does not port
+                    # to a plain form POST, so this is the floor, not the finish:
+                    # raise the flag so the $20 is at least visible on the board
+                    # instead of being lost in silence.
+                    if leg.pickup_time and (
+                        leg.pickup_time != _leg_time_before
+                        or leg.pickup_date != _leg_date_before
+                    ):
+                        try:
+                            from ops.tasks import flag_afterhours_fee
+                            flag_afterhours_fee(leg, leg.pickup_time)
+                        except Exception as e:
+                            logger.warning(
+                                f"After-hours flag failed for leg {leg.id}: {e}"
+                            )
                 else:
                     # Surface the specific failure instead of silently dropping the edit.
                     for field, errs in leg_form.errors.items():
@@ -3257,6 +3382,24 @@ def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
             lane_ends.append(right)
         _set(s, 'lane_top', _get(s, 'lane') * (lane_height + gap) + top_pad)
     return max(len(lane_ends), 1)
+
+
+def _flight_disruption(leg):
+    """('cancelled' | 'diverted' | '', status text) for the job's tracked flight.
+
+    The tracker writes "Cancelled" and "Diverted" into Flight.status, and a
+    task is filed, but the board chip itself said nothing — the 4:42 PM job on
+    2026-09-21 sat on the board looking like any other arrival while its flight
+    had been cancelled. This is what the chip reads to shout about it.
+    """
+    fi = getattr(leg, "flight_information", None) if leg is not None else None
+    status = (getattr(fi, "status", "") or "").strip() if fi is not None else ""
+    low = status.lower()
+    if "cancel" in low:
+        return "cancelled", status
+    if "divert" in low:
+        return "diverted", status
+    return "", status
 
 
 def _slot_notes(leg):
@@ -5703,30 +5846,8 @@ def refresh_flight_data(request):
         # If the controlling flight came back not_found, surface a flight-verification task.
         # (Same behavior as before — only fired for the controlling flight, not secondaries.)
         if any_not_found and not all_flight_data:
-            from ops.models import OperationalTask
-            ctl_ident = (leg.flight_information.get_flight_ident() if leg.flight_information else "") or ""
-            existing_task = OperationalTask.objects.filter(
-                leg=leg,
-                task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                status__in=list(OperationalTask.OPEN_STATUSES),
-            ).first()
-            if not existing_task:
-                pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
-                pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
-                from datetime import timedelta as _td
-                OperationalTask.objects.create(
-                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                    priority=OperationalTask.Priority.HIGH,
-                    title=f"⚠️ Flight not found: {ctl_ident}",
-                    description=(
-                        f"Flight {ctl_ident} does not exist. "
-                        f"Please verify and correct the flight number.\n"
-                        f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
-                    ),
-                    leg=leg,
-                    reservation=leg.reservation,
-                    due_at=timezone.now() + _td(hours=4),
-                )
+            from ops.tasks import flag_flight_not_found
+            if flag_flight_not_found(leg):
                 logger.info(f"Created flight verification task for leg {leg.id}")
 
         if not all_flight_data:
@@ -5883,7 +6004,8 @@ def _serialize_match_conflicts(leg, raw_conflicts):
             "guest_name": guest_name,
             "driver": str(leg.driver) if leg.driver else "",
             "conflict_minutes": minutes,
-            "tier": "red" if minutes >= TIGHT_TURN_RED_AFTER_MIN else "amber",
+            # Same edge as classify_turn: exactly the grace is still makeable.
+            "tier": "red" if minutes > TIGHT_TURN_RED_AFTER_MIN else "amber",
             "conflicting_pickup_time": (
                 other.pickup_time.strftime("%I:%M %p").lstrip("0")
                 if other.pickup_time else ""
@@ -5998,6 +6120,13 @@ def match_leg_time_to_flight(request):
                 status=409,
             )
 
+        # ── After-hours fee ────────────────────────────────────────────────
+        # Measured BEFORE the move so the dialog can be raised after it, but
+        # never at the cost of blocking the move itself: the retime is what the
+        # dispatcher came to do, and a pickup lost to a dialog is worse than a
+        # fee decided a minute later.
+        afterhours_outstanding = afterhours_outstanding_for(leg, at_time=new_time)
+
         # Only a deliberate "move_date" confirmation is allowed to change the
         # calendar day — never a bare match.
         _apply_matched_pickup(
@@ -6007,8 +6136,19 @@ def match_leg_time_to_flight(request):
             new_date=flight_date if confirmed == "move_date" else None,
         )
 
+        # The move is saved. Now hand the caller what it needs to ask the $20
+        # question. Cancelling the dialog costs nothing but a task, because the
+        # backstop flag below still runs.
+        afterhours_prompt = (
+            afterhours_prompt_payload(leg, afterhours_outstanding)
+            if afterhours_outstanding
+            else None
+        )
+
         # After-hours fee: the matched pickup time may now fall in the 10 PM-6 AM
         # window (flight delayed). Flag it for the dispatcher to review + charge.
+        # Still runs when nothing was outstanding, so a move OUT of the window
+        # closes any flag that is standing.
         try:
             from ops.tasks import flag_afterhours_fee
             flag_afterhours_fee(leg, new_time)
@@ -6136,6 +6276,9 @@ def match_leg_time_to_flight(request):
             "pickup_time": new_time.strftime("%H:%M"),
             "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else "",
             "day_moved": day_moved,
+            # Present when this match left an after-hours fee undecided. The
+            # caller raises the dialog and posts the answer to afterhours_decision.
+            "afterhours_prompt": afterhours_prompt,
             "summary": {
                 "old_time": old_time.strftime("%I:%M %p").lstrip("0") if old_time else "",
                 "new_time": new_time.strftime("%I:%M %p").lstrip("0"),
@@ -6325,6 +6468,152 @@ def charge_afterhours_fee(request, leg_id):
     return JsonResponse({"success": False, "error": err}, status=status)
 
 
+def afterhours_outstanding_for(leg, at_time=None):
+    """What the after-hours fee still owes on this leg, as a Decimal.
+
+    `at_time` lets a caller ask about a time it is ABOUT to set. Mirrors
+    Leg.afterhours_fee_outstanding but takes the clock as an argument, because
+    the retime paths need the answer for the new time, not the stored one.
+    """
+    from reservations.utils import afterhours_fee_owed
+
+    when = at_time or leg.pickup_time
+    if not when:
+        return Decimal("0.00")
+    owed = afterhours_fee_owed(when)
+    applied = leg.afterhours_fee or Decimal("0.00")
+    if owed <= applied or leg.booking_carries_afterhours_fee():
+        return Decimal("0.00")
+    return owed - applied
+
+
+def afterhours_prompt_payload(leg, outstanding):
+    """The facts the "this pickup is now after hours" dialog needs."""
+    reservation = leg.reservation
+    customer = getattr(reservation, "customer", None)
+    guest_name = (
+        f"{(getattr(customer, 'first_name', '') or '').title()} "
+        f"{(getattr(customer, 'last_name', '') or '').title()}".strip() or "the guest"
+    )
+    current_total = (reservation.total_price if reservation else None) or Decimal("0.00")
+    return {
+        "leg_id": leg.id,
+        "fee_amount": f"{outstanding:.2f}",
+        "guest_name": guest_name,
+        "pickup_at": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
+        "current_total": f"{current_total:.2f}",
+        "new_total": f"{current_total + outstanding:.2f}",
+        # Proxy for "can we charge without a detour". The real Stripe lookup
+        # happens inside the charge action; asking Stripe here would put a
+        # network call in front of a dialog.
+        "has_card": bool(getattr(customer, "card_last4", "")),
+        "card_last4": getattr(customer, "card_last4", "") or "",
+    }
+
+
+def apply_afterhours_decision(leg, answer, user):
+    """Carry out charge / already-collected / waived. Returns an outcome dict."""
+    outstanding = afterhours_outstanding_for(leg)
+    if not outstanding:
+        return {"action": "noop", "message": "That fee is already settled."}
+
+    if answer == "charge":
+        result = _charge_afterhours_fee_for_leg(leg, user)
+        if result.get("success"):
+            return {
+                "action": "charged",
+                "message": f"${outstanding:.2f} after-hours fee charged and the guest emailed.",
+            }
+        # The retime is already saved and correct; a dead card must not undo it.
+        return {
+            "action": "charge_failed",
+            "message": result.get("error") or "Could not charge the card.",
+        }
+
+    from ops.tasks import settle_afterhours_fee
+
+    who = user.get_full_name() or user.username if user else "system"
+    note = (
+        f"Already collected — confirmed by {who}"
+        if answer == "collected"
+        else f"Waived by {who} — not charging this trip"
+    )
+    settle_afterhours_fee(leg, settled_by=user, note=note)
+    return {
+        "action": answer,
+        "message": (
+            "Marked as already collected — it won't ask again."
+            if answer == "collected"
+            else "Waived — it won't ask again."
+        ),
+    }
+
+
+@login_required
+@require_POST
+def afterhours_decision(request, leg_id):
+    """Answer the after-hours question for a leg that has already been retimed.
+
+    The retime saves first and this answers afterwards, so a dispatcher never
+    loses a pickup change to a dialog they wanted to think about. If they close
+    the dialog instead, the backstop flag has already raised the task, so the
+    $20 is on the board rather than lost.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    leg = get_object_or_404(Leg.objects.select_related("reservation"), id=leg_id)
+    try:
+        answer = (json.loads(request.body or "{}").get("answer") or "").strip()
+    except json.JSONDecodeError:
+        answer = (request.POST.get("answer") or "").strip()
+
+    if answer not in ("charge", "collected", "waive"):
+        return JsonResponse(
+            {"success": False, "error": "Answer must be charge, collected or waive."},
+            status=400,
+        )
+
+    try:
+        outcome = apply_afterhours_decision(leg, answer, request.user)
+    except Exception as exc:
+        logger.exception(f"After-hours decision failed for leg {leg_id}: {exc}")
+        return JsonResponse({"success": False, "error": str(exc)}, status=500)
+
+    return JsonResponse({"success": True, "afterhours": outcome})
+
+
+def settle_afterhours_fee_view(request, leg_id):
+    """Record an after-hours fee as already collected, without charging. JSON.
+
+    The counterpart to charging: the $20 often reaches us on a bundled balance
+    payment, in cash, or inside a manually quoted price. Without this a
+    dispatcher's only options were to charge it a second time or close the task
+    — and closing wrote nothing, so the next flight refresh raised it again.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    leg = get_object_or_404(Leg.objects.select_related("reservation"), id=leg_id)
+    note = (request.POST.get("note") or "").strip()
+
+    from ops.tasks import settle_afterhours_fee
+
+    try:
+        closed = settle_afterhours_fee(leg, settled_by=request.user, note=note)
+    except Exception as exc:
+        logger.error(f"Settling after-hours fee on leg {leg_id} failed: {exc}", exc_info=True)
+        return JsonResponse({"success": False, "error": str(exc)}, status=400)
+
+    return JsonResponse({
+        "success": True,
+        "message": "Marked as already collected — this won't be raised again.",
+        "tasks_closed": closed,
+    })
+
+
 def _charge_afterhours_fee_for_leg(leg, user):
     """Charge the flat after-hours fee for one leg to the card on file, mark the
     leg, roll the fee into the reservation totals, note it, email the customer,
@@ -6339,7 +6628,7 @@ def _charge_afterhours_fee_for_leg(leg, user):
         adjust_reservation_for_stop_fee_delta,
     )
     from users.emails import send_afterhours_fee_notice
-    from ops.models import OperationalTask
+    from ops.models import OperationalTask, StaffActivity
     from ops.services import close_task
 
     reservation = leg.reservation
@@ -6419,13 +6708,32 @@ def _charge_afterhours_fee_for_leg(leg, user):
                 "stripe_payment_method_id": payment_method_id,
             },
         )
-        # Mark the leg, note it, and roll the fee into the reservation totals.
+        # Mark the leg and roll the fee into the reservation totals.
+        #
+        # This used to append "$20.00 After-Hours Fee charged" to
+        # leg.private_notes. Drivers read that field — it renders on their board,
+        # their completed trips and their weekly schedule — so the charge note
+        # was showing our fee admin to the chauffeur. Gratuity is the only money
+        # note a driver should see. The trail moves to dispatcher-only places:
+        # _history_user attributes the marker change in the leg timeline, and the
+        # StaffActivity row records who charged and how much.
         delta = amount - (leg.afterhours_fee or Decimal("0.00"))
         leg.afterhours_fee = amount
-        _note = f"${amount:.2f} After-Hours Fee charged"
-        leg.private_notes = f"{leg.private_notes}\n{_note}" if leg.private_notes else _note
-        leg.save(update_fields=["afterhours_fee", "private_notes"])
+        leg._history_user = user
+        leg.save(update_fields=["afterhours_fee"])
         adjust_reservation_for_stop_fee_delta(reservation, delta)
+
+        StaffActivity.objects.create(
+            user=user,
+            action_type=StaffActivity.ActionType.AFTERHOURS_SETTLED,
+            metadata={
+                "leg_id": leg.id,
+                "reservation_id": reservation.id,
+                "amount": str(amount),
+                "reason": "Charged to the card on file and the guest emailed",
+                "settled_by": (user.get_full_name() or user.username) if user else "system",
+            },
+        )
 
     _run_in_background(send_afterhours_fee_notice, reservation, leg, amount, sent_by=user)
 
@@ -6814,31 +7122,11 @@ def _refresh_single_flight(leg):
                 flight.last_updated = timezone.now()
                 flight.save()
 
-                # Create a flight verification task if one doesn't already exist
-                from ops.models import OperationalTask
-                existing_task = OperationalTask.objects.filter(
-                    leg=leg,
-                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                    status__in=list(OperationalTask.OPEN_STATUSES),
-                ).first()
-                if not existing_task:
-                    flight_ident = flight.get_flight_ident() or "Unknown"
-                    pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
-                    pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
-                    from datetime import timedelta as _td
-                    OperationalTask.objects.create(
-                        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                        priority=OperationalTask.Priority.HIGH,
-                        title=f"⚠️ Flight not found: {flight_ident}",
-                        description=(
-                            f"Flight {flight_ident} does not exist. "
-                            f"Please verify and correct the flight number.\n"
-                            f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
-                        ),
-                        leg=leg,
-                        reservation=leg.reservation,
-                        due_at=timezone.now() + _td(hours=4),
-                    )
+                # Raise the "can't find this flight" task — deduped and
+                # cooled down by flag_flight_not_found, which is what stops the
+                # refresh/auto-close loop recreating it every half hour.
+                from ops.tasks import flag_flight_not_found
+                flag_flight_not_found(leg)
 
             return {
                 "leg_id": leg.id,
@@ -7482,6 +7770,24 @@ def _booking_leg_vehicle(leg_data, default_vehicle):
     return default_vehicle
 
 
+def _sort_legs_by_pickup(legs_data, flights_data):
+    """Return (legs, flights) in pickup date+time order, keeping each flight
+    on its own leg. Stable, so two legs at the same minute keep the order the
+    dispatcher typed them. A leg missing a date or time (only possible on a
+    partial form) sorts after the dated ones rather than raising."""
+    pairs = list(zip(legs_data, flights_data))
+
+    def _key(pair):
+        leg = pair[0] or {}
+        d = leg.get('pickup_date') or ''
+        t = leg.get('pickup_time') or ''
+        # str(date) / str(time) are ISO, so plain string order is time order.
+        return (0 if d and t else 1, str(d), str(t))
+
+    pairs.sort(key=_key)
+    return [lg for lg, _ in pairs], [fl for _, fl in pairs]
+
+
 def _booking_is_round_trip(legs_data, default_vehicle, locations):
     """True only when leg 2 is genuinely the return half of leg 1 — same
     vehicle, and its pickup/dropoff are leg 1's dropoff/pickup reversed.
@@ -7546,6 +7852,14 @@ def update_leg_info(request):
             Leg.objects.select_related('driver', 'driver__profile', 'flight_information', 'cruise_information'), 
             id=leg_id
         )
+
+        # The inline form posts every field on every save, so update_fields alone
+        # cannot tell a real retime from a dropoff-address edit. Anchor the
+        # before-values here: the after-hours gate below must fire when the pickup
+        # actually MOVES, not every time someone touches the trip, or it becomes
+        # the nag people click through without reading.
+        _orig_pickup_time = leg.pickup_time
+        _orig_pickup_date = leg.pickup_date
 
         # Update leg fields (non-override scalars)
         update_fields = []
@@ -7635,6 +7949,18 @@ def update_leg_info(request):
                     leg.cruise_information = None
                     update_fields.append("cruise_information")
 
+        # ── After-hours fee ────────────────────────────────────────────────
+        # Editing a pickup by hand is the commonest way a trip lands in the
+        # 10 PM-6 AM window, and it used to be the quietest: this endpoint never
+        # called flag_afterhours_fee at all. Measure now, save, then ask — the
+        # edit is never held hostage to the dialog.
+        _pickup_moved = (
+            leg.pickup_time != _orig_pickup_time or leg.pickup_date != _orig_pickup_date
+        )
+        afterhours_outstanding = (
+            afterhours_outstanding_for(leg) if _pickup_moved else Decimal("0.00")
+        )
+
         # Save the leg if any fields were updated
         if update_fields:
             # Leg.save() re-anchors these as it runs, so a failed save leaves the
@@ -7673,12 +7999,30 @@ def update_leg_info(request):
         if _needs_legflight_sync:
             _sync_legacy_flight_information(leg)
 
+        afterhours_prompt = (
+            afterhours_prompt_payload(leg, afterhours_outstanding)
+            if afterhours_outstanding
+            else None
+        )
+
+        # Backstop. If the dispatcher closes the dialog, or a client never shows
+        # one — an older page still open, a script — the $20 must not vanish in
+        # silence. Worst case it becomes a task, which is what every other path
+        # already does. Answering the dialog closes that task on its way through.
+        if _pickup_moved and leg.pickup_time:
+            try:
+                from ops.tasks import flag_afterhours_fee
+                flag_afterhours_fee(leg, leg.pickup_time)
+            except Exception as e:
+                logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
+
         # Refresh leg from database to get latest data including driver
         leg.refresh_from_db()
-        
+
         return JsonResponse({
             "success": True,
             "message": "Leg information updated successfully",
+            "afterhours_prompt": afterhours_prompt,
             "leg": {
                 "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else None,
                 "pickup_time": leg.pickup_time.strftime("%H:%M") if leg.pickup_time else None,
@@ -8300,6 +8644,15 @@ def dispatcher_booking_legs(request):
             if not legs_data:
                 messages.error(request, "At least one trip leg is required. Please add leg details.")
             else:
+                # Legs live in pickup order, whatever order they were typed in.
+                # A guest who adds a stop halfway through the call gets its card
+                # appended at the bottom; the dispatcher used to delete the later
+                # leg and re-type it just to get the numbering right. The page
+                # re-sorts as they type, and this is the authority: the review,
+                # the pricing and the saved reservation all read this order.
+                # Flights ride along with their leg (paired by index above).
+                legs_data, flights_data = _sort_legs_by_pickup(legs_data, flights_data)
+
                 # Sanity guards: wrong-date / AM-PM / flight-schedule checks.
                 # Blocking warnings render once with an acknowledge checkbox;
                 # the token pins the acknowledgment to THIS set of warnings, so
@@ -8493,6 +8846,9 @@ def dispatcher_booking_pricing(request):
                     'gratuity_amount': str(gratuity_amount),
                     'total_price': str(total_price),
                     'private_notes': form.cleaned_data.get('private_notes', ''),
+                    'afterhours_fee_included': form.cleaned_data.get(
+                        'afterhours_fee_included', ''
+                    ),
                 }
                 
                 booking_data['pricing_data'] = pricing_data
@@ -9023,15 +9379,22 @@ def create_dispatcher_reservation(booking_data):
                 gratuity_note = f"${gratuity_per_leg:.2f} Gratuity Included"
                 private_notes = f"{private_notes}\n{gratuity_note}".strip() if private_notes else gratuity_note
 
-            # Mark the after-hours fee as collected only when the additional
-            # charges on this booking actually cover it. The marker is what
-            # stops a later flight-delay pass from asking for the same $20
-            # twice — and leaving it unset when nobody charged the fee is what
-            # lets that pass still catch it.
-            from reservations.utils import AFTERHOURS_FEE_AMOUNT, afterhours_fee_owed
-            leg_afterhours = afterhours_fee_owed(pickup_time)
-            if leg_afterhours and additional_charges < afterhours_total:
-                leg_afterhours = Decimal('0.00')
+            # The marker is what stops a later flight-delay pass asking for the
+            # same $20 twice. The dispatcher's answer on the pricing screen
+            # decides it, because a manually quoted price can carry the fee
+            # without it ever reaching additional_charges; the charges are only
+            # the fallback when nobody was asked. See afterhours_marker_at_booking.
+            from reservations.utils import (
+                AFTERHOURS_FEE_AMOUNT, afterhours_marker_at_booking,
+            )
+            _answer = pricing_data.get('afterhours_fee_included') or ''
+            leg_afterhours = afterhours_marker_at_booking(
+                pickup_time,
+                fee_included=(True if _answer == 'yes'
+                              else False if _answer == 'no' else None),
+                additional_charges=additional_charges,
+                afterhours_total=afterhours_total,
+            )
 
             leg = Leg.objects.create(
                 reservation=reservation,
@@ -9422,13 +9785,61 @@ def add_leg_to_reservation(request):
             leg.save()
             _sync_legacy_flight_information(leg)
 
+        # A leg picked up between 10 PM and 6 AM carries the $20 after-hours fee,
+        # and it has to land in BOTH places or the trip ends up wrong one way or
+        # the other: the charge is what actually bills the guest, and the marker
+        # is what stops a later flight-delay pass asking for the same $20 again.
+        # Adding a leg set neither, so late legs were driven without the fee ever
+        # reaching a bill — 23 of them, while 6 more sat on the board asking for
+        # money nobody had been charged.
+        #
+        # The marker itself is decided by afterhours_marker_at_booking, the one
+        # place that answers "what marker should a new leg get" — the booking and
+        # flag paths already go through it, and a second definition here is the
+        # exact drift that produced the problem. fee_included=True because this
+        # path BILLS the fee a few lines below: unlike the pricing screen there is
+        # no quoted price to infer from, so the answer isn't unknown, it's yes.
+        from reservations.utils import (
+            AFTERHOURS_FEE_AMOUNT,
+            adjust_reservation_for_stop_fee_delta,
+            afterhours_marker_at_booking,
+            is_afterhours_time,
+        )
+        late_leg_count = sum(
+            1 for existing in reservation.legs.all()
+            if is_afterhours_time(existing.pickup_time)
+        )
+        afterhours_owed = afterhours_marker_at_booking(
+            leg.pickup_time,
+            fee_included=True,
+            additional_charges=reservation.additional_charges,
+            afterhours_total=AFTERHOURS_FEE_AMOUNT * late_leg_count,
+        )
+        if afterhours_owed:
+            # Bill first, mark second, both inside one transaction. The order is
+            # load-bearing even with the atomic block: a marker written before the
+            # charge lands asserts money that isn't on the bill, and that failure
+            # is SILENT — the marker suppresses both the board flag and the task,
+            # so nothing ever surfaces it. Billed-but-unmarked fails the other way:
+            # the leg reports owed, someone gets one task, one click settles it.
+            # Visible and recoverable beats invisible and permanent.
+            with transaction.atomic():
+                adjust_reservation_for_stop_fee_delta(reservation, afterhours_owed)
+                leg.afterhours_fee = afterhours_owed
+                leg.save(update_fields=["afterhours_fee"])
+
         # Recalculate revenue_share for all legs now that there is one more leg
         reservation.recalculate_leg_revenue_shares()
-        
-        logger.info(f"Added new leg {leg.id} to reservation {reservation.id}")
-        
+
+        logger.info(
+            f"Added new leg {leg.id} to reservation {reservation.id}"
+            + (f" with ${afterhours_owed} after-hours fee" if afterhours_owed else "")
+        )
+
         return JsonResponse({
             "success": True,
+            "afterhours_fee_added": str(afterhours_owed or Decimal("0.00")),
+            "reservation_total_price": str(reservation.total_price),
             "leg": {
                 "id": leg.id,
                 "pickup_date": leg.pickup_date.isoformat(),
@@ -20156,94 +20567,31 @@ def admin_agent_payout_detail(request, pk):
 
 @login_required(login_url="login")
 def duplicate_reservations(request):
-    """Show duplicate reservations: same customer + same pickup date, one paid one unpaid."""
+    """Duplicate bookings, each unpaid twin sorted safe / check first / hold.
+
+    Grouping and verdicts live in reservations.duplicates so the delete
+    endpoint below can re-derive the same verdict from live data. Superuser-only
+    because the action is a hard delete.
+    """
     if not request.user.is_superuser:
         messages.error(request, "You don't have permission to access this page.")
         return redirect("dashboard")
 
-    from collections import defaultdict
+    from reservations.duplicates import HOLD, REVIEW, SAFE, build_groups
 
-    # Scan range: past 90 days + future
-    cutoff = timezone.now().date() - timedelta(days=90)
-
-    reservations = (
-        Reservation.objects.filter(
-            legs__pickup_date__gte=cutoff,
-        )
-        .exclude(status="cancelled")
-        .select_related("customer", "vehicle")
-        .prefetch_related(
-            Prefetch("payments", queryset=Payment.objects.all()),
-            Prefetch(
-                "legs",
-                queryset=Leg.objects.select_related(
-                    "flight_information", "cruise_information"
-                ).order_by("pickup_date", "pickup_time"),
-            ),
-        )
-        .distinct()
-    )
-
-    # Group by (last_name_lower, phone_last10, pickup_date) so dupes across
-    # separate Customer rows (e.g. same person booked under two different emails)
-    # still collapse together. Falls back to first_name if last_name is blank.
-    groups = defaultdict(list)
-    for res in reservations:
-        customer = res.customer
-        if not customer:
-            continue
-        first_leg = res.legs.all().first()
-        if not first_leg:
-            continue
-        phone_digits = "".join(ch for ch in (customer.phone_number or "") if ch.isdigit())[-10:]
-        if not phone_digits:
-            continue
-        name_part = (customer.last_name or customer.first_name or "").strip().lower()
-        if not name_part:
-            continue
-        key = (name_part, phone_digits, first_leg.pickup_date)
-        groups[key].append(res)
-
-    # Find groups where at least one paid + one unpaid
-    duplicate_groups = []
-    total_unpaid = 0
-    for (_name_part, _phone_digits, pickup_date), res_list in groups.items():
-        seen_ids = set()
-        unique = []
-        for r in res_list:
-            if r.id not in seen_ids:
-                seen_ids.add(r.id)
-                unique.append(r)
-        if len(unique) < 2:
-            continue
-
-        paid = [r for r in unique if r.payment_status in ("paid", "card_saved")]
-        unpaid = [r for r in unique if r.payment_status not in ("paid", "card_saved")]
-
-        if not paid or not unpaid:
-            continue
-
-        total_unpaid += len(unpaid)
-        customer = unique[0].customer
-        duplicate_groups.append(
-            {
-                "customer": customer,
-                "pickup_date": pickup_date,
-                "paid": paid,
-                "unpaid": unpaid,
-            }
-        )
-
-    # Sort by upcoming dates first (ascending), then past dates after
-    today = timezone.now().date()
-    duplicate_groups.sort(
-        key=lambda g: (0 if g["pickup_date"] >= today else 1, g["pickup_date"]),
-    )
+    duplicate_groups = build_groups()
+    tier_counts = {SAFE: 0, REVIEW: 0, HOLD: 0}
+    for group in duplicate_groups:
+        for res in group.unpaid:
+            tier_counts[res.dupe_verdict.tier] += 1
 
     context = {
         "duplicate_groups": duplicate_groups,
-        "total_unpaid": total_unpaid,
         "total_groups": len(duplicate_groups),
+        "total_unpaid": sum(tier_counts.values()),
+        "safe_count": tier_counts[SAFE],
+        "review_count": tier_counts[REVIEW],
+        "hold_count": tier_counts[HOLD],
     }
     return render(request, "dispatching/duplicate_reservations.html", context)
 
@@ -20251,53 +20599,74 @@ def duplicate_reservations(request):
 @require_POST
 @login_required(login_url="login")
 def cancel_duplicate_reservation(request):
-    """Delete an unpaid duplicate reservation via AJAX."""
+    """Delete one unpaid duplicate via AJAX.
+
+    The verdict is re-derived from live data at delete time: the booking must
+    still be unpaid with no card on file, and must still have a paid twin in
+    its group. A stale tab, or a booking the guest paid in the meantime, is
+    refused rather than deleted.
+    """
     if not request.user.is_superuser:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
         data = json.loads(request.body)
-        reservation_uuid = data.get("reservation_uuid")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
-        if not reservation_uuid:
-            return JsonResponse(
-                {"success": False, "error": "Missing reservation UUID"}, status=400
-            )
-
-        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
-
-        # Safety: don't delete paid reservations
-        if reservation.payment_status == "paid":
-            return JsonResponse(
-                {"success": False, "error": "Cannot delete a paid reservation from this page. Use the refund workflow instead."},
-                status=400,
-            )
-
-        res_id = reservation.id
-        res_name = reservation.customer.get_full_name()
-        reservation.delete()
-
-        logger.info(
-            f"Deleted duplicate reservation #{res_id} "
-            f"({res_name}) by {request.user.username}"
+    reservation_uuid = data.get("reservation_uuid")
+    if not reservation_uuid:
+        return JsonResponse(
+            {"success": False, "error": "Missing reservation UUID"}, status=400
         )
 
+    from reservations.duplicates import PAID_STATES, verdict_for
+
+    reservation = get_object_or_404(
+        Reservation.objects.select_related("customer"), uuid=reservation_uuid
+    )
+
+    if reservation.payment_status in PAID_STATES:
         return JsonResponse(
             {
-                "success": True,
-                "message": f"Reservation #{res_id} deleted.",
-            }
+                "success": False,
+                "error": "This booking is paid or has a card on file. "
+                "Use the refund workflow instead.",
+            },
+            status=400,
         )
 
-    except json.JSONDecodeError:
+    verdict = verdict_for(reservation)
+    if verdict is None:
         return JsonResponse(
-            {"success": False, "error": "Invalid JSON"}, status=400
+            {
+                "success": False,
+                "error": "No paid twin for this booking any more. "
+                "Refresh the page before deleting.",
+            },
+            status=409,
         )
+
+    res_id = reservation.id
+    res_name = reservation.customer.get_full_name()
+    try:
+        reservation.delete()
     except Exception as e:
-        logger.error(f"Error cancelling duplicate reservation: {e}")
-        return JsonResponse(
-            {"success": False, "error": str(e)}, status=500
-        )
+        logger.error(f"Error deleting duplicate reservation #{res_id}: {e}", exc_info=True)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    logger.info(
+        f"Deleted duplicate reservation #{res_id} ({res_name}) by "
+        f"{request.user.username} — verdict {verdict.tier}"
+        + (f": {'; '.join(verdict.reasons)}" if verdict.reasons else "")
+    )
+    return JsonResponse(
+        {
+            "success": True,
+            "message": f"Reservation #{res_id} deleted.",
+            "tier": verdict.tier,
+        }
+    )
 
 
 # ── Quote Calculator ────────────────────────────────────────────────
@@ -20396,29 +20765,53 @@ def quote_calculator_api(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid request"}, status=400)
 
-    pickup = (data.get("pickup") or "").strip()
-    dropoff = (data.get("dropoff") or "").strip()
-    vehicle_type = data.get("vehicle") or "towncar"
-    trip_type = data.get("trip_type") or "oneway"
+    return JsonResponse(price_trip(
+        pickup=(data.get("pickup") or "").strip(),
+        dropoff=(data.get("dropoff") or "").strip(),
+        vehicle_type=data.get("vehicle") or "towncar",
+        trip_type=data.get("trip_type") or "oneway",
+        use_cache=bool(data.get("cache")),
+    ))
 
+
+def price_trip(pickup, dropoff, vehicle_type="towncar", trip_type="oneway", use_cache=False):
+    """Price a trip from two addresses. The calculator page, the quote-needed
+    task page and the quote-request pricer (ops/quote_pricing.py) all get their
+    number from here, so a guest is never quoted two different figures for the
+    same route by two different screens.
+
+    Returns the JSON-ready payload the calculator renders, or {"error": ...}.
+    Costs one Distance Matrix call (two on a long trip), unless `use_cache` is
+    set: then the answer is remembered for six hours per route, which is what
+    a task page opened five times wants. The calculator page never asks for it —
+    a dispatcher re-running a quote expects a fresh drive time.
+    """
     if not pickup or not dropoff:
-        return JsonResponse({"error": "Both addresses are required."})
+        return {"error": "Both addresses are required."}
     if vehicle_type not in quote_engine.VEHICLE_RATES:
-        return JsonResponse(
-            {"error": f"No quote rates are configured for '{vehicle_type}'."}
-        )
+        return {"error": f"No quote rates are configured for '{vehicle_type}'."}
+
+    from django.core.cache import cache as _cache
+    cache_key = None
+    if use_cache:
+        cache_key = "quote-calc:" + hashlib.sha1(
+            f"{pickup.lower()}|{dropoff.lower()}|{vehicle_type}|{trip_type}".encode()
+        ).hexdigest()
+        cached = _cache.get(cache_key)
+        if cached:
+            return cached
 
     from drivers.utils import get_drive_time
 
     drive_info = get_drive_time(pickup, dropoff)
     if not drive_info:
-        return JsonResponse({
+        return {
             "error": "Could not calculate distance. Check the addresses and try again."
-        })
+        }
 
     miles = quote_engine.parse_distance_miles(drive_info.get("distance_text"))
     if miles is None:
-        return JsonResponse({"error": "Could not read the distance for that route."})
+        return {"error": "Could not read the distance for that route."}
 
     duration_seconds = drive_info.get("duration_seconds")
     minutes = int(round(duration_seconds / 60)) if duration_seconds else None
@@ -20489,7 +20882,7 @@ def quote_calculator_api(request):
         )
     except (KeyError, ValueError) as exc:
         logger.warning("Quote calculator failed for %s -> %s: %s", pickup, dropoff, exc)
-        return JsonResponse({"error": "Could not price that trip."})
+        return {"error": "Could not price that trip."}
 
     payload = _quote_result_to_json(selected)
     payload.update({
@@ -20521,7 +20914,9 @@ def quote_calculator_api(request):
         ),
         "all_vehicles": [_quote_result_to_json(r) for r in all_vehicles],
     })
-    return JsonResponse(payload)
+    if cache_key:
+        _cache.set(cache_key, payload, 6 * 60 * 60)
+    return payload
 
 
 # ═════════════════════════════════════════════════════════════════════════════

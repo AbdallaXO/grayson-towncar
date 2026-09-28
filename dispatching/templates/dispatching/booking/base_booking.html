@@ -178,6 +178,21 @@
       .rw-pill:hover { border-color:var(--blue); }
       .rw-pill.is-on { background:var(--blue-soft); border-color:var(--blue); color:var(--blue); font-weight:600; }
 
+      /* ── Inline radio row (a one-question choice beside a field) ── */
+      .rw-radio-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+      .rw-radio {
+          display:inline-flex; align-items:center; gap:8px;
+          padding:8px 14px; border:1px solid var(--line-2); border-radius:6px;
+          background:var(--card); color:var(--ink-2);
+          font-size:12.5px; font-weight:500; cursor:pointer;
+          transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+      }
+      .rw-radio:hover { border-color:var(--blue); }
+      .rw-radio:has(input:checked) {
+          background:var(--blue-soft); border-color:var(--blue); color:var(--blue); font-weight:600;
+      }
+      .rw-radio input { margin:0; cursor:pointer; }
+
       /* ── Number stepper ── */
       .rw-num {
           display:flex; align-items:stretch; max-width:150px;

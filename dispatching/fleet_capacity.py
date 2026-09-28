@@ -196,6 +196,21 @@ def invalidate_outlook_cache():
 # Supply — what is on the road
 # ════════════════════════════════════════════════════════════════════════════
 
+def natural_unit_key(vehicle_number):
+    """
+    Sort '001' < '10' < '13' the way a human reads a unit board.
+
+    The fleet numbers this company uses are a mix of zero-padded ('001') and
+    plain ('10'), so a plain string sort puts #10 before #002.
+
+    Lives here, with the unit pool, because more than one screen orders that
+    pool and two copies of this would eventually disagree.
+    """
+    number = (vehicle_number or "").strip()
+    digits = "".join(ch for ch in number if ch.isdigit())
+    return (0, int(digits), number) if digits else (1, 0, number)
+
+
 def fleet_units():
     """Active units with their open downtimes prefetched — one query for the
     pool, one for the ledger, however many days are then asked about."""

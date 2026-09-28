@@ -1,0 +1,149 @@
+{% comment %}
+One open task in the Ops Control queue. Lifted out of task_queue.html so
+the same row renders on its own and inside a folded driver-day bundle.
+Expects `task`, plus `ops_staff` and `request` from the page context.
+{% endcomment %}
+        <div id="task-row-{{ task.id }}"
+             class="ops-row {% if task.status == 'snoozed' %}row-snoozed{% endif %}"
+             data-task-id="{{ task.id }}">
+
+          <div class="ops-row-edge {% if task.priority == 1 %}edge-critical{% elif task.priority == 2 %}edge-high{% elif task.priority == 3 %}edge-medium{% else %}edge-low{% endif %}"></div>
+
+          <div class="ops-row-icon {% if task.task_type == 'payment_chase' %}icon-payment{% elif task.task_type == 'flight_verify' %}icon-flight{% elif task.task_type == 'driver_conflict' %}icon-conflict{% elif task.task_type == 'driver_assign' %}icon-driver{% elif task.task_type == 'contact_form' %}icon-confirm{% else %}icon-manual{% endif %}">
+            <i class="{{ task.type_icon }}"></i>
+          </div>
+
+          <div class="ops-row-body">
+            <div class="ops-row-info">
+              <div class="ops-row-title-line">
+                <a href="{% url 'task_detail' task.id %}" class="ops-row-title">{{ task.title }}</a>
+                {% if task.status == 'escalated' %}<span class="ops-status-badge status-escalated"><i class="bi bi-arrow-up-circle-fill"></i> ESC</span>{% endif %}
+                {% if task.status == 'in_progress' %}<span class="ops-status-badge status-in-progress"><i class="bi bi-play-fill"></i> ACTIVE</span>{% endif %}
+                {% if task.status == 'snoozed' %}<span class="ops-status-badge status-snoozed"><i class="bi bi-moon-fill"></i> SNOOZED</span>{% endif %}
+                {% if task.is_overdue %}<span class="ops-tag tag-overdue"><i class="bi bi-clock-fill"></i> LATE</span>{% endif %}
+                {% if task.blocked_by and task.blocked_by.is_open %}<span class="ops-tag tag-dependency"><i class="bi bi-link-45deg"></i> WAITING ON</span>{% endif %}
+              </div>
+
+              <div class="ops-row-meta">
+                {% if task.leg %}
+                  {% with res=task.leg.reservation %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-fill"></i>
+                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener">{{ res.customer.get_full_name|truncatewords:3 }}</a>
+                  </span>
+                  <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
+                    <i class="bi bi-link-45deg"></i>R{{ res.id }} · L{{ task.leg.id }}
+                    <i class="bi bi-box-arrow-up-right"></i>
+                  </a>
+                  <span class="ops-meta meta-mono">{{ task.leg.pickup_date|date:"M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
+                  {% endwith %}
+                {% elif task.reservation %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-fill"></i>
+                    <a href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
+                  </span>
+                  <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
+                    <i class="bi bi-link-45deg"></i>R{{ task.reservation.id }}
+                    <i class="bi bi-box-arrow-up-right"></i>
+                  </a>
+                {% elif task.lead %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-lines-fill"></i>
+                    {{ task.lead.first_name }} {{ task.lead.last_name }}
+                  </span>
+                {% elif task.contact_form %}
+                  <span class="ops-meta">
+                    <i class="bi bi-envelope-paper"></i>
+                    {{ task.contact_form.first_name }} {{ task.contact_form.last_name }}
+                  </span>
+                {% endif %}
+
+                <span class="ops-meta meta-mono">{{ task.get_task_type_display }}</span>
+
+                <span class="ops-meta meta-mono {% if task.is_overdue %}meta-overdue{% endif %}">
+                  <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}"></i>
+                  {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}{{ task.due_at|date:"g:iA"|lower }}{% endif %}
+                </span>
+
+                {% if task.attempts > 0 %}
+                <span class="ops-meta meta-mono" title="Contact attempts">
+                  <i class="bi bi-telephone"></i> {{ task.attempts }}/{{ task.max_attempts }}
+                </span>
+                {% endif %}
+
+                {% if task.assigned_to %}
+                <span class="ops-assignee">
+                  <i class="bi bi-person-check-fill"></i>
+                  {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+                </span>
+                {% else %}
+                <span class="ops-assignee unassigned">
+                  <i class="bi bi-person-dash"></i> Unclaimed
+                </span>
+                {% endif %}
+
+                {% if task.status == 'snoozed' and task.snoozed_until %}
+                <span class="ops-meta meta-mono">
+                  <i class="bi bi-moon"></i> until {{ task.snoozed_until|date:"M j g:iA"|lower }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {# Labeled action buttons — context-aware #}
+          <div class="ops-row-actions">
+            {% if not task.assigned_to %}
+              <button class="ops-act-lbl lbl-claim btn-task-action" data-action="claim" data-task-id="{{ task.id }}">
+                <i class="bi bi-person-check"></i> Claim
+              </button>
+            {% elif task.assigned_to_id == request.user.id %}
+              <button class="ops-act-lbl lbl-done btn-task-action" data-action="complete" data-task-id="{{ task.id }}" data-task-type="{{ task.task_type }}" data-leg-id="{{ task.leg_id|default:'' }}">
+                <i class="bi bi-check-lg"></i> Complete
+              </button>
+              <button class="ops-act-lbl lbl-release btn-task-action" data-action="release" data-task-id="{{ task.id }}" title="Release back to queue">
+                <i class="bi bi-arrow-counterclockwise"></i> Release
+              </button>
+            {% else %}
+              <span class="ops-act-lbl" style="cursor:default" title="Claimed by {{ task.assigned_to.first_name|default:task.assigned_to.username }}">
+                <i class="bi bi-person-fill-check"></i> {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+              </span>
+            {% endif %}
+
+            <button class="ops-act-lbl btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log call/SMS/email">
+              <i class="bi bi-telephone"></i>
+            </button>
+
+            <div class="snooze-wrap-new">
+              <button class="ops-act-lbl btn-snooze-toggle" data-task-id="{{ task.id }}" title="Snooze">
+                <i class="bi bi-moon"></i>
+              </button>
+              <div class="snooze-pop-new" data-task-id="{{ task.id }}">
+                <div class="snz-opt" data-duration="1h" data-task-id="{{ task.id }}"><i class="bi bi-clock"></i> 1 hour</div>
+                <div class="snz-opt" data-duration="4h" data-task-id="{{ task.id }}"><i class="bi bi-clock-history"></i> 4 hours</div>
+                <div class="snz-opt" data-duration="tomorrow" data-task-id="{{ task.id }}"><i class="bi bi-sunrise"></i> Tomorrow 9 AM</div>
+              </div>
+            </div>
+
+            <div class="q-assign-wrap">
+              <button class="ops-act-lbl btn-assign-toggle" data-task-id="{{ task.id }}" title="Reassign">
+                <i class="bi bi-person-plus"></i>
+              </button>
+              <div class="q-assign-pop" data-task-id="{{ task.id }}">
+                <div class="q-assign-opt {% if not task.assigned_to %}current{% endif %}" data-user-id="" data-task-id="{{ task.id }}">
+                  <i class="bi bi-person-dash"></i> Unassigned
+                </div>
+                <div class="q-assign-sep"></div>
+                {% for staff in ops_staff %}
+                <div class="q-assign-opt {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}" data-task-id="{{ task.id }}">
+                  <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <button class="ops-act-lbl btn-task-action" data-action="cancel" data-task-id="{{ task.id }}" title="Dismiss task">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>

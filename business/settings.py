@@ -45,6 +45,20 @@ DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
 # real phones: the farm-out decline tests alone fire several sends per run.
 TESTING = "test" in sys.argv or "pytest" in sys.modules
 
+# ── Outbound automation runs in production only ──────────────────────────────
+# The background schedulers and every automated sender behind them: lead texts,
+# the follow-up sequence, the pre-pickup nudge, payment reminders, flight refresh.
+# 2026-09-21: a `manage.py runserver` on a laptop — real mail and GoHighLevel
+# credentials in .env, a week-old copy of the database — sent 48 payment
+# reminders and 151 follow-up texts to real guests, 14 of the emails to people
+# who had already paid. Nothing in the code asked "am I production?". Now it
+# does, at the scheduler and at each sender. Tests run with it on so the
+# engines can be exercised. A local run can force it with OUTBOUND_AUTOMATION=1
+# and had better be pointed at a database it is allowed to act on.
+OUTBOUND_AUTOMATION_ENABLED = os.environ.get(
+    "OUTBOUND_AUTOMATION", "1" if (IN_RAILWAY or TESTING) else "0"
+) == "1"
+
 
 ALLOWED_HOSTS = [
     "graysontowncar.com",

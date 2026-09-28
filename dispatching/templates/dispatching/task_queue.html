@@ -189,6 +189,8 @@ body {
 .ops-gauge.gauge-danger .g-val { color: #fca5a5; }
 .ops-gauge.gauge-danger .g-label { color: rgba(252,165,165,.7); }
 .ops-gauge.gauge-amber .g-val { color: #fde68a; }
+.ops-gauge.gauge-quiet { cursor: help; }
+.ops-gauge.gauge-quiet:hover { background: transparent; }
 
 /* ── Filter Bar ── */
 .ops-filters {
@@ -1403,6 +1405,157 @@ body {
 }
 .completed-row .cr-meta strong { color: var(--ops-text-dim); font-weight: 600; }
 
+/* ── Driver-day bundle: one row for a driver's turn checks on one date ── */
+.ops-bundle .ops-row-title {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ops-white);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-align: left;
+}
+.ops-bundle .ops-row-title:hover { color: var(--ops-blue); }
+.ops-bundle .bundle-chev {
+  font-size: .7rem;
+  color: var(--ops-text-muted);
+  transition: transform .18s ease;
+}
+.ops-bundle.is-open .bundle-chev { transform: rotate(90deg); }
+.ops-bundle-count {
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  font-weight: 700;
+  padding: .12rem .45rem;
+  border-radius: 3px;
+  background: #f3f4f6;
+  color: var(--ops-text-dim);
+  border: 1px solid var(--ops-border);
+  flex-shrink: 0;
+}
+.ops-bundle-mix { display: inline-flex; align-items: center; gap: .35rem; }
+.ops-bundle-mix .mix-red   { color: var(--ops-red); font-weight: 600; }
+.ops-bundle-mix .mix-amber { color: var(--ops-amber); font-weight: 600; }
+.ops-bundle-members {
+  border-bottom: 1px solid var(--ops-border);
+  background: var(--ops-surface-2);
+}
+.ops-bundle-members .ops-row {
+  background: transparent;
+  min-height: 46px;
+}
+.ops-bundle-members .ops-row:last-child { border-bottom: 0; }
+.ops-bundle-members .ops-row-edge { opacity: .35; }
+.ops-bundle-members .ops-row-icon { opacity: .55; }
+.ops-bundle-members .ops-row-body { padding-left: .75rem; }
+.ops-bundle-members .ops-row-title { font-weight: 500; }
+
+/* ── Coming days: the turn checks that are not today's problem yet ── */
+.ops-later {
+  border-top: 1px dashed var(--ops-border-lt);
+  background: var(--ops-surface);
+}
+.ops-later-head {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  width: 100%;
+  padding: .7rem 1.5rem;
+  background: var(--ops-surface-2);
+  border: 0;
+  border-bottom: 1px solid var(--ops-border);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ops-text);
+  transition: background .12s;
+}
+.ops-later-head:hover { background: var(--ops-surface-3); }
+.ops-later-chev {
+  font-size: .7rem;
+  color: var(--ops-text-muted);
+  transition: transform .18s ease;
+}
+.ops-later.is-open .ops-later-chev { transform: rotate(90deg); }
+.ops-later-title {
+  font-family: var(--ops-mono);
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--ops-text-dim);
+}
+.ops-later-sum {
+  font-size: .72rem;
+  color: var(--ops-text-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ops-later-cta {
+  margin-left: auto;
+  font-size: .66rem;
+  font-weight: 700;
+  color: var(--ops-blue);
+  flex-shrink: 0;
+}
+.ops-later-day {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem 1.5rem;
+  background: var(--ops-surface-2);
+  border-bottom: 1px solid var(--ops-border);
+}
+.ops-later-day-label {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ops-text-dim);
+}
+.ops-later-day .ops-zone-count {
+  background: #f3f4f6;
+  color: var(--ops-text-muted);
+  border: 1px solid #e5e7eb;
+}
+@media (max-width: 640px) {
+  .ops-later-sum { white-space: normal; }
+  .ops-later-head { flex-wrap: wrap; }
+}
+
+/* ── After-hours answers inside the Complete modal ── */
+.ah-lead { font-size: .8rem; color: var(--ops-text); margin-bottom: .75rem; }
+.ah-choice {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  text-align: left;
+  padding: .6rem .8rem;
+  margin-bottom: .45rem;
+  border: 1px solid var(--ops-border);
+  border-radius: 6px;
+  background: var(--ops-surface);
+  color: var(--ops-text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.ah-choice:hover { border-color: var(--ops-blue); background: #eff6ff; }
+.ah-choice:disabled { opacity: .55; cursor: wait; }
+.ah-choice i { font-size: 1.1rem; color: var(--ops-blue); flex-shrink: 0; }
+.ah-choice span { display: flex; flex-direction: column; gap: .1rem; }
+.ah-choice strong { font-size: .8rem; }
+.ah-choice small { font-size: .68rem; color: var(--ops-text-dim); }
+
 /* ── Empty state per lane ── */
 .lane-empty {
   display: flex;
@@ -1485,6 +1638,11 @@ body {
         <span class="g-label">Overdue</span>
       </a>
       {% endif %}
+      <span class="ops-gauge gauge-quiet {% if came_back_count %}gauge-amber{% endif %}"
+            title="Tasks filed again within a day of someone closing them by hand, last 7 days. Closing now sticks until the facts change, so this should sit near zero.">
+        <span class="g-val">{{ came_back_count }}</span>
+        <span class="g-label">Came back</span>
+      </span>
     </div>
   </div>
 
@@ -1594,7 +1752,7 @@ body {
     </div>
     <div class="nu-actions">
       {% if task.assigned_to_id == request.user.id %}
-        <button class="nu-btn btn-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
+        <button class="nu-btn btn-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}" data-task-type="{{ task.task_type }}" data-leg-id="{{ task.leg_id|default:'' }}">
           <i class="bi bi-check-lg"></i> Complete
         </button>
         <a class="nu-btn btn-ghost" href="{% url 'task_detail' task.id %}">Open <i class="bi bi-arrow-right"></i></a>
@@ -1659,156 +1817,17 @@ body {
         <div class="ops-zone-header zone-{{ group.key }}">
           <div class="ops-zone-dot"></div>
           <span class="ops-zone-label">{{ group.label }}</span>
-          <span class="ops-zone-count">{{ group.tasks|length }}</span>
+          <span class="ops-zone-count">{{ group.count }}</span>
           <span class="ops-zone-spacer"></span>
           <span class="ops-zone-hint">{{ group.hint }}</span>
         </div>
 
-        {% for task in group.tasks %}
-        <div id="task-row-{{ task.id }}"
-             class="ops-row {% if task.status == 'snoozed' %}row-snoozed{% endif %}"
-             data-task-id="{{ task.id }}">
-
-          <div class="ops-row-edge {% if task.priority == 1 %}edge-critical{% elif task.priority == 2 %}edge-high{% elif task.priority == 3 %}edge-medium{% else %}edge-low{% endif %}"></div>
-
-          <div class="ops-row-icon {% if task.task_type == 'payment_chase' %}icon-payment{% elif task.task_type == 'flight_verify' %}icon-flight{% elif task.task_type == 'driver_conflict' %}icon-conflict{% elif task.task_type == 'driver_assign' %}icon-driver{% elif task.task_type == 'contact_form' %}icon-confirm{% else %}icon-manual{% endif %}">
-            <i class="{{ task.type_icon }}"></i>
-          </div>
-
-          <div class="ops-row-body">
-            <div class="ops-row-info">
-              <div class="ops-row-title-line">
-                <a href="{% url 'task_detail' task.id %}" class="ops-row-title">{{ task.title }}</a>
-                {% if task.status == 'escalated' %}<span class="ops-status-badge status-escalated"><i class="bi bi-arrow-up-circle-fill"></i> ESC</span>{% endif %}
-                {% if task.status == 'in_progress' %}<span class="ops-status-badge status-in-progress"><i class="bi bi-play-fill"></i> ACTIVE</span>{% endif %}
-                {% if task.status == 'snoozed' %}<span class="ops-status-badge status-snoozed"><i class="bi bi-moon-fill"></i> SNOOZED</span>{% endif %}
-                {% if task.is_overdue %}<span class="ops-tag tag-overdue"><i class="bi bi-clock-fill"></i> LATE</span>{% endif %}
-                {% if task.blocked_by and task.blocked_by.is_open %}<span class="ops-tag tag-dependency"><i class="bi bi-link-45deg"></i> WAITING ON</span>{% endif %}
-              </div>
-
-              <div class="ops-row-meta">
-                {% if task.leg %}
-                  {% with res=task.leg.reservation %}
-                  <span class="ops-meta">
-                    <i class="bi bi-person-fill"></i>
-                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener">{{ res.customer.get_full_name|truncatewords:3 }}</a>
-                  </span>
-                  <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
-                    <i class="bi bi-link-45deg"></i>R{{ res.id }} · L{{ task.leg.id }}
-                    <i class="bi bi-box-arrow-up-right"></i>
-                  </a>
-                  <span class="ops-meta meta-mono">{{ task.leg.pickup_date|date:"M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
-                  {% endwith %}
-                {% elif task.reservation %}
-                  <span class="ops-meta">
-                    <i class="bi bi-person-fill"></i>
-                    <a href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
-                  </span>
-                  <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
-                    <i class="bi bi-link-45deg"></i>R{{ task.reservation.id }}
-                    <i class="bi bi-box-arrow-up-right"></i>
-                  </a>
-                {% elif task.lead %}
-                  <span class="ops-meta">
-                    <i class="bi bi-person-lines-fill"></i>
-                    {{ task.lead.first_name }} {{ task.lead.last_name }}
-                  </span>
-                {% elif task.contact_form %}
-                  <span class="ops-meta">
-                    <i class="bi bi-envelope-paper"></i>
-                    {{ task.contact_form.first_name }} {{ task.contact_form.last_name }}
-                  </span>
-                {% endif %}
-
-                <span class="ops-meta meta-mono">{{ task.get_task_type_display }}</span>
-
-                <span class="ops-meta meta-mono {% if task.is_overdue %}meta-overdue{% endif %}">
-                  <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}"></i>
-                  {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}{{ task.due_at|date:"g:iA"|lower }}{% endif %}
-                </span>
-
-                {% if task.attempts > 0 %}
-                <span class="ops-meta meta-mono" title="Contact attempts">
-                  <i class="bi bi-telephone"></i> {{ task.attempts }}/{{ task.max_attempts }}
-                </span>
-                {% endif %}
-
-                {% if task.assigned_to %}
-                <span class="ops-assignee">
-                  <i class="bi bi-person-check-fill"></i>
-                  {{ task.assigned_to.first_name|default:task.assigned_to.username }}
-                </span>
-                {% else %}
-                <span class="ops-assignee unassigned">
-                  <i class="bi bi-person-dash"></i> Unclaimed
-                </span>
-                {% endif %}
-
-                {% if task.status == 'snoozed' and task.snoozed_until %}
-                <span class="ops-meta meta-mono">
-                  <i class="bi bi-moon"></i> until {{ task.snoozed_until|date:"M j g:iA"|lower }}
-                </span>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-
-          {# Labeled action buttons — context-aware #}
-          <div class="ops-row-actions">
-            {% if not task.assigned_to %}
-              <button class="ops-act-lbl lbl-claim btn-task-action" data-action="claim" data-task-id="{{ task.id }}">
-                <i class="bi bi-person-check"></i> Claim
-              </button>
-            {% elif task.assigned_to_id == request.user.id %}
-              <button class="ops-act-lbl lbl-done btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
-                <i class="bi bi-check-lg"></i> Complete
-              </button>
-              <button class="ops-act-lbl lbl-release btn-task-action" data-action="release" data-task-id="{{ task.id }}" title="Release back to queue">
-                <i class="bi bi-arrow-counterclockwise"></i> Release
-              </button>
-            {% else %}
-              <span class="ops-act-lbl" style="cursor:default" title="Claimed by {{ task.assigned_to.first_name|default:task.assigned_to.username }}">
-                <i class="bi bi-person-fill-check"></i> {{ task.assigned_to.first_name|default:task.assigned_to.username }}
-              </span>
-            {% endif %}
-
-            <button class="ops-act-lbl btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log call/SMS/email">
-              <i class="bi bi-telephone"></i>
-            </button>
-
-            <div class="snooze-wrap-new">
-              <button class="ops-act-lbl btn-snooze-toggle" data-task-id="{{ task.id }}" title="Snooze">
-                <i class="bi bi-moon"></i>
-              </button>
-              <div class="snooze-pop-new" data-task-id="{{ task.id }}">
-                <div class="snz-opt" data-duration="1h" data-task-id="{{ task.id }}"><i class="bi bi-clock"></i> 1 hour</div>
-                <div class="snz-opt" data-duration="4h" data-task-id="{{ task.id }}"><i class="bi bi-clock-history"></i> 4 hours</div>
-                <div class="snz-opt" data-duration="tomorrow" data-task-id="{{ task.id }}"><i class="bi bi-sunrise"></i> Tomorrow 9 AM</div>
-              </div>
-            </div>
-
-            <div class="q-assign-wrap">
-              <button class="ops-act-lbl btn-assign-toggle" data-task-id="{{ task.id }}" title="Reassign">
-                <i class="bi bi-person-plus"></i>
-              </button>
-              <div class="q-assign-pop" data-task-id="{{ task.id }}">
-                <div class="q-assign-opt {% if not task.assigned_to %}current{% endif %}" data-user-id="" data-task-id="{{ task.id }}">
-                  <i class="bi bi-person-dash"></i> Unassigned
-                </div>
-                <div class="q-assign-sep"></div>
-                {% for staff in ops_staff %}
-                <div class="q-assign-opt {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}" data-task-id="{{ task.id }}">
-                  <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
-                </div>
-                {% endfor %}
-              </div>
-            </div>
-
-            <button class="ops-act-lbl btn-task-action" data-action="cancel" data-task-id="{{ task.id }}" title="Dismiss task">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-        </div>
+        {% for row in group.rows %}
+          {% if row.kind == 'bundle' %}
+            {% include "dispatching/includes/_turn_bundle.html" with bundle=row %}
+          {% else %}
+            {% include "dispatching/includes/_task_row.html" with task=row.task %}
+          {% endif %}
         {% endfor %}
       </div>
       {% endfor %}
@@ -1816,8 +1835,8 @@ body {
       <div class="lane-empty">
         {% if active_lane == 'unclaimed' %}
           <div class="le-icon"><i class="bi bi-inbox"></i></div>
-          <h5>{% if search_q or type_filter or overdue_only %}No matches{% else %}Inbox zero{% endif %}</h5>
-          <p>{% if search_q or type_filter or overdue_only %}Try clearing your filters.{% else %}Nothing waiting for a teammate to grab. The scanner will queue new work automatically as it appears.{% endif %}</p>
+          <h5>{% if search_q or type_filter or overdue_only %}No matches{% elif later_turn_count %}Today is clear{% else %}Inbox zero{% endif %}</h5>
+          <p>{% if search_q or type_filter or overdue_only %}Try clearing your filters.{% elif later_turn_count %}The only open work is turn checks on coming days, folded up below.{% else %}Nothing waiting for a teammate to grab. The scanner will queue new work automatically as it appears.{% endif %}</p>
         {% elif active_lane == 'mine' %}
           <div class="le-icon"><i class="bi bi-cup-hot"></i></div>
           <h5>You haven't claimed anything</h5>
@@ -1841,6 +1860,35 @@ body {
           <p>No active tasks in this lane right now.</p>
         {% endif %}
       </div>
+    {% endif %}
+
+    {# ─ Turn checks for tomorrow and beyond, folded so today stays readable ─ #}
+    {% if later_turn_days %}
+    <div class="ops-later" id="ops-later">
+      <button type="button" class="ops-later-head" data-later-toggle aria-expanded="false" aria-controls="ops-later-body">
+        <i class="bi bi-chevron-right ops-later-chev"></i>
+        <span class="ops-later-title">Tomorrow and later</span>
+        <span class="ops-later-sum">
+          {{ later_turn_count }} turn check{{ later_turn_count|pluralize }} across {{ later_driver_days }} driver-day{{ later_driver_days|pluralize }}, folded so today stays clear.
+        </span>
+        <span class="ops-later-cta" data-later-cta>Show</span>
+      </button>
+      <div class="ops-later-body" id="ops-later-body" hidden>
+        {% for day in later_turn_days %}
+        <div class="ops-later-day">
+          <span class="ops-later-day-label">{{ day.label }}</span>
+          <span class="ops-zone-count">{{ day.count }}</span>
+        </div>
+        {% for row in day.rows %}
+          {% if row.kind == 'bundle' %}
+            {% include "dispatching/includes/_turn_bundle.html" with bundle=row %}
+          {% else %}
+            {% include "dispatching/includes/_task_row.html" with task=row.task %}
+          {% endif %}
+        {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
     {% endif %}
   {% endif %}
 
@@ -1908,8 +1956,29 @@ body {
         <div class="modal-body">
           <p class="mb-3" style="font-size: .82rem; color: var(--ops-text);" id="completeTaskTitle"></p>
           <input type="hidden" id="completeTaskId">
-          <label class="form-label">Resolution notes (optional)</label>
-          <textarea id="completeNotes" class="form-control" rows="3" placeholder="What did you do? Helps the next person if it comes back up."></textarea>
+          <input type="hidden" id="completeLegId">
+          <div id="completeNotesWrap">
+            <label class="form-label">Resolution notes (optional)</label>
+            <textarea id="completeNotes" class="form-control" rows="3" placeholder="What did you do? Helps the next person if it comes back up."></textarea>
+          </div>
+          {% comment %}An after-hours fee task is a money question. Each answer
+             writes the marker that makes it stop asking; a blank close never did,
+             which is why the same task came back on 94% of them.{% endcomment %}
+          <div id="completeAfterhours" hidden>
+            <p class="ah-lead">This one is about the $20 after-hours fee. Say what happened and it stays closed:</p>
+            <button type="button" class="ah-choice btn-afterhours-answer" data-answer="charge">
+              <i class="bi bi-credit-card"></i>
+              <span><strong>Charge it</strong><small>Bills the card on file and emails the guest the receipt.</small></span>
+            </button>
+            <button type="button" class="ah-choice btn-afterhours-answer" data-answer="collected">
+              <i class="bi bi-cash-coin"></i>
+              <span><strong>Already collected</strong><small>Paid in cash, on a balance payment, or inside a quoted price.</small></span>
+            </button>
+            <button type="button" class="ah-choice btn-afterhours-answer" data-answer="waive">
+              <i class="bi bi-hand-thumbs-up"></i>
+              <span><strong>Waive it</strong><small>The guest will not be charged, and nobody is asked again.</small></span>
+            </button>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -2049,12 +2118,14 @@ document.querySelectorAll('.btn-task-action').forEach(btn => {
     // Complete uses an inline modal so notes are easier to write
     if (action === 'complete') {
       document.getElementById('completeTaskId').value = taskId;
+      document.getElementById('completeLegId').value = this.dataset.legId || '';
       const titleEl = document.querySelector(`#task-row-${taskId} .ops-row-title, .nu-title`);
       document.getElementById('completeTaskTitle').textContent =
         this.closest('.next-up')
           ? (this.closest('.next-up').querySelector('.nu-title')?.textContent || '')
           : (document.querySelector(`#task-row-${taskId} .ops-row-title`)?.textContent || '');
       document.getElementById('completeNotes').value = '';
+      setCompleteMode(this.dataset.taskType === 'afterhours_fee' && this.dataset.legId);
       new bootstrap.Modal(document.getElementById('completeTaskModal')).show();
       return;
     }
@@ -2082,7 +2153,83 @@ document.querySelectorAll('.btn-task-action').forEach(btn => {
   });
 });
 
-/* ── Complete-task modal submit ── */
+/* ── Driver-day bundles: open one, or act on every task in it ── */
+document.querySelectorAll('[data-bundle-toggle]').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = this.dataset.bundleToggle;
+    const row = document.getElementById(id);
+    const members = document.querySelector(`[data-bundle-members="${id}"]`);
+    if (!row || !members) return;
+    const open = members.hasAttribute('hidden');
+    if (open) members.removeAttribute('hidden'); else members.setAttribute('hidden', '');
+    row.classList.toggle('is-open', open);
+    row.querySelectorAll('[data-bundle-toggle]').forEach(b => b.setAttribute('aria-expanded', open ? 'true' : 'false'));
+    const cta = row.querySelector('[data-bundle-cta]');
+    if (cta) cta.textContent = open ? 'Hide' : cta.dataset.showLabel;
+  });
+});
+
+document.querySelectorAll('.btn-bundle-action').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const action = this.dataset.action;
+    const ids = (this.dataset.taskIds || '').split(',').filter(Boolean).map(Number);
+    const url = TASK_URLS[action];
+    if (!ids.length || !url) return;
+    if (action === 'complete' && !confirm(this.dataset.confirm || 'Complete every task in this group?')) return;
+    this.disabled = true;
+    const body = id => action === 'complete'
+      ? {task_id: id, notes: "Checked along with the rest of the driver's day"}
+      : {task_id: id};
+    // One at a time: the endpoints take a single task, and a burst of parallel
+    // posts on a shared row is how two dispatchers end up claiming the same one.
+    ids.reduce((p, id) => p.then(() => postJSON(url, body(id)).then(d => {
+      if (!d.success) throw new Error(d.error || 'Unknown');
+    })), Promise.resolve())
+      .then(() => {
+        showToast(action === 'claim'
+          ? `Claimed all ${ids.length} — they are yours`
+          : `Completed all ${ids.length}`);
+        setTimeout(() => location.reload(), 600);
+      })
+      .catch(err => {
+        showToast('Stopped: ' + (err.message || 'network error'), 'error');
+        setTimeout(() => location.reload(), 1200);
+      });
+  });
+});
+
+/* ── Coming days: folded by default, remembered per browser ── */
+(function() {
+  const later = document.getElementById('ops-later');
+  if (!later) return;
+  const head = later.querySelector('[data-later-toggle]');
+  const body = document.getElementById('ops-later-body');
+  const cta = later.querySelector('[data-later-cta]');
+  const KEY = 'opsLaterOpen';
+  function setOpen(open) {
+    if (open) body.removeAttribute('hidden'); else body.setAttribute('hidden', '');
+    later.classList.toggle('is-open', open);
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    cta.textContent = open ? 'Hide' : 'Show';
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+  }
+  let remembered = false;
+  try { remembered = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  if (remembered) setOpen(true);
+  head.addEventListener('click', () => setOpen(body.hasAttribute('hidden')));
+})();
+
+/* ── Complete-task modal: notes for most tasks, the fee question for a fee task ── */
+function setCompleteMode(feeMode) {
+  document.getElementById('completeNotesWrap').hidden = !!feeMode;
+  document.getElementById('completeAfterhours').hidden = !feeMode;
+  document.getElementById('btnSubmitComplete').hidden = !!feeMode;
+}
+
 document.getElementById('btnSubmitComplete')?.addEventListener('click', function() {
   const taskId = document.getElementById('completeTaskId').value;
   const notes = document.getElementById('completeNotes').value;
@@ -2091,11 +2238,43 @@ document.getElementById('btnSubmitComplete')?.addEventListener('click', function
       if (data.success) {
         bootstrap.Modal.getInstance(document.getElementById('completeTaskModal'))?.hide();
         dismissRow(taskId, 'Completed');
+      } else if (data.needs_afterhours_decision) {
+        // Reached from a stale button: switch the same modal into fee mode.
+        document.getElementById('completeLegId').value = data.leg_id || '';
+        setCompleteMode(true);
+        showToast(data.error, 'error');
       } else {
         showToast('Error: ' + (data.error || 'Unknown'), 'error');
       }
     })
     .catch(() => showToast('Network error', 'error'));
+});
+
+const AFTERHOURS_DECISION_URL = '{% url "afterhours_decision" 0 %}';
+document.querySelectorAll('.btn-afterhours-answer').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const taskId = document.getElementById('completeTaskId').value;
+    const legId = document.getElementById('completeLegId').value;
+    if (!legId) { showToast('This task has no trip attached — open it to see why.', 'error'); return; }
+    const answer = this.dataset.answer;
+    document.querySelectorAll('.btn-afterhours-answer').forEach(b => b.disabled = true);
+    postJSON(AFTERHOURS_DECISION_URL.replace('/0/', '/' + legId + '/'), {answer: answer})
+      .then(data => {
+        document.querySelectorAll('.btn-afterhours-answer').forEach(b => b.disabled = false);
+        if (data.success) {
+          bootstrap.Modal.getInstance(document.getElementById('completeTaskModal'))?.hide();
+          const said = (data.afterhours && data.afterhours.message) ||
+            {charge: 'Charged — the fee is on the bill', collected: 'Marked as already collected', waive: 'Waived — nobody is asked again'}[answer];
+          dismissRow(taskId, said);
+        } else {
+          showToast('Error: ' + (data.error || 'Unknown'), 'error');
+        }
+      })
+      .catch(() => {
+        document.querySelectorAll('.btn-afterhours-answer').forEach(b => b.disabled = false);
+        showToast('Network error', 'error');
+      });
+  });
 });
 
 /* ── Snooze dropdown ── */
