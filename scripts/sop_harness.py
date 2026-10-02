@@ -191,29 +191,75 @@ class SopCapture:
         return self
 
     def shoot(self, name: str, caption: str, highlight: list | None = None,
-              full_page: bool = False):
-        """Capture one step. `highlight` is [(css_selector, label), ...]."""
+              full_page: bool = False, clip: str | list | None = None, clip_pad: int = 16,
+              badge: int = 22):
+        """Capture one step. `highlight` is [(css_selector, label), ...].
+
+        `clip` crops the picture to one part of the page — a card, a row, a
+        dialog — given as a selector, or a list of them for the box around
+        several. A close-up reads at document width; a whole page shrunk into
+        the same column does not. Highlights land relative to the crop.
+        `badge` is the number's radius in CSS pixels: smaller for a close-up of
+        buttons that sit shoulder to shoulder.
+        """
         path = self.out_dir / f"{name}.png"
-        self.page.screenshot(path=str(path), full_page=full_page)
+        region = self._clip_region(clip, clip_pad) if clip else None
+        if region:
+            self.page.screenshot(path=str(path), full_page=True, clip=region)
+        else:
+            self.page.screenshot(path=str(path), full_page=full_page)
 
         resolved = []
         if highlight:
-            resolved = self._resolve_highlights(highlight)
+            resolved = self._resolve_highlights(highlight, region, page_coords=full_page)
             if resolved:
-                self._annotate(path, resolved)
+                self._annotate(path, resolved, badge)
 
         self.shots.append(Shot(
             name=name, caption=caption, url=self.page.url,
-            path=str(path.relative_to(REPO_ROOT)).replace("\\", "/"),
+            path=str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT)
+                     else path).replace("\\", "/"),
             highlights=[h["label"] for h in resolved],
         ))
         print(f"  shot {name}: {caption}")
         return self
 
-    def _resolve_highlights(self, highlight):
+    def _scroll(self):
+        return self.page.evaluate("[window.scrollX, window.scrollY]")
+
+    def _clip_region(self, clip, pad):
+        """The page-coordinate box around one or more elements, padded."""
+        selectors = [clip] if isinstance(clip, str) else list(clip)
+        boxes = []
+        for selector in selectors:
+            try:
+                box = self.page.locator(selector).first.bounding_box(timeout=3000)
+            except Exception:
+                box = None
+            if box:
+                boxes.append(box)
+            else:
+                print(f"    ! clip selector not found, skipping: {selector}")
+        if not boxes:
+            return None
+        sx, sy = self._scroll()
+        x0 = max(min(b["x"] for b in boxes) + sx - pad, 0)
+        y0 = max(min(b["y"] for b in boxes) + sy - pad, 0)
+        x1 = max(b["x"] + b["width"] for b in boxes) + sx + pad
+        y1 = max(b["y"] + b["height"] for b in boxes) + sy + pad
+        page_w = self.page.evaluate("document.documentElement.scrollWidth")
+        return {"x": x0, "y": y0, "width": min(x1, page_w) - x0, "height": y1 - y0}
+
+    def _resolve_highlights(self, highlight, region=None, page_coords=False):
         """Ask the live page where each element is, in screenshot pixels."""
         out = []
-        for selector, label in highlight:
+        ox = oy = 0
+        if region or page_coords:
+            ox, oy = self._scroll()
+        if region:
+            ox -= region["x"]
+            oy -= region["y"]
+        for selector, label, *side in highlight:
             try:
                 el = self.page.locator(selector).first
                 box = el.bounding_box(timeout=3000)
@@ -223,16 +269,18 @@ class SopCapture:
             if not box:
                 print(f"    ! highlight not visible, skipping: {selector}")
                 continue
-            out.append({"box": box, "label": label, "selector": selector})
+            box = dict(box, x=box["x"] + ox, y=box["y"] + oy)
+            out.append({"box": box, "label": label, "selector": selector,
+                        "side": side[0] if side else "auto"})
         return out
 
-    def _annotate(self, path: Path, resolved):
+    def _annotate(self, path: Path, resolved, badge: int = 22):
         from PIL import Image, ImageDraw, ImageFont
 
         scale = 2  # device_scale_factor
         img = Image.open(path).convert("RGB")
         draw = ImageDraw.Draw(img)
-        font = self._font(34)
+        font = self._font(round(34 * badge / 22))
 
         for item in resolved:
             b = item["box"]
@@ -249,12 +297,9 @@ class SopCapture:
             # centred. On the corner it lands on whatever label sits above the
             # field and hides the very word the step is telling you to find.
             label = str(item["label"])
-            r = 22 * scale
-            cx = x0 - r - 6 * scale
-            cy = (y0 + y1) / 2
-            if cx - r < 0:                      # field is hard against the left margin
-                cx = x1 + r + 6 * scale         # put it on the right instead
-            cy = max(r + 2, min(cy, img.height - r - 2))
+            r = badge * scale
+            cx, cy = self._badge_spot(item.get("side", "auto"), x0, y0, x1, y1, r,
+                                      img.width, img.height, 6 * scale)
 
             draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=GOLD, outline=WHITE, width=3)
             tb = draw.textbbox((0, 0), label, font=font)
@@ -264,9 +309,37 @@ class SopCapture:
         img.save(path)
 
     @staticmethod
+    def _badge_spot(side, x0, y0, x1, y1, r, width, height, gap):
+        """Where a badge's centre goes. A highlight may name its side as a third
+        tuple item — left, right, above, below, inside-left or inside-right —
+        for the places "auto" gets wrong: a full-width card has no outside left
+        or right, and a row of small buttons has no room between them, so those
+        badges go inside the card, or alternate above and below the buttons."""
+        mid_x, mid_y = (x0 + x1) / 2, (y0 + y1) / 2
+        lead_x = mid_x if (x1 - x0) < 4 * r else x0 + r    # small box: centre over it
+        spots = {
+            "left": (x0 - r - gap, mid_y),
+            "right": (x1 + r + gap, mid_y),
+            "above": (lead_x, y0 - r - gap),
+            "below": (lead_x, y1 + r + gap),
+            "inside-left": (x0 + r + 2 * gap, mid_y),
+            "inside-right": (x1 - r - 2 * gap, mid_y),
+        }
+        order = [side] if side in spots else ["left", "right", "above", "below", "inside-left"]
+        for name in order:
+            cx, cy = spots[name]
+            if r <= cx <= width - r and r <= cy <= height - r:
+                return cx, cy
+        cx, cy = spots[order[0]]
+        return max(r + 2, min(cx, width - r - 2)), max(r + 2, min(cy, height - r - 2))
+
+    @staticmethod
     def _font(size: int):
         from PIL import ImageFont
-        for candidate in ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf"):
+        for candidate in ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf",
+                          "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                          "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
             try:
                 return ImageFont.truetype(candidate, size)
             except Exception:
@@ -304,7 +377,7 @@ class SopCapture:
         }
         out = self.out_dir / "manifest.json"
         out.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        print(f"\n  manifest: {out.relative_to(REPO_ROOT)}")
+        print(f"\n  manifest: {out}")
 
     @staticmethod
     def _git(*args) -> str:

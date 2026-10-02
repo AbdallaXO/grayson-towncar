@@ -1,0 +1,212 @@
+{
+  "slug": "tasks-guide",
+  "captured_at": "2026-10-02T16:10:08",
+  "commit": "b400982207df85aba3d9608ac33e36567e3e8c2e",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "depends_on": {
+    "dispatching/templates/dispatching/dispatcher_navbar.html": "0fc730edaa388db41e19026633ee40e6bbf7006c",
+    "dispatching/templates/dispatching/task_queue.html": "4f3f58f202945b818260e92ad0478d2dbdab1b3f",
+    "dispatching/templates/dispatching/includes/_task_row.html": "3d7848e8c4a30ccde909ddc4c5fc036b59f3a6fd",
+    "dispatching/templates/dispatching/includes/_turn_bundle.html": "ff55874cfe78ae4be642954c424d4392f2f5840c",
+    "dispatching/templates/dispatching/task_detail.html": "f587a6964293ff5213037ea31cd7e085cde6714b",
+    "dispatching/templates/dispatching/conflict_task_detail.html": "f715a5e52a4f9ec15054eb09d59b4f2b3332eff8",
+    "dispatching/templates/dispatching/payment_task_detail.html": "3a5ea7c8495a144c8d90262f793bd1e1542de01f",
+    "ops/views.py": "6aec3094613921c1a489e6a0b1aed5d971820395",
+    "ops/tasks.py": "abeca8802a6eb5c216b8240b4f04b0475c4759f8",
+    "ops/playbooks.py": "dabfebe265eb551e5c98f378a03f7c89a6373cb1"
+  },
+  "shots": [
+    {
+      "name": "01-ops-control",
+      "caption": "Ops Control: where every task lands",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/",
+      "path": "SOPS/images/tasks-guide/01-ops-control.png",
+      "highlights": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    },
+    {
+      "name": "02-row-buttons",
+      "caption": "The buttons on a task you own",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/?lane=mine",
+      "path": "SOPS/images/tasks-guide/02-row-buttons.png",
+      "highlights": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    },
+    {
+      "name": "03-log-communication",
+      "caption": "Logging a call, text or email",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/?lane=mine",
+      "path": "SOPS/images/tasks-guide/03-log-communication.png",
+      "highlights": []
+    },
+    {
+      "name": "04-complete-note",
+      "caption": "Completing a task, with the note",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/?lane=mine",
+      "path": "SOPS/images/tasks-guide/04-complete-note.png",
+      "highlights": []
+    },
+    {
+      "name": "10-driver-conflict",
+      "caption": "Driver Conflict: what is wrong, in one line",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/84/",
+      "path": "SOPS/images/tasks-guide/10-driver-conflict.png",
+      "highlights": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "name": "11-driver-conflict-ladder",
+      "caption": "Driver Conflict: the three ways to fix it",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/84/",
+      "path": "SOPS/images/tasks-guide/11-driver-conflict-ladder.png",
+      "highlights": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "name": "12-driver-assignment",
+      "caption": "No driver: pick someone who is free",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/85/",
+      "path": "SOPS/images/tasks-guide/12-driver-assignment.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "13-unpaid",
+      "caption": "Unpaid: the balance, the trip, and who owns it",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/86/",
+      "path": "SOPS/images/tasks-guide/13-unpaid.png",
+      "highlights": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "name": "14-unpaid-ladder",
+      "caption": "Unpaid: call, then text, then email",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/86/",
+      "path": "SOPS/images/tasks-guide/14-unpaid-ladder.png",
+      "highlights": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "name": "15-flight-mismatch",
+      "caption": "Flight moved: match the pickup, or keep it",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/87/",
+      "path": "SOPS/images/tasks-guide/15-flight-mismatch.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "16-flight-not-found",
+      "caption": "Flight not found: get the right number",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/88/",
+      "path": "SOPS/images/tasks-guide/16-flight-not-found.png",
+      "highlights": [
+        "1"
+      ]
+    },
+    {
+      "name": "17-flight-cancelled",
+      "caption": "Flight cancelled: call the guest first",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/89/",
+      "path": "SOPS/images/tasks-guide/17-flight-cancelled.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "18-overnight-date",
+      "caption": "Overnight pickup: confirm which night",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/90/",
+      "path": "SOPS/images/tasks-guide/18-overnight-date.png",
+      "highlights": []
+    },
+    {
+      "name": "19-confirmation-texts",
+      "caption": "Confirmation Texts: flights first, then send",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/92/",
+      "path": "SOPS/images/tasks-guide/19-confirmation-texts.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "20-contact-us",
+      "caption": "Contact Us: reply, then say so",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/93/",
+      "path": "SOPS/images/tasks-guide/20-contact-us.png",
+      "highlights": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "name": "21-after-hours-fee",
+      "caption": "After-hours fee: charge it or settle it",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/91/",
+      "path": "SOPS/images/tasks-guide/21-after-hours-fee.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "22-manual-task",
+      "caption": "A manual task: do it, then Complete",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/94/",
+      "path": "SOPS/images/tasks-guide/22-manual-task.png",
+      "highlights": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "23-new-task",
+      "caption": "New Task, filled in",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/",
+      "path": "SOPS/images/tasks-guide/23-new-task.png",
+      "highlights": []
+    },
+    {
+      "name": "24-after-hours-complete",
+      "caption": "Completing a fee task asks the money question",
+      "url": "http://127.0.0.1:8111/dispatching/task-queue/?lane=mine",
+      "path": "SOPS/images/tasks-guide/24-after-hours-complete.png",
+      "highlights": []
+    }
+  ]
+}
