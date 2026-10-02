@@ -917,6 +917,12 @@ class RefundRequest(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['reservation', 'status']),
         ]
+        permissions = [
+            # The Dispatch Lead group carries it (ops migration 0027). Superusers
+            # always have it. Correcting an already-processed refund stays
+            # superuser-only — see correct_refund.
+            ("approve_refund", "Can approve or reject refund requests"),
+        ]
 
     def __str__(self):
         return f"RefundRequest #{self.pk} - {self.get_refund_type_display()} ({self.get_status_display()})"

@@ -75,6 +75,13 @@ def _is_staff(user):
     return user.is_staff or user.is_superuser
 
 
+def _can_view_team(user):
+    """Who's on the clock now and the staffing board, look only: an admin, or a
+    dispatch lead (ops.view_team — the Dispatch Lead group). Hours totals, the
+    payroll export and every schedule edit stay with _is_superuser."""
+    return user.is_superuser or user.has_perm("ops.view_team")
+
+
 # ── Turn checks fold into one row per driver per day ─────────────────────────
 # The scanner files one driver_conflict / tight_turn task per leg pair, and on
 # a busy next-day board that is a dozen rows for two drivers — measured at ~71
@@ -5367,9 +5374,13 @@ def timeclock_action(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_can_view_team, login_url="login")
 def timeclock_overview(request):
-    """Founder view: who's on the clock now + per-staff hour totals over a range."""
+    """Who's on the clock now + per-staff hour totals over a range.
+
+    A dispatch lead gets the live half only ("Who's on now"): hour totals feed
+    payroll, so the report, its range controls and the CSV link are an admin's.
+    """
     auto_close_stale_shifts()  # lazy cleanup — this app has no scheduler
     now = timezone.now()
 
@@ -5393,6 +5404,12 @@ def timeclock_overview(request):
             "net_hm": _tc_fmt_hm(int(s.worked_seconds(now) // 60)),
         })
 
+    if not request.user.is_superuser:
+        return render(request, "dispatching/timeclock_overview.html", {
+            "live": live,
+            "show_hours": False,
+        })
+
     # ── Report: per-staff totals over the selected range ──
     start_date, end_date, range_days, start_dt, end_dt = _tc_parse_range(request)
     shifts = (
@@ -5411,6 +5428,7 @@ def timeclock_overview(request):
 
     context = {
         "live": live,
+        "show_hours": True,
         "rows": rows,
         "totals": totals,
         "start_date": start_date,
@@ -6038,9 +6056,14 @@ def _staffing_scope(request, today):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="dashboard")
+@user_passes_test(_can_view_team, login_url="dashboard")
 def staffing_board(request):
-    """Dispatcher staffing & coverage board (superuser).
+    """Dispatcher staffing & coverage board (superuser; a dispatch lead looks only).
+
+    The lead sees the same board with every edit control gone (``can_edit``):
+    no role / hours / one-off changes, no time-off decisions, no booking off,
+    and none of the pending requests or their notes. staffing_action stays
+    superuser-only, so the server refuses an edit whatever the page shows.
 
     Four scopes, one rendering. The default is the recurring *weekly pattern* —
     dateless columns straight from StaffWeeklySchedule, which is what this page
@@ -6053,6 +6076,7 @@ def staffing_board(request):
     so a roster with no roles set reads exactly as it did before.
     """
     today = timezone.localdate()
+    can_edit = request.user.is_superuser
     scope, dates, scope_label, scope_sub = _staffing_scope(request, today)
 
     prefetch = ["weekly_schedule_rows", "extra_shifts"] + ([] if scope == "pattern" else ["schedule_overrides"])
@@ -6115,9 +6139,12 @@ def staffing_board(request):
         "role_choices": STAFF_ROLE_CHOICES,
         "location_choices": WORK_LOCATION_CHOICES,
         "reason_choices": StaffScheduleOverride.REASON_CHOICES,
-        "pending_timeoff": timeoff.pending_requests(roster, today=today),
+        "can_edit": can_edit,
+        "pending_timeoff": timeoff.pending_requests(roster, today=today) if can_edit else [],
         "upcoming_timeoff": timeoff.upcoming_approved(roster, today=today),
-        "staff_options": [{"id": u.id, "name": u.get_full_name() or u.username} for u in roster],
+        "staff_options": (
+            [{"id": u.id, "name": u.get_full_name() or u.username} for u in roster] if can_edit else []
+        ),
     })
 
 

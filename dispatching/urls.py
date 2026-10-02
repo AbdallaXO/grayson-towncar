@@ -13,6 +13,7 @@ from users.emails import send_reservation_confirmation_ajax, send_payment_remind
 from ops import views as ops_views
 from ops import leads_board as ops_leads
 from ops import shift_views as ops_shift
+from ops import team_views as ops_team
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
@@ -603,6 +604,8 @@ urlpatterns = [
     path("shift/close/", ops_shift.shift_close, name="shift_close"),
     path("shift/action/", ops_shift.shift_action, name="shift_action"),
     path("shift/lead/", ops_shift.shift_lead, name="shift_lead"),
+    # The lead's desk: what needs a decision, and what every dispatcher is doing today.
+    path("team/", ops_team.team_today, name="team_today"),
     # ── Dispatcher Staffing & Coverage board (superuser) ──
     path("staffing/", ops_views.staffing_board, name="staffing_board"),
     path("staffing/action/", ops_views.staffing_action, name="staffing_action"),

@@ -173,7 +173,9 @@
   .sp-loccell .none { color:var(--faint); }
   .sp-ic { width:14px; height:14px; color:var(--gold); flex:none; }
   .sp-rolebtn { border:none; background:none; padding:0; margin:0; cursor:pointer; font:inherit; color:inherit; display:inline-flex; }
-  .sp-rolebtn:hover .sp-chip { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-soft); }
+  .sp:not(.sp-ro) .sp-rolebtn:hover .sp-chip { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-soft); }
+  /* Look-only board (a dispatch lead): the chips are information, not controls. */
+  .sp-ro .sp-rolebtn { cursor:default; }
 
   /* A one-off cover: somebody on a day their pattern has them off. Dashed so it
      reads as "not the usual" without competing with time off's red. */
@@ -368,8 +370,13 @@
     </symbol>
   </svg>
 
-  <div class="container-fluid sp"
-       data-action-url="{% url 'staffing_action' %}"
+  {% comment %}
+    can_edit is False for a dispatch lead: the same board, look only. No action
+    URL means the script stops after the view toggles and wires no edits; the
+    server refuses them anyway (staffing_action is superuser-only).
+  {% endcomment %}
+  <div class="container-fluid sp{% if not can_edit %} sp-ro{% endif %}"
+       {% if can_edit %}data-action-url="{% url 'staffing_action' %}"{% endif %}
        data-scope="{{ scope }}">
     {% comment %}
     The board's writes are all fetch()-based, so this is the only thing that
@@ -383,10 +390,10 @@
         <h1 class="sp-title"><svg class="sp-ic"><use href="#sp-cal"/></svg>Staffing &amp; Coverage</h1>
         <p class="sp-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} &middot;
           {% if is_dated %}who&rsquo;s actually on for these dates &mdash; including approved time off and changed hours.
-            Click a shift for its role, an <b>empty day to add a one-off shift</b>, or a name to edit their standard hours.
+            {% if can_edit %}Click a shift for its role, an <b>empty day to add a one-off shift</b>, or a name to edit their standard hours.{% endif %}
           {% else %}the standard week &mdash; who works each day and who opens &amp; closes.
-            Click a shift to assign the opener or closer, or a name to edit their hours.
-            To put someone on a day they don&rsquo;t normally work, switch to <a href="?scope=week&amp;start={{ nav.this_week }}">Week</a> &mdash; a cover belongs on a date, not on every week.
+            {% if can_edit %}Click a shift to assign the opener or closer, or a name to edit their hours.
+            To put someone on a day they don&rsquo;t normally work, switch to <a href="?scope=week&amp;start={{ nav.this_week }}">Week</a> &mdash; a cover belongs on a date, not on every week.{% else %}Switch to <a href="?scope=week&amp;start={{ nav.this_week }}">Week</a> or <a href="?scope=day&amp;date={{ nav.today }}">Day</a> for who&rsquo;s actually on, with time off and changed hours.{% endif %}
           {% endif %}</p>
       </div>
       <div class="sp-toggle" role="group" aria-label="View">
@@ -507,46 +514,49 @@
           {% for row in rows %}
           <div class="sp-name {% if row.is_empty %}sp-r-empty{% endif %}">
             <span class="sp-swatch" style="background:{{ row.color.ink }}"></span>
-            <a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s hours">{{ row.name }}</a>
+            {% if can_edit %}<a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s hours">{{ row.name }}</a>{% else %}<span>{{ row.name }}</span>{% endif %}
             <span class="sp-days">{{ row.working_days }}d &middot; {{ row.hours }}</span>
           </div>
           {% for c in row.cells %}
           <div class="sp-cell sp-{{ c.kind }} {% if row.is_empty %}sp-r-empty{% endif %} {% if c.is_today %}sp-today{% endif %} {% if c.is_past %}sp-past{% endif %}">
             {% if c.is_working %}
-              <button type="button" class="sp-rolebtn" data-role-btn
+              {# A look-only viewer gets the same chip in a span: information, not a control. #}
+              <{% if can_edit %}button type="button"{% else %}span{% endif %} class="sp-rolebtn" data-role-btn
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ c.role }}"
                       data-location="{{ c.location }}"
                       {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
                       data-start-hm="{{ c.start_hm }}" data-end-hm="{{ c.end_hm }}"
                       {% if c.covering or c.changed %}data-cover-id="{{ c.ov_id }}" data-cover-range="{{ c.ov_range }}"{% endif %}
                       {% if c.changed %}data-changed="1"{% endif %}
-                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.location == 'remote' %} · working from home{% elif c.location == 'office' %} · in the office{% endif %}{% if c.location_flipped %} (one-day change){% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click to change the hours, the role, or to mark this day off">
+                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.location == 'remote' %} · working from home{% elif c.location == 'office' %} · in the office{% endif %}{% if c.location_flipped %} (one-day change){% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %}{% if can_edit %} — click to change the hours, the role, or to mark this day off{% endif %}">
                 <span class="sp-chip{% if c.covering %} sp-cover{% endif %}" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
                   {% if c.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
                   {{ c.label }}
                   {% if c.is_closer %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{% endif %}
                 </span>
-              </button>
+              </{% if can_edit %}button{% else %}span{% endif %}>
               {% for x in c.extras %}
-              <button type="button" class="sp-rolebtn" data-role-btn
+              <{% if can_edit %}button type="button"{% else %}span{% endif %} class="sp-rolebtn" data-role-btn
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ x.role }}"
                       data-extra-id="{{ x.extra_id }}" data-extra-when="{{ x.extra_when }}"
                       {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
-                      title="{{ row.name }} · {{ x.label }} · second shift{% if x.role_label %} · {{ x.role_label }}{% endif %} — click for role or to remove it">
+                      title="{{ row.name }} · {{ x.label }} · second shift{% if x.role_label %} · {{ x.role_label }}{% endif %}{% if can_edit %} — click for role or to remove it{% endif %}">
                 <span class="sp-chip sp-split" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
                   {% if x.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
                   {{ x.label }}
                   {% if x.is_closer %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{% endif %}
                 </span>
-              </button>
+              </{% if can_edit %}button{% else %}span{% endif %}>
               {% endfor %}
               {% if c.location == 'remote' %}<span class="sp-locmark" title="{{ row.name }} works from home this day"><svg class="sp-ic"><use href="#sp-home"/></svg>wfh</span>
               {% elif c.location == 'office' and c.location_flipped %}<span class="sp-locmark office" title="{{ row.name }} is in the office this day — a one-day change from their usual"><svg class="sp-ic"><use href="#sp-bldg"/></svg>in office</span>{% endif %}
               {% if c.covering %}<span class="sp-covmark">covering</span>{% elif c.changed %}<span class="sp-chgmark">hours changed</span>{% endif %}
               {% if c.oncall_label %}<span class="sp-oc">on-call {{ c.oncall_label }}</span>{% endif %}
             {% elif c.kind == 'timeoff' %}
-              <span class="sp-chip" title="{{ c.time_off.reason_label }}{% if c.time_off.note %} — {{ c.time_off.note }}{% endif %} · {{ c.time_off.range_display }}">
+              <span class="sp-chip" title="{{ c.time_off.reason_label }}{% if can_edit and c.time_off.note %} — {{ c.time_off.note }}{% endif %} · {{ c.time_off.range_display }}">
                 <svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>{{ c.label }}</span>
+            {% elif not can_edit %}
+              <span class="sp-hrs">{{ c.label }}</span>
             {% elif is_dated %}
               <button type="button" class="sp-addbtn" data-add-shift
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-date="{{ c.key }}"
@@ -569,7 +579,7 @@
                 <span class="sp-plus">+ on a date</span>
               </a>
             {% endif %}
-            {% if c.is_working and c.pending %}<span class="sp-pendmark">off requested</span>{% endif %}
+            {% if can_edit and c.is_working and c.pending %}<span class="sp-pendmark">off requested</span>{% endif %}
           </div>
           {% endfor %}
           {% empty %}
@@ -640,7 +650,9 @@
     </div>
 
     {# ── Time off: the approval queue and what's already booked ── #}
+    {# A look-only viewer sees who is booked off; requests and their notes stay with whoever decides them. #}
     <div class="sp-cols">
+      {% if can_edit %}
       <div class="sp-card">
         <h2><svg class="sp-ic" style="color:var(--warn)"><use href="#sp-clock"/></svg>Time off requested
           <span class="sp-count {% if pending_timeoff %}hot{% endif %}">{{ pending_timeoff|length }}</span></h2>
@@ -659,12 +671,14 @@
         <p class="sp-empty">No requests waiting. Staff request time off from their own schedule page; approving one puts it straight on this board.</p>
         {% endfor %}
       </div>
+      {% endif %}
 
       <div class="sp-card off-card">
         <h2><svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>Booked off &middot; next 60 days
           <span class="sp-count">{{ upcoming_timeoff|length }}</span>
-          <button type="button" class="sp-mini" style="margin-left:.5rem" data-add-off>+ Add</button></h2>
+          {% if can_edit %}<button type="button" class="sp-mini" style="margin-left:.5rem" data-add-off>+ Add</button>{% endif %}</h2>
 
+        {% if can_edit %}
         <form class="sp-req" id="spAddOff" hidden>
           <select class="sp-btn" name="user_id" style="min-width:120px">
             {% for s in staff_options %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
@@ -677,14 +691,17 @@
           <input class="sp-btn" type="text" name="note" placeholder="Note (optional)" maxlength="200" style="flex:1 1 130px">
           <span class="acts"><button type="submit" class="sp-btn ok">Book off</button></span>
         </form>
+        {% endif %}
 
         {% for r in upcoming_timeoff %}
         <div class="sp-req" data-req="{{ r.id }}">
           <span class="who">{{ r.name }}</span>
           <span class="when">{{ r.range_display }}</span>
           <span class="why">{{ r.reason_label }}{% if r.days > 1 %} &middot; {{ r.days }}d{% endif %}</span>
+          {% if can_edit %}
           <span class="acts"><button type="button" class="sp-btn no" data-cancel="{{ r.id }}">Remove</button></span>
           {% if r.note %}<span class="note">&ldquo;{{ r.note }}&rdquo;</span>{% endif %}
+          {% endif %}
         </div>
         {% empty %}
         <p class="sp-empty">Nobody is booked off in the next 60 days.</p>
@@ -700,7 +717,7 @@
       <span><span class="sp-dot warn"></span> Runs thin</span>
       <span><span class="sp-dot crit"></span> Coverage gap</span>
       <span><span class="sp-legoff"></span> Time off</span>
-      <span><svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg> Working from home &mdash; click a shift to set it</span>
+      <span><svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg> Working from home{% if can_edit %} &mdash; click a shift to set it{% endif %}</span>
     </div>
 
     {% if rows %}
@@ -711,11 +728,12 @@
 
     <p class="sp-foot">
       The number under each day is the most dispatchers on at once; a day is flagged only where it runs thin (below target) or leaves an uncovered hole.
-      Overnight (12&ndash;6&nbsp;AM) is the on-call window, assigned per night on the <a href="{% url 'timeclock_manage' %}">Time&nbsp;Clock</a> page &mdash;
+      Overnight (12&ndash;6&nbsp;AM) is the on-call window{% if can_edit %}, assigned per night on the <a href="{% url 'timeclock_manage' %}">Time&nbsp;Clock</a> page{% endif %} &mdash;
       {% if is_dated %}the On-call row names whoever is covering each night.{% else %}switch to Week or Day to see who&rsquo;s covering each night.{% endif %}
-      {% if is_dated %}These dates reflect approved time off and one-off hour changes; a role set here applies to that date only.{% else %}The pattern is the recurring week &mdash; a role set here applies every week.{% endif %}
+      {% if is_dated %}These dates reflect approved time off and one-off hour changes{% if can_edit %}; a role set here applies to that date only{% endif %}.{% else %}The pattern is the recurring week{% if can_edit %} &mdash; a role set here applies every week{% endif %}.{% endif %}
     </p>
 
+    {% if can_edit %}
     {# Role picker — moved next to whichever shift was clicked. #}
     <div class="sp-pop" id="spRolePop" hidden>
       <h3 data-pop-title>Role</h3>
@@ -788,6 +806,7 @@
         </div>
       </form>
     </div>
+    {% endif %}
     </div>
   </div>
 
@@ -839,6 +858,9 @@
       applyHide(hide.checked);
     });
   }
+
+  // Look-only board (a dispatch lead): everything below edits the roster.
+  if (!ACTION) return;
 
   /* ── Plumbing ── */
   function csrf() {

@@ -1,0 +1,12 @@
+{% comment %}
+  Hand an open shift note to someone else — the dispatch lead's call
+  (ops.edit_exception_owner; enforced again in shift_action "reassign").
+  Expects ``e`` (the ShiftException) and ``staff`` (the office roster).
+{% endcomment %}
+<div class="note handoff" data-handoff-form="{{ e.id }}">
+  <select data-f="owner" aria-label="Hand this note to">
+    {% for person in staff %}<option value="{{ person.id }}"{% if person.id == e.owner_id %} selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}
+  </select>
+  <button data-handoff-save="{{ e.id }}">Hand off</button>
+  <div class="err" data-f="err"></div>
+</div>

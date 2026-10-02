@@ -126,6 +126,8 @@ body { background:#f6f4ef; }
 .sh .note.open{display:grid}
 .sh .note input,.sh .note select{font:inherit;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-2);background:#fff;width:100%}
 .sh .note .err{grid-column:1/-1;color:var(--red);font-size:12px;font-weight:600}
+/* hand-off: who should own this note now — calm, not the amber of "outstanding" */
+.sh .note.handoff{grid-template-columns:minmax(0,1fr) auto;background:var(--paper);border-color:var(--line-2)}
 
 /* confirm dialog — the page's own, not the browser's */
 .sh-mask{position:fixed;inset:0;background:rgba(27,28,26,.42);display:grid;place-items:center;z-index:1080;padding:20px;animation:sh-fade .14s ease both}
@@ -236,9 +238,11 @@ body { background:#f6f4ef; }
         <div class="acts">
           {% if e.owner_phone %}<a class="shb" href="tel:{{ e.owner_phone }}">Call</a>{% endif %}
           {% if not checklist.is_complete %}
+            {% if can_reassign_owner %}<button class="ghost" data-handoff-for="{{ e.id }}">Hand off</button>{% endif %}
             <button class="ghost" data-shift-action="resolve" data-exception="{{ e.id }}">Sorted</button>
           {% endif %}
         </div>
+        {% if can_reassign_owner and not checklist.is_complete %}{% include "dispatching/includes/_shift_handoff.html" %}{% endif %}
       </div>
     {% endfor %}
   </section>
@@ -391,7 +395,8 @@ body { background:#f6f4ef; }
       <div class="shr">
         <div class="st amber">!</div>
         <div><span class="lbl">{{ e.what }}</span><span class="meta">{{ e.owner.get_full_name|default:e.owner.username }} → {{ e.next_action }}</span></div>
-        <div class="acts">{% if not checklist.is_complete %}<button class="ghost" data-shift-action="resolve" data-exception="{{ e.id }}">Sorted</button>{% endif %}</div>
+        <div class="acts">{% if not checklist.is_complete %}{% if can_reassign_owner %}<button class="ghost" data-handoff-for="{{ e.id }}">Hand off</button>{% endif %}<button class="ghost" data-shift-action="resolve" data-exception="{{ e.id }}">Sorted</button>{% endif %}</div>
+        {% if can_reassign_owner and not checklist.is_complete %}{% include "dispatching/includes/_shift_handoff.html" %}{% endif %}
       </div>
     {% endfor %}
   </section>
@@ -588,6 +593,34 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.disabled = true;
       post({ action:'document', key: btn.dataset.noteSave, what: what.value.trim(),
              owner_id: owner.value, next_action: next.value.trim() })
+        .then(function(d){
+          if (!d.success) { err.textContent = d.error || 'That did not go through.'; btn.disabled = false; return; }
+          window.location.reload();
+        })
+        .catch(function(){ err.textContent = 'That did not go through.'; btn.disabled = false; });
+    });
+  });
+
+  // ── hand a note to someone else (the lead's) ──
+  panel.querySelectorAll('[data-handoff-for]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var form = panel.querySelector('.note[data-handoff-form="' + btn.dataset.handoffFor + '"]');
+      if (!form) { return; }
+      var opening = !form.classList.contains('open');
+      panel.querySelectorAll('.note.open').forEach(function(f){ f.classList.remove('open'); });
+      form.classList.toggle('open', opening);
+      if (opening) { form.querySelector('[data-f=owner]').focus(); }
+    });
+  });
+  panel.querySelectorAll('[data-handoff-save]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var form = btn.closest('.note');
+      var owner = form.querySelector('[data-f=owner]');
+      var err = form.querySelector('[data-f=err]');
+      err.textContent = '';
+      if (!owner.value) { err.textContent = 'Pick who should take it.'; return; }
+      btn.disabled = true;
+      post({ action:'reassign', exception_id: btn.dataset.handoffSave, owner_id: owner.value })
         .then(function(d){
           if (!d.success) { err.textContent = d.error || 'That did not go through.'; btn.disabled = false; return; }
           window.location.reload();

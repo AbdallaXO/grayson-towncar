@@ -31,6 +31,35 @@ def pending_task_count(request):
     return {"ops_pending_count": count}
 
 
+# The pill on the Refunds link: requests waiting for a decision, shown to the
+# people who can make one — an admin or a dispatch lead. One entry for the whole
+# floor, dropped the moment a request is filed or decided.
+_PENDING_REFUNDS_CACHE_KEY = "pending_refund_count"
+_PENDING_REFUNDS_TTL = 60  # seconds
+
+
+def pending_refund_count(request):
+    """Add pending_refund_count for whoever can approve refunds."""
+    if not hasattr(request, "user") or not request.user.is_authenticated or not request.user.is_staff:
+        return {}
+    if not (request.user.is_superuser or request.user.has_perm("reservations.approve_refund")):
+        return {}
+
+    count = cache.get(_PENDING_REFUNDS_CACHE_KEY)
+    if count is None:
+        from reservations.models import RefundRequest
+
+        count = RefundRequest.objects.filter(status="requested").count()
+        cache.set(_PENDING_REFUNDS_CACHE_KEY, count, _PENDING_REFUNDS_TTL)
+
+    return {"pending_refund_count": count}
+
+
+def invalidate_pending_refund_count():
+    """Call after a refund request is filed, approved or rejected."""
+    cache.delete(_PENDING_REFUNDS_CACHE_KEY)
+
+
 def critical_disruption_count(request):
     """Red pill on the dispatch Dashboard link: today's visible critical
     Recovery Advisor cards.

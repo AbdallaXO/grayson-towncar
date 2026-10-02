@@ -1,0 +1,285 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+{% comment %}
+  The Team page — the lead's desk (ops/team_today.py builds it). Light-only by
+  design: the dispatcher app has no dark theme, so no prefers-color-scheme here.
+  Same calm palette as My Schedule (my_coverage.html): colour only where a
+  person needs a look.
+{% endcomment %}
+<style>
+  .tt {
+    --bg:#F4F1EA; --surface:#FFFFFF; --surface2:#FBF9F4;
+    --line:rgba(28,24,16,0.09); --line2:rgba(28,24,16,0.16);
+    --ink:#1E1C17; --muted:#6A645B; --faint:#9A948B;
+    --gold:#8A6A12; --gold-fill:#B98F26; --gold-soft:rgba(185,143,38,0.16);
+    --ok:#2C7A4C; --ok-soft:rgba(44,122,76,0.12);
+    --info:#3A4C87; --info-soft:rgba(58,76,135,0.12);
+    --warn:#B4530A; --warn-soft:rgba(180,83,10,0.12);
+    --bad:#A3271F; --bad-soft:rgba(163,39,31,0.10);
+    --oncall:#5A4A94;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
+    --sans:"Montserrat",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    min-height:calc(100vh - 56px); padding:1.5rem 1rem 3rem;
+  }
+  .tt-wrap { max-width:1180px; margin:0 auto; }
+  .tt .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+  .tt-head { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:1.4rem; }
+  .tt-head h1 { font-size:1.65rem; font-weight:750; letter-spacing:-.02em; margin:0 0 .2rem; }
+  .tt-sub { color:var(--muted); margin:0; font-size:.92rem; }
+  .tt-links { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .tt-links a { font-size:.8rem; font-weight:650; color:var(--ink); text-decoration:none; padding:.42rem .8rem;
+    border:1px solid var(--line2); border-radius:999px; background:var(--surface); transition:border-color .15s, color .15s; }
+  .tt-links a:hover { border-color:var(--gold-fill); color:var(--gold); }
+
+  .tt-needs { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; margin-bottom:2rem; }
+  .tt-card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.2rem;
+    display:flex; flex-direction:column; gap:.55rem; box-shadow:0 1px 2px rgba(28,24,16,.04); }
+  .tt-card.hot { border-color:var(--gold-fill); box-shadow:0 0 0 3px var(--gold-soft); }
+  .tt-card h2 { font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+    margin:0; display:flex; align-items:center; gap:.5rem; }
+  .tt-count { font-family:var(--mono); font-size:.8rem; font-weight:700; color:var(--ink); background:var(--surface2);
+    border:1px solid var(--line2); border-radius:999px; padding:.05rem .5rem; letter-spacing:0; }
+  .tt-card.hot .tt-count { background:var(--gold-fill); border-color:var(--gold-fill); color:#fff; }
+  .tt-card p { margin:0; font-size:.88rem; color:var(--ink); }
+  .tt-btn { margin-top:auto; align-self:flex-start; font-size:.82rem; font-weight:700; color:var(--gold); text-decoration:none; }
+  .tt-btn:hover { text-decoration:underline; }
+
+  .tt-refund { display:grid; grid-template-columns:1fr auto; gap:.1rem .75rem; padding:.55rem .65rem; border-radius:10px;
+    background:var(--surface2); border:1px solid var(--line); text-decoration:none; color:inherit; }
+  .tt-refund:hover { border-color:var(--gold-fill); }
+  .tt-refund .who { font-weight:650; font-size:.88rem; }
+  .tt-refund .amt { font-weight:700; font-size:.92rem; }
+  .tt-refund .what { grid-column:1 / -1; color:var(--muted); font-size:.78rem; }
+
+  .tt-check { display:flex; gap:.6rem; align-items:baseline; font-size:.88rem; }
+  .tt-check b { min-width:3.2rem; font-weight:700; }
+  .tt-check.ok span { color:var(--ok); }
+  .tt-check.warn span { color:var(--warn); }
+  .tt-check.quiet span { color:var(--muted); }
+
+  /* ── Activity today ── */
+  .tt-acthead { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; margin-bottom:.7rem; }
+  .tt-h { font-size:1.05rem; font-weight:750; margin:0; display:flex; align-items:center; gap:.5rem; }
+  .tt-h span { font-family:var(--mono); font-size:.85rem; color:var(--muted); font-weight:600; }
+  .tt-summary { font-size:.92rem; color:var(--ink); margin:0; }
+  .tt-summary b { font-family:var(--mono); }
+
+  .tt-list { background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    box-shadow:0 1px 2px rgba(28,24,16,.04); }
+  .tt-cols, .tt-row > summary { display:grid; align-items:center; gap:.75rem;
+    grid-template-columns:minmax(150px,1.3fr) minmax(170px,1.3fr) 82px 92px minmax(180px,2fr) 16px; }
+  .tt-cols { padding:.55rem 1.1rem; background:var(--surface2); border-bottom:1px solid var(--line);
+    font-size:.68rem; font-weight:750; text-transform:uppercase; letter-spacing:.07em; color:var(--faint); }
+  .tt-cols .num, .tt-row .num { text-align:center; }
+
+  .tt-row { border-bottom:1px solid var(--line); border-left:4px solid transparent; }
+  .tt-row:last-child { border-bottom:0; }
+  .tt-row > summary { list-style:none; cursor:pointer; padding:.75rem 1.1rem .75rem calc(1.1rem - 4px); transition:background .12s; }
+  .tt-row > summary::-webkit-details-marker { display:none; }
+  .tt-row > summary:hover { background:var(--surface2); }
+  .tt-row > summary:focus-visible { outline:2px solid var(--gold-fill); outline-offset:-2px; }
+  .tt-row.tone-ok { border-left-color:var(--ok); }
+  .tt-row.tone-info { border-left-color:var(--info); }
+  .tt-row.tone-warn { border-left-color:var(--warn); }
+  .tt-row.tone-bad { border-left-color:var(--bad); background:linear-gradient(90deg, var(--bad-soft), transparent 45%); }
+
+  .tt-name { font-weight:700; font-size:.98rem; line-height:1.2; }
+  .tt-name small { display:block; font-weight:500; font-size:.74rem; color:var(--muted); margin-top:.15rem; font-family:var(--mono); }
+  .tt-now { display:inline-flex; align-items:center; gap:.4rem; font-size:.86rem; font-weight:700; }
+  .tt-now .dot { width:9px; height:9px; border-radius:50%; background:var(--faint); flex:none; }
+  .tt-now.ok { color:var(--ok); } .tt-now.ok .dot { background:var(--ok); }
+  .tt-now.info { color:var(--info); } .tt-now.info .dot { background:var(--info); }
+  .tt-now.warn { color:var(--warn); } .tt-now.warn .dot { background:var(--warn); }
+  .tt-now.bad { color:var(--bad); } .tt-now.bad .dot { background:var(--bad); }
+  .tt-now.quiet { color:var(--muted); font-weight:600; }
+  .tt-num { font-family:var(--mono); font-size:1.15rem; font-weight:700; }
+  .tt-num.zero { color:var(--faint); font-weight:500; }
+  .tt-last { font-size:.85rem; color:var(--ink); }
+  .tt-last time { color:var(--muted); font-family:var(--mono); font-size:.8rem; margin-left:.3rem; }
+  .tt-chev { color:var(--faint); transition:transform .15s; justify-self:end; }
+  .tt-row[open] .tt-chev { transform:rotate(90deg); }
+  .tt-lbl { display:none; }
+
+  .tt-more { padding:.2rem 1.1rem 1rem calc(1.1rem - 4px); display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; }
+  .tt-more h3 { font-size:.68rem; font-weight:750; text-transform:uppercase; letter-spacing:.07em; color:var(--faint); margin:0 0 .4rem; }
+  .tt-more ul { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.3rem; }
+  .tt-more li { font-size:.86rem; line-height:1.35; }
+  .tt-more p { margin:0 0 .3rem; font-size:.86rem; }
+  .tt-note { color:var(--warn); font-weight:600; }
+  .tt-late { font-size:.7rem; font-weight:750; color:var(--bad); background:var(--bad-soft); border-radius:6px; padding:.05rem .35rem; margin-left:.25rem; white-space:nowrap; }
+  .tt-tags { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.4rem; }
+  .tt-tags span { font-size:.74rem; color:var(--muted); background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:.12rem .5rem; }
+  .tt-tags .oncall { color:var(--oncall); border-color:rgba(90,74,148,.35); }
+  .tt-quiet { color:var(--faint); font-size:.84rem; margin:0; }
+
+  .tt-total { display:grid; grid-template-columns:minmax(150px,1.3fr) minmax(170px,1.3fr) 82px 92px minmax(180px,2fr) 16px;
+    gap:.75rem; align-items:center; padding:.7rem 1.1rem; background:var(--surface2); border-top:1px solid var(--line2);
+    font-size:.8rem; font-weight:700; color:var(--muted); }
+  .tt-legend { font-size:.78rem; color:var(--muted); margin:.6rem .2rem 0; }
+  .tt-off { margin-top:1.2rem; font-size:.88rem; color:var(--muted); line-height:1.6; }
+  .tt-off b { color:var(--ink); }
+
+  @media (max-width: 760px) {
+    .tt { padding:1rem .75rem 2.5rem; }
+    .tt-head h1 { font-size:1.4rem; }
+    .tt-cols { display:none; }
+    .tt-row > summary, .tt-total { grid-template-columns:1fr auto; gap:.35rem .75rem; }
+    .tt-row > summary .tt-now { grid-column:1 / 2; }
+    .tt-row > summary .num { text-align:left; }
+    .tt-lbl { display:inline; font-size:.74rem; color:var(--muted); font-weight:600; margin-left:.3rem; font-family:var(--sans); }
+    .tt-row > summary .tt-last { grid-column:1 / -1; }
+    .tt-chev { grid-row:1; grid-column:2; }
+    .tt-total .num { text-align:left; }
+    .tt-more { grid-template-columns:1fr; gap:.8rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="tt">
+    <div class="tt-wrap">
+      <header class="tt-head">
+        <div>
+          <h1>Team today</h1>
+          <p class="tt-sub">{{ today|date:"l, F j" }} &middot; {{ people|length }} on today &middot;
+            {{ on_clock_count }} on the clock now &middot; updated {{ now|time:"g:i A" }}</p>
+        </div>
+        <nav class="tt-links" aria-label="More about the team">
+          <a href="{% url 'timeclock_overview' %}">Who's on now</a>
+          <a href="{% url 'staffing_board' %}?scope=day&amp;date={{ today|date:'Y-m-d' }}">Today's coverage</a>
+          {% if perms.ops.review_checklists or request.user.is_superuser %}<a href="{% url 'shift_lead' %}">How shifts ran</a>{% endif %}
+        </nav>
+      </header>
+
+      {# ── What needs a decision ── #}
+      <section class="tt-needs" aria-label="Needs a decision">
+        {% if include_refunds %}
+        <article class="tt-card{% if refund_count %} hot{% endif %}">
+          <h2>Refunds waiting <span class="tt-count">{{ refund_count }}</span></h2>
+          {% for rr in refunds %}
+            <a class="tt-refund" href="{% url 'refund_management' %}?status=requested" title="{{ rr.reason }}">
+              <span class="who">{{ rr.reservation.customer.get_full_name }} &middot; #{{ rr.reservation.id }}</span>
+              <span class="amt mono">${{ rr.amount|floatformat:2 }}</span>
+              <span class="what">{{ rr.get_refund_type_display }} &middot; asked by {% if rr.requested_by %}{{ rr.requested_by.get_full_name|default:rr.requested_by.username }}{% else %}the system{% endif %} {{ rr.requested_at|timesince }} ago</span>
+            </a>
+          {% empty %}
+            <p class="tt-quiet">Nothing waiting.</p>
+          {% endfor %}
+          {% if refund_count > refunds|length %}<p class="tt-quiet">and more on the Refunds page</p>{% endif %}
+          <a class="tt-btn" href="{% url 'refund_management' %}?status=requested">Approve or turn down on the Refunds page &rarr;</a>
+        </article>
+        {% endif %}
+
+        <article class="tt-card">
+          <h2>Tasks nobody has picked up <span class="tt-count">{{ unclaimed_count }}</span></h2>
+          <p>{% if unclaimed_overdue %}<b>{{ unclaimed_overdue }}</b> of them past due.{% elif unclaimed_count %}None past due.{% else %}All caught up.{% endif %}</p>
+          <a class="tt-btn" href="{% url 'task_queue' %}?lane=unclaimed">Open the task queue &rarr;</a>
+        </article>
+
+        <article class="tt-card">
+          <h2>Today's checklists</h2>
+          <div class="tt-check {{ checklist_open.tone }}"><b>{{ checklist_open.title }}</b><span>{{ checklist_open.text }}</span></div>
+          <div class="tt-check {{ checklist_close.tone }}"><b>{{ checklist_close.title }}</b><span>{{ checklist_close.text }}</span></div>
+          {% if open_notes %}<p>{{ open_notes }} shift note{{ open_notes|pluralize }} still open.</p>{% endif %}
+          <a class="tt-btn" href="{% url 'shift_open' %}">Go to the checklists &rarr;</a>
+        </article>
+      </section>
+
+      {# ── Activity today: one line per dispatcher on today ── #}
+      <section aria-label="Activity today">
+        <div class="tt-acthead">
+          <h2 class="tt-h">Activity today <span>{{ people|length }}</span></h2>
+          <p class="tt-summary">
+            {% if people %}<b>{{ busy_count }}</b> busy{% if idle_count %} &middot; <b>{{ idle_count }}</b> idle{% endif %} &middot;
+            the team has booked <b>{{ team_booked }}</b> reservation{{ team_booked|pluralize }} and finished <b>{{ team_tasks_done }}</b> task{{ team_tasks_done|pluralize }} so far{% endif %}
+          </p>
+        </div>
+
+        {% if people %}
+        <div class="tt-list">
+          <div class="tt-cols" aria-hidden="true">
+            <span>Name</span><span>Right now</span><span class="num">Booked</span><span class="num">Tasks done</span><span>Last thing they did</span><span></span>
+          </div>
+          {% for p in people %}
+          <details class="tt-row tone-{{ p.now_tone }}">
+            <summary>
+              <span class="tt-name">{{ p.name }}{% if p.scheduled %}<small>{{ p.scheduled }}</small>{% endif %}</span>
+              <span class="tt-now {{ p.now_tone }}"><span class="dot"></span>{{ p.now_words }}</span>
+              <span class="num"><span class="tt-num{% if not p.did.bookings %} zero{% endif %}">{{ p.did.bookings }}</span><span class="tt-lbl">booked</span></span>
+              <span class="num"><span class="tt-num{% if not p.did.tasks_done %} zero{% endif %}">{{ p.did.tasks_done }}</span><span class="tt-lbl">tasks done</span></span>
+              <span class="tt-last">{% if p.last_did %}{{ p.last_did }}<time>{{ p.last_did_at }}</time>{% else %}<span class="tt-quiet">Nothing yet today</span>{% endif %}</span>
+              <svg class="tt-chev" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </summary>
+            <div class="tt-more">
+              <div>
+                <h3>Where they are</h3>
+                <p>{{ p.label }}</p>
+                {% if p.note %}<p class="tt-note">{{ p.note }}</p>{% endif %}
+                {% if p.role or p.location or p.oncall_tonight %}
+                <div class="tt-tags">
+                  {% if p.role %}<span>{{ p.role }}</span>{% endif %}
+                  {% if p.location %}<span>{{ p.location }}</span>{% endif %}
+                  {% if p.oncall_tonight %}<span class="oncall">On call tonight</span>{% endif %}
+                </div>
+                {% endif %}
+                {% if p.did.messages or p.did.flights %}
+                <p style="margin-top:.6rem">Also today:
+                  {% if p.did.messages %}{{ p.did.messages }} guest message{{ p.did.messages|pluralize }} logged{% endif %}{% if p.did.messages and p.did.flights %} &middot; {% endif %}{% if p.did.flights %}{{ p.did.flights }} flight{{ p.did.flights|pluralize }} matched{% endif %}
+                </p>
+                {% endif %}
+              </div>
+              <div>
+                <h3>On their plate</h3>
+                {% if p.tasks_open or p.notes_owned %}
+                <ul>
+                  {% for t in p.tasks_shown %}<li>{{ t.title }}{% if t.due_at and t.due_at < now %}<span class="tt-late">past due</span>{% endif %}</li>{% endfor %}
+                  {% if p.tasks_more %}<li class="tt-quiet">and {{ p.tasks_more }} more task{{ p.tasks_more|pluralize }}</li>{% endif %}
+                  {% if p.notes_owned %}<li>{{ p.notes_owned }} shift note{{ p.notes_owned|pluralize }} to sort out</li>{% endif %}
+                </ul>
+                {% else %}
+                <p class="tt-quiet">Nothing assigned to them.</p>
+                {% endif %}
+              </div>
+            </div>
+          </details>
+          {% endfor %}
+          <div class="tt-total">
+            <span>Team so far</span><span></span>
+            <span class="num"><span class="tt-num">{{ team_booked }}</span><span class="tt-lbl">booked</span></span>
+            <span class="num"><span class="tt-num">{{ team_tasks_done }}</span><span class="tt-lbl">tasks done</span></span>
+            <span></span><span></span>
+          </div>
+        </div>
+        <p class="tt-legend">Busy means they did something in the app in the last {{ idle_after_min }} minutes. Idle means they're clocked in but haven't done anything in the app for {{ idle_after_min }} minutes or more &mdash; they may be on the phone. Tap a name for what's on their plate.</p>
+        {% else %}
+        <p class="tt-quiet">Nobody is down for today, and nobody has clocked in.</p>
+        {% endif %}
+
+        {% if off %}
+        <p class="tt-off"><b>Off today:</b>
+          {% for o in off %}{{ o.name }}{% if o.why %} ({{ o.why }}){% endif %}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Keep the page current without anyone pressing refresh — but never while
+  // a line is open, so reading someone's plate isn't cut short.
+  setInterval(function () {
+    if (!document.querySelector('.tt-row[open]')) { window.location.reload(); }
+  }, 120000);
+})();
+</script>
+{% endblock %}

@@ -22,6 +22,17 @@
   {% include 'dispatching/dispatcher_navbar.html' %}
 
   <div class="container-fluid py-4">
+    {% comment %}
+      A dispatch lead gets the live half only: who is clocked in or on a break
+      right now. Hour totals feed payroll, so the report, its range and the CSV
+      export are an admin's (ops/views.py timeclock_overview).
+    {% endcomment %}
+    {% if not show_hours %}
+    <div class="mb-3">
+      <h1 class="mb-1 fw-bold"><i class="bi bi-broadcast me-2"></i>Who's on now</h1>
+      <p class="text-muted mb-0">Who's clocked in and who's on a break. Updates every minute.</p>
+    </div>
+    {% else %}
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
       <div>
         <h1 class="mb-1 fw-bold"><i class="bi bi-clock-history me-2"></i>Staff Time Clock</h1>
@@ -52,6 +63,7 @@
       </div>
       <div class="col-auto"><button class="btn btn-sm btn-dark">Apply</button></div>
     </form>
+    {% endif %}
 
     <div class="tco-grid">
       <!-- Live: on the clock now -->
@@ -82,6 +94,7 @@
         {% endfor %}
       </div>
 
+      {% if show_hours %}
       <!-- Report: hours by staff -->
       <div class="tco-card">
         <h6 class="fw-bold text-uppercase text-muted mb-3" style="letter-spacing:.04em;">
@@ -128,6 +141,7 @@
         </div>
         <p class="text-muted small mt-2 mb-0">Breaks are unpaid; <b>Net</b> is the payable total. A shift that crosses midnight counts on the day it started (Eastern time).</p>
       </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

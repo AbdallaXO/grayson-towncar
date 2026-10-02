@@ -81,8 +81,9 @@
         <div class="alert alert-light border">
           <i class="bi bi-shield-exclamation text-danger me-2"></i>
           These are <strong>completed Full Cancellations</strong> (whole reservation + all legs cancelled). Check the
-          <strong>Processed By</strong> column. If one should have been a partial cancel or price adjustment, open the
-          reservation and click <strong>Correct</strong> to restore the legs. (The Stripe refund itself is never changed.)
+          <strong>Processed By</strong> column. If one should have been a partial cancel or price adjustment,
+          {% if can_correct %}open the reservation and click <strong>Correct</strong> to restore the legs.{% else %}tell Abdalla, who can restore the legs from the reservation.{% endif %}
+          (The Stripe refund itself is never changed.)
         </div>
       </div>
     </div>
@@ -239,7 +240,7 @@
                             <i class="bi bi-x-circle"></i>
                           </button>
                         {% endif %}
-                        {% if rr.status == 'completed' and rr.refund_type == 'full_cancellation' %}
+                        {% if can_correct and rr.status == 'completed' and rr.refund_type == 'full_cancellation' %}
                           <a href="{% url 'reservation_details' rr.reservation.uuid %}"
                              class="btn btn-outline-primary"
                              title="Wrong type? Open the reservation and click Correct to restore the legs.">

@@ -1338,6 +1338,10 @@ class ShiftChecklist(models.Model):
             ("review_checklists", "Can review shift checklist history"),
             ("reopen_checklist", "Can reopen a completed shift checklist"),
             ("edit_exception_owner", "Can change who owns a shift exception"),
+            # Look only: who's on the clock right now and the staffing board.
+            # Hours totals, the payroll export and every schedule edit stay
+            # superuser-only.
+            ("view_team", "Can see who is on shift and the staffing board"),
         ]
         verbose_name = "Shift Checklist"
         verbose_name_plural = "Shift Checklists"

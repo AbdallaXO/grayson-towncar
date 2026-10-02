@@ -95,6 +95,30 @@ def can_view_statistics(user):
     return user.is_superuser
 
 
+def can_approve_refunds(user):
+    """The Refunds page, approve / reject, bulk approve: an admin, or a dispatch
+    lead (reservations.approve_refund — the Dispatch Lead group). Correcting a
+    refund that already went through stays admin-only (correct_refund)."""
+    return user.is_superuser or user.has_perm("reservations.approve_refund")
+
+
+# A refund request is decided exactly once. These are the only states a decision
+# may start from — 'approved' only exists on rows migrated from the old flat
+# fields (reservations 0079). Every decision is a conditional UPDATE from one of
+# them, so when an admin and a lead act on the same request the database picks
+# the first and the second is told, instead of both going through.
+_REFUND_DECIDABLE = ('requested', 'approved')
+
+
+def _refund_already_decided(rr):
+    """The 409 for a decision that lost the race or came from a stale page."""
+    if rr.status == 'processing':
+        error = "This refund is going through right now — refresh the page in a moment."
+    else:
+        error = f"This refund was already {rr.get_status_display().lower()} — refresh the page."
+    return JsonResponse({"success": False, "error": error}, status=409)
+
+
 # Sandbox write-side core lives in dispatching/assignment.py (the front door).
 # Imported under the same names this module used before the extraction.
 from dispatching.assignment import (
@@ -12385,6 +12409,9 @@ def request_refund(request):
         reservation.refund_amount = refund_amount
         reservation.save()
 
+        from ops.context_processors import invalidate_pending_refund_count
+        invalidate_pending_refund_count()
+
         # Send email notification to admin (background)
         from users.emails import send_refund_request_notification
         send_refund_request_notification(refund_request)
@@ -12409,10 +12436,10 @@ def request_refund(request):
 @login_required
 def refund_management(request):
     """
-    Admin page to view and manage refund requests.
+    Admin / dispatch-lead page to view and manage refund requests.
     Now queries RefundRequest model instead of flat Reservation fields.
     """
-    if not request.user.is_superuser:
+    if not can_approve_refunds(request.user):
         messages.error(request, "You don't have permission to access this page.")
         return redirect("dashboard")
 
@@ -12459,6 +12486,8 @@ def refund_management(request):
         'type_filter': type_filter,
         'review_mode': review_mode,
         'status_counts': status_counts,
+        # A lead approves and rejects; only an admin repairs a processed refund.
+        'can_correct': request.user.is_superuser,
     }
 
     return render(request, "dispatching/refund_management.html", context)
@@ -12526,11 +12555,15 @@ def _process_stripe_refund(reservation, refund_amount, idem_prefix=None):
     return refunded_amount, refund_errors, stripe_ids
 
 
-def _execute_refund_approval(rr, user, refund_notes=""):
+def _execute_refund_approval(rr, user, refund_notes="", refund_type=None):
     """
-    Execute an approved refund for a single, already-loaded RefundRequest whose
-    refund_type is final. Shared by process_refund (single) and
-    bulk_approve_refunds (many) so the money path never drifts between them.
+    Execute an approved refund for a single, already-loaded RefundRequest.
+    Shared by process_refund (single) and bulk_approve_refunds (many) so the
+    money path never drifts between them.
+
+    ``refund_type`` is the approver's correction of the type, if any. It is
+    written in the same conditional UPDATE that claims the request, so it can
+    never land on a request somebody else has already decided.
 
     Runs the Stripe refund (idempotency-keyed on the request), applies the
     type-specific side effects (cancel legs / reservation for partial & full),
@@ -12544,14 +12577,19 @@ def _execute_refund_approval(rr, user, refund_notes=""):
     if not refund_amount or refund_amount <= 0:
         return {"ok": False, "status": 400, "error": "No refund amount set"}
 
-    # Idempotency guard: atomically claim this request. If it isn't in an active
-    # state right now (already completed, or being processed elsewhere), bail
-    # instead of re-running the Stripe refunds.
+    # Claim the request atomically, from an undecided state only. A request
+    # that is 'processing' belongs to whoever claimed it — a second approver
+    # re-claiming it mid-Stripe-call could refund a second payment (the
+    # idempotency key carries the recomputed amount). Bail instead.
+    claim = {"status": "processing"}
+    if refund_type:
+        claim["refund_type"] = refund_type
     claimed = RefundRequest.objects.filter(
-        id=rr.id, status__in=['requested', 'processing', 'approved'],
-    ).update(status='processing')
+        id=rr.id, status__in=_REFUND_DECIDABLE,
+    ).update(**claim)
     if not claimed:
-        return {"ok": False, "status": 409, "error": "This refund request was already processed."}
+        return {"ok": False, "status": 409,
+                "error": "This refund was already decided, or is going through right now — refresh the page."}
     rr.refresh_from_db()
 
     # Process Stripe refund (idempotency-keyed so a retry can't double-refund).
@@ -12560,8 +12598,8 @@ def _execute_refund_approval(rr, user, refund_notes=""):
     )
 
     if refund_errors and refunded_amount == 0:
-        # Total failure — release the claim so it can be retried, then report.
-        RefundRequest.objects.filter(id=rr.id).update(status='requested')
+        # Total failure — release our own claim so it can be retried, then report.
+        RefundRequest.objects.filter(id=rr.id, status='processing').update(status='requested')
         return {"ok": False, "status": 500,
                 "error": f"Failed to process refund: {'; '.join(refund_errors)}"}
 
@@ -12636,6 +12674,9 @@ def _execute_refund_approval(rr, user, refund_notes=""):
     for date_str in dates_to_invalidate:
         cache.delete(f"capacity_planner_{date_str}")
 
+    from ops.context_processors import invalidate_pending_refund_count
+    invalidate_pending_refund_count()
+
     logger.info(
         f"Refund #{rr.id} ({rr.refund_type}) processed for reservation {reservation.id} "
         f"by {user.username}. Amount: ${refunded_amount}"
@@ -12653,14 +12694,14 @@ def _execute_refund_approval(rr, user, refund_notes=""):
 @require_POST
 def process_refund(request):
     """
-    Admin can approve or reject a RefundRequest.
+    Admin or dispatch lead can approve or reject a RefundRequest.
     Branches logic by refund_type:
       - PRICE_ADJUSTMENT: Stripe refund only, no cancellations
       - PARTIAL_CANCELLATION: Stripe refund + cancel selected legs
       - FULL_CANCELLATION: Stripe refund + cancel all legs + reservation
     Also syncs flat refund_* fields on Reservation for backward compat.
     """
-    if not request.user.is_superuser:
+    if not can_approve_refunds(request.user):
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
@@ -12691,32 +12732,44 @@ def process_refund(request):
 
         reservation = rr.reservation
 
-        # Allow admin to override refund_type before processing
+        # A request is decided once. With an admin and a lead working the same
+        # queue, the other one may have got there first, or be mid-way through
+        # the Stripe call. The checks below are re-made inside each conditional
+        # UPDATE, so this early answer is only the common case.
+        if rr.status not in _REFUND_DECIDABLE:
+            return _refund_already_decided(rr)
+
+        # The approver may correct the type before the money goes. It is applied
+        # with the claim in _execute_refund_approval, never on its own.
         new_refund_type = data.get("refund_type")
-        if new_refund_type and new_refund_type in ('price_adjustment', 'partial_cancellation', 'full_cancellation'):
-            rr.refund_type = new_refund_type
-            rr.save(update_fields=['refund_type'])
+        if new_refund_type not in ('price_adjustment', 'partial_cancellation', 'full_cancellation'):
+            new_refund_type = None
 
         # ── REJECT ──
         if action == 'reject':
-            rr.status = 'rejected'
-            rr.processed_by = request.user
-            rr.processed_at = timezone.now()
-            rr.notes = refund_notes
-            rr.save()
+            now = timezone.now()
+            decided = RefundRequest.objects.filter(
+                id=rr.id, status__in=_REFUND_DECIDABLE,
+            ).update(status='rejected', processed_by=request.user, processed_at=now, notes=refund_notes)
+            if not decided:
+                rr.refresh_from_db()
+                return _refund_already_decided(rr)
 
             # Sync flat fields
             reservation.refund_status = 'rejected'
             reservation.refund_processed_by = request.user
-            reservation.refund_processed_at = timezone.now()
+            reservation.refund_processed_at = now
             reservation.refund_notes = refund_notes
             reservation.save()
+
+            from ops.context_processors import invalidate_pending_refund_count
+            invalidate_pending_refund_count()
 
             logger.info(f"Refund #{rr.id} rejected for reservation {reservation.id} by {request.user.username}")
             return JsonResponse({"success": True, "message": "Refund request rejected."})
 
         # ── APPROVE ──
-        result = _execute_refund_approval(rr, request.user, refund_notes)
+        result = _execute_refund_approval(rr, request.user, refund_notes, refund_type=new_refund_type)
         if not result["ok"]:
             return JsonResponse({"success": False, "error": result["error"]}, status=result["status"])
         return JsonResponse({
@@ -12736,7 +12789,7 @@ def process_refund(request):
 @require_POST
 def bulk_approve_refunds(request):
     """
-    Superuser: approve several ALREADY-REQUESTED refunds in one batch.
+    Admin or dispatch lead: approve several ALREADY-REQUESTED refunds in one batch.
 
     Full Cancellations are deliberately excluded — they wipe an entire
     reservation and must be approved one at a time (with the "CANCEL ALL"
@@ -12745,7 +12798,7 @@ def bulk_approve_refunds(request):
     single approval (_execute_refund_approval); one failure never aborts the
     others.
     """
-    if not request.user.is_superuser:
+    if not can_approve_refunds(request.user):
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:

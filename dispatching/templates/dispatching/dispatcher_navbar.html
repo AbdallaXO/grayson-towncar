@@ -102,6 +102,16 @@
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'confirmations' %}active{% endif %}"
              href="{% url 'confirmations' %}"><i class="bi bi-chat-text me-1"></i>Confirmations</a>
         </li>
+        {% comment %}
+          The lead's desk: what needs a decision and what every dispatcher is
+          doing today. ops.view_team — the Dispatch Lead group; admins have it too.
+        {% endcomment %}
+        {% if perms.ops.view_team %}
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'team_today' %}active{% endif %}"
+             href="{% url 'team_today' %}" title="Who's on, who needs a hand, and what's waiting on you"><i class="bi bi-people me-1"></i>Team</a>
+        </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'task_queue' %}active{% endif %}"
              href="{% url 'task_queue' %}"><i class="bi bi-list-check me-1"></i>Tasks{% if ops_pending_count %} <span class="badge bg-danger rounded-pill" style="font-size: 0.65rem;">{{ ops_pending_count }}</span>{% endif %}</a>
@@ -150,11 +160,27 @@
                  href="{% url 'shift_close' %}"><i class="bi bi-sunset me-2"></i>Close Shift</a>
             </li>
             {% endif %}
-            {% if perms.ops.review_checklists or request.user.is_superuser %}
+            {% if perms.ops.review_checklists or perms.ops.view_team or request.user.is_superuser %}
             <li><hr class="dropdown-divider"></li>
+            {% endif %}
+            {% if perms.ops.review_checklists or request.user.is_superuser %}
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'shift_lead' %}active{% endif %}"
                  href="{% url 'shift_lead' %}"><i class="bi bi-clipboard2-check me-2"></i>How shifts ran</a>
+            </li>
+            {% endif %}
+            {% comment %}
+              The lead's look at the team. An admin already reaches both pages from
+              Staffing and KPIs, so they are not repeated here for them.
+            {% endcomment %}
+            {% if perms.ops.view_team and not request.user.is_superuser %}
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'timeclock_overview' %}active{% endif %}"
+                 href="{% url 'timeclock_overview' %}"><i class="bi bi-broadcast me-2"></i>Who's on now</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'staffing_board' %}active{% endif %}"
+                 href="{% url 'staffing_board' %}"><i class="bi bi-calendar-week me-2"></i>Staffing board</a>
             </li>
             {% endif %}
           </ul>
@@ -275,10 +301,19 @@
             </li>
           </ul>
         </li>
+        {% endif %}
+        {% comment %}
+          Refunds sits between the admin-only blocks so it keeps its place for an
+          admin, and is the one entry here a dispatch lead also gets: a lead approves
+          refunds, but none of the money pages either side of it are theirs.
+        {% endcomment %}
+        {% if request.user.is_superuser or perms.reservations.approve_refund %}
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"
-             href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
+             href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds{% if pending_refund_count %} <span class="badge bg-warning text-dark rounded-pill" style="font-size: 0.65rem;" title="Refund requests waiting for a decision">{{ pending_refund_count }}</span>{% endif %}</a>
         </li>
+        {% endif %}
+        {% if request.user.is_superuser %}
         <!-- KPIs dropdown (superuser-only) -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'revenue_kpis' or request.resolver_match.url_name == 'staff_kpis' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'reservation_sources' %}active{% endif %}"
