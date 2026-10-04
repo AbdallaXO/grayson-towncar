@@ -1,4 +1,14 @@
-# Stage 1 — Foundation: Implementation Plan (rev 2)
+# Stage 1 — Foundation: Implementation Plan (rev 3)
+
+> **Rev 3 (2026-10-04, founder request mid-build):**
+> - Every driver gets a **usual shift**: Morning, Midday, Evening or **Float** (any shape, fills gaps).
+> - Single days can differ from the usual shift: a different shape, "Morning *or* Evening", or a per-day limit such as "Thursday: done by 3 PM".
+> - Profiles gain a **driver knowledge base** for people to read (the engine does not use it yet):
+>   - strengths and habits as tags;
+>   - a dated log of compliments, complaints, incidents and **strikes**.
+> - New tasks: **3b**, **3c**, **9** and **10**. The old Task 9 (verification) is now **Task 11**.
+> - Decisions **S15–S19**.
+> - Tasks 1–3 were already built and are unchanged.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -45,6 +55,11 @@
 | S11 | Validation checks rest both ways between consecutive working days, Sunday→Monday included, using `SchedulerSettings.rest_min_gap_minutes` (510, C7). |
 | S12 | *(withdrawn in rev 2: the hour path stays byte-for-byte, wrapping windows included)* |
 | S13 | Stage 1 does not change Day Setup (C3 lands in Stage 2 with weekly pairing, U23/C14). A regular car set on the profile stays Day Setup's first choice, as it is today when set in admin. Its Day Setup label changes from "his car (set in admin)" to "his regular car". |
+| S15 | **Usual shift per driver.** `Driver.shift_role` is a FK to `ShiftTemplate` (null means not set). It is shown as "Morning driver", "Evening driver", "Midday driver" or "Float — any shift". The editor sets it first. Each working day starts out as the usual shift and can be overridden on its own. The rows remain the source of truth; `shift_role` is the default and the label. |
+| S16 | **Float** is a fourth `ShiftTemplate` row: kind `float`, start band 03:00–16:00, end band 12:00–02:15, max span 720. A Float day means "any shape, wherever the day needs him", still within 12h and his limits. |
+| S17 | **Per-day options.** Each weekday row gains:<br>• `alt_template`: a second allowed shape, for "Morning or Evening".<br>• Per-day limits: `day_earliest_start`, `day_latest_finish` and `day_latest_finish_next_day`, for "Thursday: done by 3 PM".<br>`shift_start` and `shift_end` become optional. Leaving both blank means the shape's usual times (`band_fill`); filling in only one of them is an error. |
+| S18 | **Window with the switch on**, computed in one place (`regular_shifts.regular_window`):<br>• **Single fixed shape:** the S4 rule. Times come from the row, or from `band_fill` when blank.<br>• **Float, or two shapes:** from the earliest allowed `start_earliest` to the latest allowed `end_latest`.<br>• **Then:** clip by the driver's hard limits **and** the day's limits.<br>• **Every regular window** carries `max_span_min` (the template's `max_span_minutes`; for two shapes, the smaller of the two). The rules door checks span base → base: first pickup − lead to last clear + tail must be ≤ `max_span_min` (Task 3c). This keeps Float and two-shape days at 12h too.<br>• **Float lead/tail:** lead has no report time; tail is the full night return, the conservative choice. |
+| S19 | **Driver knowledge is for people in Stage 1.** The engine does not read it.<br>• **Tags:** `DriverTag` vocabulary with category strength / habit / language / area and polarity positive / caution, plus `DriverTagAssignment`.<br>• **Log:** `DriverLogEntry` with kind compliment / complaint / incident / note, a strike flag, optional trip, and who/when.<br>• **Who can do what:** any staff user can add tags and log entries; only managers can mark a strike, remove a tag, or edit or delete an entry. Strikes are counted over the last 12 months.<br>• **Visibility:** staff-only. Never on any driver-facing page. |
 | S14 | **Accepted Stage 1 limit:** the engine judges each date's legs against that date's window only. With the switch on, an evening driver's after-midnight work (pickups 00:00–02:59 on the next date's board) can't go to him. Stage 3 builds cross-date shifts. The smoke test reports how many legs this affects. |
 
 ## Global Constraints
@@ -68,9 +83,10 @@
   - A `{# #}` comment must open and close on one line (`dispatching/tests_template_comments.py`).
   - Implementers do not run a browser; the controller runs one browser pass in Task 9.
 - **Words on dispatcher pages.** Use "regular shift", "Morning / Midday / Evening", "never starts before", "never finishes after", "days a week", "open to extra shifts on", "regular car". Never use "template", "stub" or "window", except in the page title "Shift Templates".
-- **Release note.** There is one note, `docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md`, created in Task 6.
-  - Commits with no UI carry `Release-Note: none`.
-  - UI commits after Task 6 update that note and carry `Release-Note: none (covered by docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md)`.
+- **Release notes.** There are two notes, one per shipped change. Commits with no UI carry `Release-Note: none`.
+  - **Shifts:** `docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md`, created in Task 6. UI commits in Tasks 7–8 update it and carry `Release-Note: none (covered by docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md)`.
+  - **Knowledge:** `docs/release-notes/2026-10-04-driver-strengths-habits-and-log.md`, created in Task 9. Task 10 updates it and carries `Release-Note: none (covered by docs/release-notes/2026-10-04-driver-strengths-habits-and-log.md)`.
+- **Staff-only data.** Driver tags and log entries must never appear on any driver-facing page or API (`drivers/views.py` driver portal, `operator_views.py`). Add a test that the driver app's pages don't contain them.
 - **Commits.**
   - Subject: a plain-English outcome. Body: wrapped at about 72 columns, naming migrations as "drivers 0062". End with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Stage explicit paths only, never `git add -A` or `git add .`, and commit straight after staging.
@@ -99,6 +115,7 @@
 | `drivers/availability.py` | Regular-shift keys; the window when the switch is on; labels; minute-aware `is_pickup_within_window` |
 | `dispatching/{assignment_pipeline,scheduler,swap_optimizer,board_validation,conflict_advisor,conflict_advisor_actions,farmout_actions,day_planner,views}.py` | Pass the regular keys to every window builder |
 | `drivers/forms.py`, `drivers/regular_shift_views.py` (new), `drivers/urls.py`, templates | UI |
+| `drivers/driver_knowledge.py`, `drivers/driver_knowledge_views.py` (new); `DriverTag`, `DriverTagAssignment`, `DriverLogEntry`; migrations 0066–0068 | Driver knowledge (Tasks 9–10) |
 
 ---
 
@@ -452,6 +469,119 @@ def day_label(day: DayShift, templates) -> str        # "Morning 4:10 AM – 3:3
 
 ---
 
+### Task 3b: Usual shift, Float and per-day options (models + module)
+
+**Files:**
+- Modify: `drivers/models.py`
+  - `ShiftTemplate.KIND_CHOICES` gains `("float", "Float")`.
+  - `Driver.shift_role` = FK `ShiftTemplate`, null, blank, PROTECT, `related_name="role_drivers"`. Help text: "The driver's usual shift: Morning, Midday, Evening, or Float for anything."
+  - `DriverWeeklySchedule` gains:
+    - `alt_template`: FK `ShiftTemplate`, null, blank, PROTECT, `related_name="+"`
+    - `day_earliest_start` and `day_latest_finish`: TimeField, null, blank
+    - `day_latest_finish_next_day`: Bool, default False
+- Create: `drivers/migrations/0064_usual_shift_and_day_options.py` (schema) and `drivers/migrations/0065_seed_float_template.py` (data). The seed is kind `float`, name "Float", start band 03:00–16:00, end band 12:00–02:15, max span 720, sort 4, note "Any shape — goes wherever the day needs him, still within 12 hours and his limits."
+- Modify: `drivers/regular_shifts.py`
+- Test: extend `drivers/tests_regular_shifts.py`, and update any Task 3 test whose expectation 3b deliberately changes (blank times are now valid).
+
+**Interfaces:**
+- Consumes: Task 3's module and Task 2's models.
+- Produces:
+
+```python
+@dataclass(frozen=True)
+class DayShift:                      # new fields appended with defaults; old call sites keep working
+    day: int; template_id: Optional[int]; start: Optional[time]; end: Optional[time]
+    alt_template_id: Optional[int] = None
+    day_earliest: Optional[time] = None
+    day_latest: Optional[time] = None
+    day_latest_next_day: bool = False
+
+@dataclass(frozen=True)
+class RegularWindow:
+    start_min: int; end_min: int; kind: str; max_span_min: int   # kind in morning|midday|evening|float
+
+def effective_minutes(day: DayShift, templates) -> Optional[tuple[int, int]]   # typed times, else band_fill
+def regular_window(day: DayShift, templates, *, hard_lo: Optional[int], hard_hi: Optional[int]) -> Optional[RegularWindow]
+def suggest_role(suggestions: list[DaySuggestion], templates) -> Optional[int]
+def role_label(driver, templates) -> str        # "Morning driver" / "Midday driver" / "Evening driver" / "Float — any shift" / ""
+def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = None) -> None
+```
+
+- **`regular_window`** implements S4 and S18. It is the only place the window is built; Task 4 calls it.
+  - Single non-float shape: `(s, e) = effective_minutes`, then morning `(s, s+M)`, evening `(max(0, e−M), e)`, midday `(s, e)`.
+  - Float, or a day with `alt_template`: from the earliest `start_earliest` to the latest end-band end, with `kind="float"` and `M = min(max_span_minutes of the shapes)`. Typed times on such a day are labels only.
+  - Then clip to `max` of the start-side values `(start, hard_lo, day_lo)` and `min` of the end-side values `(end, hard_hi, day_hi)`. `day_hi` gets +1440 when `day_latest_next_day` is set.
+  - `None` for an Off day.
+- **`validate_regular_shift` / `limit_messages`** gain these rules (pinned literals):
+  - One time blank: `"{Day}: pick a start and an end time, or set the day to Off."`
+  - `"{Day}: the second shift must be different from the first."`
+  - `"{Day}: Float already covers every shift — no second shift needed."`
+  - `"{Day}: starts at {t} — before that day's earliest start ({t})."`
+  - `"{Day}: ends at {t} — after that day's finish-by ({t})."`
+  - A shape with both times blank is valid. Its 12h check uses `effective_minutes`.
+  - Float or two-shape days skip the typed-time span check.
+  - The rest check uses each day's `regular_window` and is skipped when either side is a Float or two-shape day; the base→base span check in Task 3c holds those days instead.
+- **`suggest_role`** returns the most common template among regular days (ties go to the lower `sort_order`), or None when there are no regular days.
+- **`day_label`** examples:
+  - `"Morning 4:10 AM – 3:30 PM"`
+  - `"Morning (usual times)"`
+  - `"Morning or Evening"`
+  - `"Float"`
+  - day-limit suffixes `" · not before 6 AM"` and `" · done by 3 PM"`, e.g. `"Morning 4:10 AM – 3:30 PM · done by 3 PM"`
+- **`save_regular_shift`** writes the new row fields (still only the regular-shift fields, per S1) and `driver.shift_role_id = role_template_id`.
+
+- [ ] **Step 1: Write the failing tests.**
+  - `test_float_template_seeded`
+  - `test_role_saved_and_labelled`
+  - `test_blank_times_use_band_fill`
+  - `test_one_time_blank_refused`
+  - `test_alt_shape_must_differ`
+  - `test_float_cannot_have_alt`
+  - `test_day_limit_messages`: Thursday 04:10–15:30 with `day_latest=15:00` gives "Thursday: ends at 3:30 PM — after that day's finish-by (3 PM)."
+  - `test_regular_window_morning_evening_midday`: 04:10–15:30 gives (250, 970); 14:15–02:15 gives (855, 1575); midday 07:00–19:00 gives (420, 1140).
+  - `test_regular_window_float`: (180, 1575), kind "float", max_span 720.
+  - `test_regular_window_morning_or_evening`: (180, 1575), kind "float".
+  - `test_regular_window_clipped_by_day_and_hard_limits`: Thursday done by 15:00 gives end 900; hard earliest 04:30 gives start 270.
+  - `test_suggest_role_most_common`
+  - `test_save_writes_new_fields_only`: legacy fields untouched.
+  - `test_day_label_variants`
+- [ ] **Step 2: Run the tests and see them fail.** `ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_regular_shifts`
+- [ ] **Step 3: Implement.** Generate 0064 with `makemigrations` and hand-write 0065.
+- [ ] **Step 4: Run the tests and see them pass.** Same command, plus `drivers.tests_shift_facts` and `python manage.py makemigrations --check --dry-run`.
+- [ ] **Step 5: Commit.** Subject: "Drivers have a usual shift, Float means any shift, and single days can differ or end early". Trailer: `Release-Note: none`.
+
+---
+
+### Task 3c: The 12-hour base→base span check in the rules door
+
+**Files:**
+- Modify: `dispatching/feasibility_guards.py`
+  - Regular windows may carry `max_span_min: int`.
+  - `window_check` gains `base_span_min_after=None, base_span_min_before=None` (keyword, last).
+  - New helper `base_span_min(legs, kind) -> Optional[int]`.
+  - `regular_window_keys(eff)` also returns `max_span_min` from `eff["window_max_span_min"]` when that is set.
+- Modify: `dispatching/scheduler.py`
+  - `check_feasibility` (Guard C, ~:1226-1239) and `_chain_ok` (~:2574-2582): when the window has `start_min` and `max_span_min`, compute the before and after base spans with `fg.base_span_min` over the driver's slots, plus the new leg in `check_feasibility`. Each item is `(datetime.combine(target_date, pickup_time), pickup_category, clear_dt, dropoff_category)`. Pass the results to `window_check`.
+- Test: extend `dispatching/tests_minute_windows.py`, and add a `check_feasibility` case to `dispatching/tests_regular_shift_engine.py`. Create that file here if Task 5 has not yet.
+
+**Interfaces:**
+- **`base_span_min`:** `base_span_min(legs: Iterable[tuple[datetime, str, datetime, str]], kind: str) -> Optional[int]` returns `max(clear + shift_tail_min(kind, drop)) − min(pickup − shift_lead_min(kind, pick))` in whole minutes, or None for no legs.
+- **Minute path:** when `max_span_min` and `base_span_min_after` are both set, reject when `after > max_span_min`, unless the day was already over before the leg and the leg does not make it longer. This is the same delta rule as the hour path's max-hours gate. Reason: `"base to base {H}h {M}m > {h}h {m}m"`, e.g. `"base to base 12h 5m > 12h 0m"`.
+
+- [ ] **Step 1: Write the failing tests.**
+  - `test_base_span_helper`: a 05:00 MCO pickup clearing 06:15 at Disney, then 16:00 Disney→MCO clearing 16:40, kind morning → 04:38 → 17:07 = 749.
+  - `test_base_span_cap_rejects_over_12h`
+  - `test_base_span_allows_hole_fill_when_already_over`
+  - `test_no_cap_without_max_span_min`
+  - `test_regular_window_keys_includes_max_span`
+  - `test_check_feasibility_float_day_held_to_12h`: Float window (180, 1575, 720). Existing slots run 05:00 MCO … 15:00. Adding a 16:30 pickup clearing 17:20 at MCO is refused with the base-to-base reason.
+- [ ] **Step 2: Run the tests and see them fail.** `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_minute_windows dispatching.tests_regular_shift_engine`
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run the tests and see them pass.** Same command, plus `dispatching.tests_feasibility_guards dispatching.tests_span_caps`.
+- [ ] **Step 5: Commit.** Subject: "Every regular shift is held to 12 hours from leaving base to getting back". Trailer: `Release-Note: none`.
+
+---
+
 ### Task 4: The availability door applies a confirmed regular shift (switch on)
 
 **Files:**
@@ -464,15 +594,14 @@ def day_label(day: DayShift, templates) -> str        # "Morning 4:10 AM – 3:3
   - `regular_shift`: None, or `{"kind", "name", "start_min", "end_min", "label"}` for the target weekday's confirmed working day, with `label` from `regular_shifts.day_label`.
   - `regular_day_off`: True when the driver is confirmed and this weekday is Off.
   - `hard_earliest_start`, `hard_latest_finish` and `hard_latest_finish_next_day`.
-  - `window_start_min`, `window_end_min` and `window_kind`. These are set **only** when the switch is on.
+  - `window_start_min`, `window_end_min`, `window_kind` and `window_max_span_min`. These are set **only** when the switch is on.
+  - `shift_role_label`, from `regular_shifts.role_label` (Task 3b); `""` for an unconfirmed driver.
 - **Switch on, confirmed driver, working day.** Before exceptions are applied, the base layer becomes:
-  - `is_available=True`, `shift_type=kind`, `flexible=False`
-  - the window from S4, worked from the template's `max_span_minutes`:
-    - morning `(s, s+M)`
-    - evening `(max(0, e−M), e)`
-    - midday `(s, e)`
-  - clipped by `hard_window_minutes()`
+  - `is_available=True` and `flexible=False`
+  - `shift_type`: the template's kind, or `"full_day"` for Float and two-shape days. `"full_day"` is an existing `SHIFT_TYPE_CHOICES` value, so shift-type consumers (for example `schedule_risk`) keep working.
+  - The window is `regular_shifts.regular_window(day, templates, hard_lo, hard_hi)` (Task 3b), where `hard_lo, hard_hi = driver.hard_window_minutes()`.
   - `(start_hour, end_hour) = fg.legacy_hours(window)`
+  - `_classify_status` must return `"fixed_window"` for these days, even when `shift_type == "full_day"`, because `flexible` is False.
 - **Switch on, confirmed driver, Off day:** `is_available=False`.
 - **Exceptions.** The existing exception rules then run unchanged. In addition:
   - `off` clears the window keys.
@@ -494,6 +623,9 @@ def day_label(day: DayShift, templates) -> str        # "Morning 4:10 AM – 3:3
   - `test_switch_on_partial_exception_keeps_window`
   - `test_switch_on_unconfirmed_driver_unchanged` (Review Focus 3)
   - `test_hard_limits_clip_window`: hard earliest 04:30 gives `window_start_min == 270`.
+  - `test_switch_on_float_day`: window (180, 1575), `window_kind == "float"`, `window_max_span_min == 720`, `display_label == "Float"`, `status == "fixed_window"`.
+  - `test_switch_on_day_limit_clips`: Thursday done by 15:00 gives `window_end_min == 900`; Monday is unaffected.
+  - `test_role_label_in_eff`: `shift_role_label == "Morning driver"`.
   - `test_pickup_within_regular_window`
   - `test_no_extra_queries_unconfirmed`: `assertNumQueries(0)` with a cold cache, with weekly rows and overrides prefetched.
   - `test_no_extra_queries_confirmed_warm`: `assertNumQueries(0)` once the caches are warm.
@@ -550,6 +682,7 @@ Each site below only merges the regular keys. With the switch off those keys are
   - `test_conflict_advisor_tags_regular_not_stub`
   - `test_day_roster_returns_regular_keys_when_on`
   - `test_capacity_planner_suggestions_use_regular_window`
+  - `test_float_driver_takes_morning_and_evening_work_within_12h`: Float driver 46 takes a 05:00 MCO arrival and a 16:30 departure only if the base-to-base day stays ≤ 12h. Otherwise the later one goes to someone else or to the farm list.
 - [ ] **Step 2: Run the tests and confirm they fail.** Run: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_regular_shift_engine`.
 - [ ] **Step 3: Implement the wiring listed under Files.**
 - [ ] **Step 4: Run the full suite.** Run: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers --parallel 4`. Expected: no new failures. The known environment failures listed in commit 86d34115 are acceptable. Re-run any other failure 3 times on this commit before calling it real.
@@ -579,7 +712,8 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   - `preferred_vehicles` is a `ModelMultipleChoiceField(widget=CheckboxSelectMultiple, required=False)` over active `FleetVehicle` rows, ordered by `vehicle_number`. Widen its queryset with the driver's current units, the same way `certified_vehicle_types` does.
   - `clean()`: when the instance has a regular shift, run `regular_shifts.limit_messages(current_days(instance), …cleaned values…)` and add each message as a non-field error.
 - **Create `drivers/templates/drivers/_shift_facts_card.html`.** It is read-only and visible to all staff. It shows:
-  - a 7-day grid from the view's `regular_rows` (`[(day_name, label)]` via `day_label`), or "No regular shift yet" when there is none;
+  - a header pill with the usual shift (`role_label`, e.g. "Morning driver" or "Float — any shift");
+  - a 7-day grid from the view's `regular_rows` (`[(day_name, label)]` via `day_label`, including "Morning or Evening" and "· done by 3 PM"), or "No regular shift yet" when there is none;
   - a "confirmed by X on Oct 4" line;
   - "Never starts before", "Never finishes after" (with "(next day)" when it applies), "Days a week", "Open to extra shifts on" and "Regular car", each showing "—" when blank;
   - under Regular car, the hint "Day Setup offers this car first."
@@ -590,10 +724,10 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
 - **Modify `dispatching/day_setup.py:569`.** Change `"his car (set in admin)"` to `"his regular car"` (S13), and update any test that pins the old text.
 - **Create `docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md`** from `_TEMPLATE.md`, audience Dispatchers. Draft, then tighten to the README's rules:
 
-> Hey team — every driver's profile now has a Shift facts card: their regular shift for each day, the earliest they'll ever start and the latest they'll ever finish, how many days a week they work, which days they'll take an extra shift, and their regular car.
+> Hey team — every driver's profile now has a Shift facts card. It shows whether they're a Morning, Midday, Evening or Float driver (Float means any shift), each day of their regular week (including "Morning or Evening" days and "done by 3 PM" days), the earliest they'll ever start and the latest they'll ever finish, how many days a week they work, which days they'll take an extra shift, and their regular car.
 >
 > 1. Drivers → Regular Shifts lists everyone who still needs one, with a suggestion built from their last 8 weeks.
-> 2. A manager opens a driver, checks each day, and presses Confirm.
+> 2. A manager picks the driver's usual shift and the days they work, adjusts any day that's different, and presses Confirm.
 > 3. The Morning, Midday and Evening shapes live on Shift Templates (linked from that page), each capped at 12 hours.
 >
 > Only managers can change these; everyone can see them.
@@ -625,11 +759,18 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   - `regular-shifts/` → `regular_shifts`
   - `<int:driver_id>/regular-shift/` → `regular_shift_edit`
   - `regular-shifts/switch/` → `regular_shift_switch`
-- **Modify `drivers/forms.py`.** Add `RegularDayForm(forms.Form)` with:
-  - `template`: a `ChoiceField`, with `""` meaning Off, plus the template ids
-  - `start` and `end`: optional `TimeField`s, time widget
-
-  Build the formset with `formset_factory(RegularDayForm, extra=0)` (7 forms). Its `clean()` fills blank times from `band_fill` when a shape is picked, then runs `validate_regular_shift`.
+- **Modify `drivers/forms.py`.** Add two forms.
+  - `RegularShiftForm(forms.Form)` has:
+    - `role`, the usual shift: a `ChoiceField` of the template ids, required.
+    - `works_on`: `TypedMultipleChoiceField(coerce=int, choices=DAY_CHOICES, widget=CheckboxSelectMultiple)`.
+  - `RegularDayForm(forms.Form)` holds the per-day overrides:
+    - `template`: a `ChoiceField`. `""` means "Same as usual"; the other values are the template ids. A day not in `works_on` is Off, whatever is chosen here.
+    - `alt_template`: optional, labelled "or also".
+    - `start` and `end`: optional `TimeField`s.
+    - `day_earliest_start` and `day_latest_finish`: optional `TimeField`s.
+    - `day_latest_finish_next_day`: a `BooleanField`.
+  - Build the day formset with `formset_factory(RegularDayForm, extra=0)` (7 forms).
+  - The view combines both forms into 7 `DayShift`s. "Same as usual" becomes the role, a day missing from `works_on` becomes Off, and blank times stay blank (S17). The view then runs `validate_regular_shift` and passes `role_template_id` to `save_regular_shift`.
 - **Create `drivers/templates/drivers/regular_shifts.html`.** Sections:
   1. **Status panel.** "Auto-assign uses: today's hours" or "Auto-assign uses: regular shifts".
      - Managers get the button "Use regular shifts for auto-assign". It is disabled, with "N drivers still need a regular shift", until the list is empty.
@@ -640,10 +781,14 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   4. A "Shift Templates" link is added in Task 8.
 - **Create `drivers/templates/drivers/regular_shift_edit.html`.**
   - The header shows the name and the hard limits.
-  - Each weekday row shows the shape select, start, end, an evidence line ("Worked 6 of the last 8 Mondays · usual 4:35 AM – 3:35 PM" or "Not a regular day"), and the band hint.
-  - A Confirm button submits the page.
-  - Prefill from `current_days` when the driver is confirmed, otherwise from the suggestion.
-  - When a shape is picked with blank times, inline JS fills `band_fill` (passed as JSON). The server does the same if JS is off.
+  - **Step 1, "Usual shift":** four large choice cards (Morning / Midday / Evening / Float). Each shows its band hint; Float reads "Any shift — goes where the day needs him".
+  - **Step 2, "Works on":** seven day toggles.
+  - **Step 3, "Any day different?":** one compact row per working day.
+    - The row shows the day's label and an evidence line ("Worked 6 of the last 8 Mondays · usual 4:35 AM – 3:35 PM", or "Not a regular day").
+    - A "Change" disclosure opens the overrides: shape, "or also", times, "Not before", and "Done by" with "(next day)".
+    - Times are optional. The placeholder shows the shape's usual times (`band_fill`, passed as JSON).
+  - A Confirm button submits the page. The page must work without JS (`<details>` for the disclosure).
+  - Prefill comes from `current_days` and `shift_role` when the driver is confirmed. Otherwise it comes from the suggestion and `suggest_role`.
   - A valid POST calls `save_regular_shift`, adds each `band_warnings` message as `messages.warning`, adds `messages.success("Regular shift confirmed for {driver}.")`, and redirects to `regular_shifts`.
 - **Modify `_shift_facts_card.html`.** Managers get a "Set regular shift" / "Edit regular shift" link to `regular_shift_edit`.
 - **Modify `dispatcher_navbar.html`.** In the Drivers dropdown, after "Edit Schedules", add `<i class="bi bi-calendar2-check me-2"></i>Regular Shifts` for all staff. Add `regular_shifts` and `regular_shift_edit` to the dropdown's active-state list.
@@ -654,7 +799,10 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   - `test_editor_prefills_from_suggestion`
   - `test_manager_confirms`
   - `test_editor_rejects_13h_day`: assert on the formset errors, and check nothing is saved.
-  - `test_editor_fills_blank_times_from_band`
+  - `test_editor_blank_times_mean_usual`
+  - `test_editor_role_and_days`: a Float role on Mon/Tue/Wed saves the role and three Float days; every other day is Off.
+  - `test_editor_thursday_done_by_3pm`: a Morning driver with Thursday's `day_latest_finish` set to 15:00 saves, and the profile shows "· done by 3 PM".
+  - `test_editor_morning_or_evening_day`
   - `test_dispatcher_cannot_post_editor` (403)
   - `test_switch_button_disabled_until_empty`
   - `test_switch_post_refused_with_message`
@@ -679,7 +827,7 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   - In `clean()`, set `instance.max_span_minutes = int(hours * 60)`. Refuse a value below the longest confirmed day using that template, with the message `"{n} confirmed regular shifts on {Name} are longer than that — edit them first."`.
   - Use it with `modelformset_factory(ShiftTemplate, form=ShiftTemplateForm, extra=0, can_delete=False)`.
 - **Create `drivers/templates/drivers/shift_templates.html`.**
-  - Three cards: Morning, Midday, Evening. Each shows the band fields, "Longest shift (hours)", the notes, and "used by N drivers" linking to the list.
+  - Four cards: Morning, Midday, Evening and Float. Each shows the band fields, "Longest shift (hours)", the notes, and "used by N drivers" (as their usual shift) linking to the list.
   - Intro: "These are targets, not limits — a regular shift outside them is allowed with a warning."
   - Saving calls `clear_template_cache()`, sets `updated_by`, and shows "Shift templates saved."
 - **Modify `regular_shifts.html`.** Add the "Shift Templates" link, and add `shift_templates` to the navbar's active-state list.
@@ -695,7 +843,161 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
 
 ---
 
-### Task 9: Whole-branch verification (controller)
+### Task 9: Driver knowledge — strengths, habits, languages, areas (tags)
+
+**Files:**
+- **`drivers/models.py`**
+  - **`DriverTag`**
+    - `name`: CharField(60), unique
+    - `category`: choices `strength|habit|language|area`
+    - `polarity`: choices `positive|caution`, default `positive`
+    - `description`: CharField(200), blank
+    - `is_active`: Bool, default True
+    - `sort_order`: PositiveSmallIntegerField, default 0
+    - `created_by`: FK User, null, blank, SET_NULL, `related_name="+"`
+    - `Meta.ordering = ["category", "sort_order", "name"]`
+  - **`DriverTagAssignment`**
+    - `driver`: FK, `related_name="tag_assignments"`, CASCADE
+    - `tag`: FK, PROTECT, `related_name="assignments"`
+    - `note`: CharField(200), blank
+    - `added_by`: FK User, null, blank, SET_NULL, `related_name="+"`
+    - `added_at`: auto_now_add
+    - `unique_together = ("driver", "tag")`
+- **Migrations:** `drivers/migrations/0066_driver_tags.py` (schema) and `0067_seed_driver_tags.py` (data, reversible). Seed:
+
+| category | polarity | names (in sort order) |
+|---|---|---|
+| strength | positive | Airport pro · Cruise port pro · VIP & corporate · Large groups · Car seats & families · Long-distance trips · Calm under pressure · Great guest reviews |
+| habit | positive | Always early · Taps every status · Picks up extra shifts · Keeps the car spotless |
+| habit | caution | Runs late · Slow with luggage · Misses status taps · Hard to reach by phone · Prefers no late nights |
+| language | positive | Spanish · Portuguese · French · Haitian Creole · Arabic |
+| area | positive | Disney · Universal · Port Canaveral · Downtown Orlando · Tampa |
+
+- **`drivers/driver_knowledge.py` (new)**:
+  - `tags_by_category(driver) -> list[tuple[str, list[DriverTagAssignment]]]`, ordered strength, habit, language, area, with labels "Strengths", "Habits", "Languages", "Knows the area". Uses one query (`select_related("tag", "added_by")`).
+  - `add_tag(driver, tag, note, user) -> DriverTagAssignment`. Idempotent: if the driver already has the tag, it updates the note.
+  - `remove_tag(driver, tag) -> None`
+  - `create_tag(name, category, polarity, user) -> DriverTag`. Uniqueness is case-insensitive; a clash raises `ValueError("That tag already exists.")`.
+- **`drivers/driver_knowledge_views.py` (new)**. Each view redirects back to `driver_profile` with a `messages` line; no JSON.
+  - `driver_tag_add(request, driver_id)`: POST, staff.
+  - `driver_tag_remove(request, driver_id, tag_id)`: POST, managers; 403 otherwise.
+  - `driver_tag_create(request, driver_id)`: POST, managers. Creates the tag, then assigns it.
+- **`drivers/urls.py`**:
+  - `<int:driver_id>/tags/add/` → `driver_tag_add`
+  - `<int:driver_id>/tags/<int:tag_id>/remove/` → `driver_tag_remove`
+  - `<int:driver_id>/tags/new/` → `driver_tag_create`
+- **`drivers/templates/drivers/_driver_tags_card.html`**: the "Strengths & habits" card.
+  - Chips are grouped by category. Positive chips use the gold accent; caution chips are amber.
+  - Each chip shows its note in small text. A tooltip shows who added it and when.
+  - The add form is a `<select>` of active, not-yet-assigned tags with `<optgroup>`s per category, an optional note, and an Add button.
+  - Managers also see a remove "×" on each chip and a "New tag" mini-form (name, category, polarity).
+  - The forms are standalone. **Never nest them inside the profile edit form.**
+- **`driver_profile.html` / `drivers/views.py`**: include the card in both modes, under Shift facts. Add `tag_groups` and `available_tags` to the context.
+- **Release note:** create `docs/release-notes/2026-10-04-driver-strengths-habits-and-log.md` (audience Dispatchers). Draft:
+
+> Hey team — driver profiles now hold what we know about each driver.
+>
+> 1. **Strengths & habits:** tag a driver as an airport pro, great with car seats, always early, slow with luggage, the languages they speak and the areas they know — add a short note if it helps.
+> 2. **The log:** write down compliments, complaints, incidents and notes, with the date and the trip. Managers can mark a complaint or incident as a strike; the profile shows strikes from the last 12 months.
+>
+> Anyone on the desk can add tags and log entries; only managers can mark strikes, remove tags, or edit and delete entries.
+>
+> Drivers never see any of this, and nothing about assigning trips changes.
+
+  (The log ships in Task 10. Keep the note's log line in from the start, because both tasks ship together on this branch.)
+- **Test:** `drivers/tests_driver_knowledge.py` (new):
+  - `test_seeded_tags`: counts per category; "Airport pro" is a positive strength.
+  - `test_dispatcher_adds_tag_with_note`
+  - `test_add_twice_updates_note`
+  - `test_dispatcher_cannot_remove` (403)
+  - `test_manager_removes`
+  - `test_manager_creates_tag_case_insensitive_unique`
+  - `test_dispatcher_cannot_create_tag` (403)
+  - `test_card_groups_and_caution_style`
+  - `test_inactive_tag_not_offered_but_still_shown`
+  - `test_tags_never_on_driver_app`: log in as the driver, GET the driver-portal pages (index, my details, completed trips); no tag name or note appears.
+- [ ] Steps:
+  1. Write the failing tests.
+  2. Run them and see them fail.
+  3. Implement.
+  4. Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers` and see it pass.
+  5. Run `python manage.py makemigrations --check --dry-run`.
+  6. Commit, including the release note. Subject: "Driver profiles hold strengths, habits, languages and the areas each driver knows".
+
+---
+
+### Task 10: Driver knowledge — the log (compliments, complaints, incidents, notes) and strikes
+
+**Files:**
+- **`drivers/models.py`: `DriverLogEntry`**
+  - Fields:
+    - `driver`: FK, CASCADE, `related_name="log_entries"`
+    - `occurred_on`: DateField
+    - `kind`: choices `compliment|complaint|incident|note`
+    - `is_strike`: Bool, default False
+    - `severity`: choices `""|minor|serious`, blank
+    - `leg`: FK `reservations.Leg`, null, blank, SET_NULL, `related_name="+"`
+    - `summary`: CharField(140)
+    - `details`: TextField, blank
+    - `logged_by` and `updated_by`: FK User, null, blank, SET_NULL, `related_name="+"`
+    - `logged_at`: auto_now_add
+    - `updated_at`: auto_now
+  - `Meta.ordering = ["-occurred_on", "-logged_at"]`.
+  - Constant: `STRIKE_WINDOW_DAYS = 365`.
+- **`drivers/migrations/0068_driver_log.py`**
+- **`drivers/driver_knowledge.py`** additions:
+  - `log_entries(driver, kind=None) -> QuerySet`
+  - `strike_count(driver, today: date) -> int`: strikes with `occurred_on > today − 365 days`.
+  - `recent_legs_for(driver, today, days=60) -> QuerySet[Leg]`: the driver's legs from the last 60 days that are not cancelled, newest first.
+- **`drivers/forms.py`: `DriverLogEntryForm(ModelForm)`**
+  - Fields: `kind`, `occurred_on` (date input, default today), `severity`, `leg` labelled "Trip (optional)", `summary`, `details`, `is_strike`.
+  - `__init__(driver, user, ...)`:
+    - Limits `leg` to `recent_legs_for(driver)` plus the current value. Each option reads like "Oct 3 · 5:00 AM · MCO → Polynesian".
+    - Removes `is_strike` for non-managers.
+  - `clean()` messages:
+    - `"That date is in the future."`
+    - `"A strike must be a complaint or an incident."`
+- **`drivers/driver_knowledge_views.py`**:
+  - `driver_log_add(request, driver_id)`: POST, staff. A non-manager can never set a strike, even by posting the field.
+  - `driver_log_edit(request, driver_id, entry_id)`: GET/POST, managers.
+  - `driver_log_delete(request, driver_id, entry_id)`: POST, managers. Confirmed in the UI.
+- **`drivers/urls.py`**:
+  - `<int:driver_id>/log/add/` → `driver_log_add`
+  - `<int:driver_id>/log/<int:entry_id>/edit/` → `driver_log_edit`
+  - `<int:driver_id>/log/<int:entry_id>/delete/` → `driver_log_delete`
+- **`drivers/templates/drivers/_driver_log_card.html`**: the "Log" card.
+  - Header: a strike pill reading "N strike(s) in the last 12 months". It is amber for 1–2 and red for 3 or more, and hidden at 0.
+  - Filter links: All / Compliments / Complaints / Incidents / Notes, using `?log=<kind>` and filtered on the server.
+  - A timeline, newest first. Each entry shows the date, a kind badge, a strike badge, the summary, the details in a `<details>`, the trip (linked to its reservation if a URL name exists), and "logged by X".
+  - "Add to the log" sits in a `<details>` form.
+  - Managers get Edit and Delete links.
+- **`drivers/templates/drivers/driver_log_edit.html`**: the edit page.
+- **Profile hero:** the strike pill next to the name when the count is above 0.
+- **Context:** `log_entries`, `log_filter`, `strike_count`, `log_form`.
+- **Release note:** update the knowledge note if needed. Trailer as in Global Constraints.
+- **Test:** extend `drivers/tests_driver_knowledge.py`:
+  - `test_dispatcher_logs_compliment_with_trip`
+  - `test_dispatcher_cannot_mark_strike`: posting `is_strike=on` as a dispatcher saves the entry with `is_strike=False`.
+  - `test_manager_marks_strike_counted_for_12_months`: a strike 400 days ago does not count.
+  - `test_strike_must_be_complaint_or_incident`
+  - `test_future_date_refused`
+  - `test_trip_picker_only_this_drivers_recent_trips`
+  - `test_filter_by_kind`
+  - `test_manager_edits_and_deletes`
+  - `test_dispatcher_cannot_edit_or_delete` (403)
+  - `test_log_never_on_driver_app`
+  - `test_hero_shows_strike_pill`
+- [ ] Steps:
+  1. Write the failing tests.
+  2. Run them and see them fail.
+  3. Implement.
+  4. Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers` and see it pass.
+  5. Run `makemigrations --check`.
+  6. Commit. Subject: "Driver profiles keep a dated log of compliments, complaints and incidents, and managers can mark strikes".
+
+---
+
+### Task 11: Whole-branch verification (controller)
 
 - [ ] **Full suite.** Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers --parallel 4`. Record N tests and the failures. Each failure must be either a known environment failure or shown to be flaky by 3 reruns.
 - [ ] **Parity gate.** Re-run it (Task 5, Step 5) on the final commit and record `differences : 0`.
@@ -707,6 +1009,13 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
     - no regular window rejects every pickup;
     - every regular driver's planned base→base is ≤ 12h;
     - the count of 00:00–02:59 legs (S14).
-- [ ] **Browser pass.** Cover the profile card plus edit, Regular Shifts, the editor (confirm one driver end to end), the switch, and Shift Templates. Check desktop and 375px, with screenshots.
+- [ ] **Browser pass.** Cover:
+  - the profile: Shift facts, Strengths & habits, the Log, the strike pill, and edit mode
+  - Regular Shifts
+  - the editor: confirm a Morning driver with a "done by 3 PM" Thursday, and a Float driver
+  - the switch
+  - Shift Templates
+
+  Check desktop and 375px, with screenshots.
 - [ ] **Migrations.** `python manage.py makemigrations --check --dry-run` must print "No changes detected".
-- [ ] **Release note.** Re-read it against `docs/release-notes/README.md`: under 150 words, no field names, and it says what did not change.
+- [ ] **Release notes.** Re-read both against `docs/release-notes/README.md`: under 150 words, no field names, and each says what did not change.
