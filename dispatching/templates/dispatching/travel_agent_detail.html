@@ -153,6 +153,11 @@
   .ap-actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
   .ap-actions .tap-action-btn { border: 0; cursor: pointer; }
   .pay-hero .ph-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pay-hero .ph-bank { display: flex; flex-direction: column; gap: 4px; font-size: .95rem; }
+  .pay-hero .ph-bank b { font-weight: 600; letter-spacing: .5px; }
+  .ph-reveal { border: 0; background: none; padding: 0 0 0 6px; font-size: .78rem; font-weight: 600; color: var(--gt-gold); cursor: pointer; }
+  .ap-label { font-size: .78rem; font-weight: 600; color: var(--gt-text); margin: 0; }
+  .ap-hint { font-size: .74rem; color: var(--gt-muted); }
   @media (max-width: 640px) { .ap-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
@@ -264,19 +269,27 @@
       </div>
       <div>
         <div class="ph-label">Payment Info / Recipient</div>
-        {% if agent.payment_info %}
+        {% if agent.payment_method == "bank" and agent.bank_account_number %}
+          <div class="ph-info ph-bank">
+            <span>{{ agent.bank_account_holder }} &middot; {{ agent.get_bank_account_type_display }}</span>
+            <span>Routing <b id="agent-routing">{{ agent.bank_routing_number }}</b></span>
+            <span>Account <b data-masked="••••{{ agent.bank_account_number|slice:'-4:' }}" data-full="{{ agent.bank_account_number }}" id="agent-account">••••{{ agent.bank_account_number|slice:"-4:" }}</b>
+              <button type="button" class="ph-reveal" data-reveal="agent-account">Show</button></span>
+          </div>
+        {% elif agent.payment_info %}
           <div class="ph-info" id="agent-payment-info">{{ agent.payment_info }}</div>
+          {% if agent.payment_method == "venmo" and agent.venmo_username %}<div class="ph-info-sub">Venmo @{{ agent.venmo_username }}</div>{% endif %}
         {% else %}
           <div class="ph-info empty">No payment info set &mdash; add it before processing payouts.</div>
         {% endif %}
       </div>
       <div class="ph-btns">
-        {% if agent.payment_info %}
+        {% if agent.payment_info and not agent.bank_account_number %}
           <button type="button" class="ph-copy-btn" data-copy-target="agent-payment-info">
             <i class="bi bi-clipboard"></i> Copy
           </button>
         {% endif %}
-        <button type="button" class="ph-copy-btn" data-open-editor data-focus="id_payment_method">
+        <button type="button" class="ph-copy-btn" data-open-editor data-focus="id_pay-payment_method">
           <i class="bi bi-pencil"></i> Change
         </button>
       </div>
@@ -325,10 +338,9 @@
             {% include 'dispatching/_agent_field.html' with field=profile_form.email wide=True %}
           </div>
           <div class="ap-group-label">How they're paid</div>
-          <div class="ap-grid">
-            {% include 'dispatching/_agent_field.html' with field=profile_form.payment_method %}
+          {% include 'users/_payment_fields.html' with pay=pay_form label_class="ap-label" hint_class="ap-hint" %}
+          <div class="ap-grid" style="margin-top: 12px;">
             {% include 'dispatching/_agent_field.html' with field=profile_form.commission_rate %}
-            {% include 'dispatching/_agent_field.html' with field=profile_form.payment_info wide=True %}
           </div>
           <div class="ap-checks">
             {% include 'dispatching/_agent_field.html' with field=profile_form.agency_handles_payment check=True %}
@@ -709,6 +721,16 @@
 
 </div>
 <script>
+  // Bank account number: masked until a staff member clicks Show.
+  document.querySelectorAll('[data-reveal]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.getElementById(btn.dataset.reveal);
+      var showing = el.textContent === el.dataset.full;
+      el.textContent = showing ? el.dataset.masked : el.dataset.full;
+      btn.textContent = showing ? 'Show' : 'Hide';
+    });
+  });
+
   // Profile editor: open from the header, the Profile panel, or the payment box's Change button.
   (function () {
     var editor = document.getElementById('profile-editor');
@@ -732,6 +754,7 @@
       cancel.addEventListener('click', function (e) {
         e.preventDefault();
         editor.reset();
+        editor.querySelectorAll('select').forEach(function (sel) { sel.dispatchEvent(new Event('change')); });
         editor.hidden = true; view.hidden = false;
         if (editLink) editLink.hidden = false;
       });

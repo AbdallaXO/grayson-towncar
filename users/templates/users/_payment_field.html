@@ -1,0 +1,7 @@
+{# One payment-details field: label, input, help, errors. Classes come from the including page. #}
+<div class="pd-field{% if field.errors %} has-error{% endif %}">
+  <label for="{{ field.id_for_label }}" class="{{ label_class }}">{{ field.label }}</label>
+  {{ field }}
+  {% if field.help_text %}<div class="{{ hint_class }}">{{ field.help_text }}</div>{% endif %}
+  {% for error in field.errors %}<div class="pd-error">{{ error }}</div>{% endfor %}
+</div>

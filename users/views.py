@@ -426,6 +426,11 @@ def rate_limit(key_prefix, limit=60, period=60):
     return decorator
 
 
+def _agent_signup_payment_form(data=None):
+    from users.payment_details import PaymentDetailsForm
+    return PaymentDetailsForm(data, input_css="agent-form-input", select_css="agent-form-select")
+
+
 def register_agent(request):
     """Handle travel agent registration with user account creation."""
     if request.method == "POST":
@@ -436,13 +441,18 @@ def register_agent(request):
             "agent_name": request.POST.get("agent_name"),
             "agency_name": request.POST.get("agency_name"),
             "phone": request.POST.get("phone"),
-            "payment_info": request.POST.get("payment_info"),
-            "payment_method": request.POST.get("payment_method"),
         }
+        pay = _agent_signup_payment_form(request.POST)
 
         password1 = request.POST.get("password1")
         password2 = request.POST.get("password2")
-        error_context = {"form_data": form_data}
+        error_context = {"form_data": form_data, "pay": pay}
+
+        # Payment details are checked fields now (users.payment_details), so a
+        # sign-up can't leave us with a handle or account we can't pay.
+        if not pay.is_valid():
+            messages.error(request, "Check your payment details below.")
+            return render(request, "users/register_agent.html", error_context)
 
         # Validate passwords
         if password1 != password2:
@@ -473,14 +483,14 @@ def register_agent(request):
                     password=password1,
                 )
 
-                TravelAgent.objects.create(
+                agent = TravelAgent(
                     user=user,
                     agent_name=form_data["agent_name"],
                     agency_name=form_data["agency_name"],
                     phone=form_data["phone"],
-                    payment_method=form_data["payment_method"],
-                    payment_info=form_data["payment_info"],
                 )
+                pay.apply(agent)
+                agent.save()
 
             login(request, user)
             messages.success(request, "Successfully registered as a travel agent!")
@@ -490,7 +500,7 @@ def register_agent(request):
             messages.error(request, f"Error creating account: {str(e)}")
             return render(request, "users/register_agent.html", error_context)
 
-    return render(request, "users/register_agent.html")
+    return render(request, "users/register_agent.html", {"pay": _agent_signup_payment_form()})
 
 
 def agent_login(request):
@@ -820,16 +830,33 @@ def agent_mark_personal_trip(request, uuid):
 @agent_required
 def agent_profile(request):
     """Handle travel agent profile viewing and updates."""
+    from users.payment_details import PaymentDetailsForm
+
     try:
         travel_agent = TravelAgent.objects.get(user=request.user)
+        # An agent whose agency collects their commission has nothing to enter,
+        # and can't redirect that money to themselves -- only staff change that.
+        paid_by_agency = bool(travel_agent.agency_handles_payment and travel_agent.agency_id)
+
+        def payment_form(data=None):
+            if paid_by_agency:
+                return None
+            return PaymentDetailsForm(data, agent=travel_agent)
 
         if request.method == "POST":
-            # Update profile fields
+            # Update profile fields (not saved until the payment details pass,
+            # but set first so a rejected form still shows what they typed)
             travel_agent.agent_name = request.POST.get("agent_name", "")
             travel_agent.agency_name = request.POST.get("agency_name", "")
             travel_agent.phone = request.POST.get("phone", "")
-            travel_agent.payment_method = request.POST.get("payment_method", "")
-            travel_agent.payment_info = request.POST.get("payment_info", "")
+
+            pay = payment_form(request.POST)
+            if pay is not None and not pay.is_valid():
+                messages.error(request, "Check your payment details below.")
+                return render(request, "users/agent_profile.html",
+                              {"travel_agent": travel_agent, "pay": pay, "paid_by_agency": paid_by_agency})
+            if pay is not None:
+                pay.apply(travel_agent)
             travel_agent.save()
 
             messages.success(request, "Profile updated successfully!")
@@ -837,7 +864,8 @@ def agent_profile(request):
 
         context = {
             "travel_agent": travel_agent,
-            "payment_method_choices": TravelAgent.PAYMENT_METHOD_CHOICES,
+            "pay": payment_form(),
+            "paid_by_agency": paid_by_agency,
         }
         return render(request, "users/agent_profile.html", context)
 

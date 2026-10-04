@@ -264,6 +264,16 @@ class TravelAgent(models.Model):
         blank=True,
         help_text="Select your preferred payment method",
     )
+    # Structured payout details (users.payment_details). payment_info stays the
+    # one-line summary everything else reads; these hold what it can't safely.
+    venmo_username = models.CharField(max_length=50, blank=True, default="")
+    bank_account_holder = models.CharField(max_length=100, blank=True, default="")
+    bank_account_type = models.CharField(
+        max_length=10, blank=True, default="",
+        choices=[("checking", "Checking"), ("savings", "Savings")],
+    )
+    bank_routing_number = models.CharField(max_length=9, blank=True, default="")
+    bank_account_number = models.CharField(max_length=17, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     # ---------- Dashboard helper properties (no DB hits) ----------

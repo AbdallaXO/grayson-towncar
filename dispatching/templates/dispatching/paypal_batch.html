@@ -302,7 +302,7 @@
           <span class="pb-wallet-cell"><span class="pb-wallet {{ r.method }}">{% if r.method == 'venmo' %}Venmo{% else %}PayPal{% endif %}</span></span>
           <span class="pb-recipient">
             {{ r.recipient_display }}
-            {% if r.handle %}<span class="pb-via">Venmo {{ r.handle }} &middot; phone on their profile</span>{% endif %}
+            {% if r.handle %}<span class="pb-via">Venmo {{ r.handle }}{% if r.via_profile_phone %} &middot; phone on their profile{% endif %}</span>{% endif %}
           </span>
           <span class="pb-amount">${{ r.amount|floatformat:2|intcomma }}</span>
         </label>

@@ -127,7 +127,9 @@ class Payee:
     agency_id: int | None = None
     agency_name: str = ""
     phone: str = ""   # profile phone, used for Venmo when only a @handle was given
-    handle: str = ""  # that @handle, when the phone stands in for it
+    handle: str = ""  # their Venmo @handle, shown beside the phone being paid
+    via_profile_phone: bool = False  # True when the profile phone stands in for a @handle
+    venmo_username: str = ""
 
     @property
     def recipient_display(self):
@@ -202,7 +204,8 @@ def build_batch(*, now=None):
     payees = [
         Payee("agent", a.id, a.agent_name or a.user.get_username(), a.payment_method,
               a.payment_info or "", agent_amounts[a.id],
-              agency_id=a.agency_id, agency_name=a.agency.name if a.agency else "", phone=a.phone or "")
+              agency_id=a.agency_id, agency_name=a.agency.name if a.agency else "", phone=a.phone or "",
+              venmo_username=a.venmo_username)
         for a in agents
     ] + [
         Payee("agency", a.id, a.name, a.payment_method, a.payment_info or "", agency_amounts[a.id],
@@ -216,5 +219,8 @@ def build_batch(*, now=None):
             continue
         payee.recipient, payee.problem, payee.handle = uploadable_recipient(
             payee.method, payee.payment_info, payee.phone)
+        payee.via_profile_phone = bool(payee.handle) and not payee.problem
+        if not payee.handle and payee.method == "venmo" and payee.venmo_username:
+            payee.handle = f"@{payee.venmo_username}"
         (skipped if payee.problem else rows).append(payee)
     return rows, skipped

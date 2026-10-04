@@ -202,51 +202,9 @@
                   <h3 class="agent-form-section-title">Commission Payment Details</h3>
                 </div>
                 <p class="agent-form-note">
-                  If your agency is already registered with us for payments, select "Agency" as the payment method. You can leave "Payment Details" blank or enter your agency's name for verification.
+                  Choose how we pay your commission. For Venmo, we pay the phone number on your Venmo account.
                 </p>
-                <div class="row g-4">
-                  <div class="col-md-5">
-                    <label for="payment_method" class="agent-form-label">
-                      Payment Method <span class="agent-required">*</span>
-                    </label>
-                    <select class="agent-form-select"
-                            id="payment_method"
-                            name="payment_method"
-                            required>
-                      <option value="" {% if not form_data.payment_method %}selected{% endif %}>Select method...</option>
-                      <option value="agency"
-                              {% if form_data.payment_method == "agency" %}selected{% endif %}>Agency</option>
-                      <option value="paypal"
-                              {% if form_data.payment_method == "paypal" %}selected{% endif %}>PayPal</option>
-                      <option value="venmo"
-                              {% if form_data.payment_method == "venmo" %}selected{% endif %}>Venmo</option>
-                      <option value="zelle"
-                              {% if form_data.payment_method == "zelle" %}selected{% endif %}>Zelle</option>
-                      <option value="cashapp"
-                              {% if form_data.payment_method == "cashapp" %}selected{% endif %}>Cash App</option>
-                      <option value="bank"
-                              {% if form_data.payment_method == "bank" %}selected{% endif %}>Bank Transfer</option>
-                      <option value="check"
-                              {% if form_data.payment_method == "check" %}selected{% endif %}>Check</option>
-                      <option value="other"
-                              {% if form_data.payment_method == "other" %}selected{% endif %}>Other</option>
-                    </select>
-                  </div>
-                  <div class="col-md-7">
-                    <label for="payment_info" class="agent-form-label" id="payment_info_label">
-                      Payment Details <span class="agent-required" id="payment_info_asterisk">*</span>
-                    </label>
-                    <textarea class="agent-form-textarea"
-                              id="payment_info"
-                              name="payment_info"
-                              rows="3"
-                              placeholder="Enter your payment details..."
-                              required>{{ form_data.payment_info|default:'' }}</textarea>
-                    <div class="agent-form-hint" id="payment-help-text">
-                      Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.
-                    </div>
-                  </div>
-                </div>
+                {% include 'users/_payment_fields.html' with pay=pay label_class="agent-form-label" hint_class="agent-form-hint" %}
               </div>
 
               <!-- Submit Button -->
@@ -669,79 +627,12 @@
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          const paymentMethodSelect = document.getElementById('payment_method');
-          const paymentInfoInput = document.getElementById('payment_info');
-          const paymentInfoLabel = document.getElementById('payment_info_label'); // Full label
-          const paymentInfoAsterisk = document.getElementById('payment_info_asterisk'); // The asterisk span
-          const paymentHelpText = document.getElementById('payment-help-text'); // Corrected from 'helpText'
 
           const passwordInput = document.getElementById('password1');
           const confirmPasswordInput = document.getElementById('password2');
           const passwordHelpDiv = document.getElementById('passwordHelp');
           const registrationForm = document.getElementById('agentRegistrationForm');
 
-          function updatePaymentDetailsState() {
-              const selectedMethod = paymentMethodSelect.value;
-              let placeholderText = '';
-              let helpTextContent = '';
-              let isPaymentInfoRequired = true;
-
-              switch (selectedMethod) {
-                  case 'agency':
-                      placeholderText = 'Enter registered agency name (optional), or leave blank.';
-                      helpTextContent = 'If your agency handles payments with us, you can leave this blank or provide agency name for verification.';
-                      isPaymentInfoRequired = false;
-                      break;
-                  case 'paypal':
-                      placeholderText = 'Enter your PayPal email address';
-                      helpTextContent = 'Example: johndoe@email.com';
-                      break;
-                  case 'venmo':
-                      placeholderText = 'Enter your Venmo username';
-                      helpTextContent = 'Example: @JohnDoe123';
-                      break;
-                  case 'zelle':
-                      placeholderText = 'Enter your Zelle phone number or email';
-                      helpTextContent = 'Example: (555) 123-4567 or johndoe@email.com';
-                      break;
-                  case 'cashapp':
-                      placeholderText = 'Enter your Cash App $Cashtag';
-                      helpTextContent = 'Example: $JohnDoe';
-                      break;
-                  case 'bank':
-                      placeholderText = 'Bank Name:\nAccount Holder Name:\nAccount Number:\nRouting Number:';
-                      helpTextContent = 'Please include bank name, account holder name, account number, and routing number.';
-                      break;
-                  case 'check':
-                      placeholderText = 'Payable To (Name/Agency Name):\nStreet Address:\nCity, State, ZIP Code:';
-                      helpTextContent = 'Please provide complete mailing address for checks.';
-                      break;
-                  case 'other':
-                      placeholderText = 'Please describe your preferred payment method and provide all necessary details.';
-                      helpTextContent = 'Example: International wire transfer details, alternative payment app, etc.';
-                      break;
-                  default:
-                      placeholderText = 'Enter your payment details...';
-                      helpTextContent = 'Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.';
-              }
-
-              paymentInfoInput.placeholder = placeholderText;
-              paymentHelpText.textContent = helpTextContent; // Use textContent for plain text
-
-              if (isPaymentInfoRequired) {
-                  paymentInfoInput.setAttribute('required', 'required');
-                  if (paymentInfoAsterisk) paymentInfoAsterisk.style.display = 'inline'; // Show asterisk
-              } else {
-                  paymentInfoInput.removeAttribute('required');
-                  if (paymentInfoAsterisk) paymentInfoAsterisk.style.display = 'none'; // Hide asterisk
-              }
-          }
-
-          if (paymentMethodSelect) {
-              paymentMethodSelect.addEventListener('change', updatePaymentDetailsState);
-              // Call once on load to set initial state based on pre-filled value (if any)
-              updatePaymentDetailsState();
-          }
 
           // Password confirmation validation
           if (registrationForm && passwordInput && confirmPasswordInput && passwordHelpDiv) {

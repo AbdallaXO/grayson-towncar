@@ -33,8 +33,8 @@ class ProfileEditTests(TestCase):
     def _post(self, **changes):
         data = {
             "agent_name": self.agent.agent_name, "email": self.agent.user.email, "phone": self.agent.phone,
-            "commission_rate": str(self.agent.commission_rate), "payment_method": self.agent.payment_method,
-            "payment_info": self.agent.payment_info, "is_active": "on",
+            "commission_rate": str(self.agent.commission_rate), "is_active": "on",
+            "pay-payment_method": "paypal", "pay-paypal_email": "jane@paypal.example",
         }
         data.update(changes)
         data = {k: v for k, v in data.items() if v is not None}
@@ -49,18 +49,20 @@ class ProfileEditTests(TestCase):
         self.assertNotContains(response, "Edit in Admin")
 
     def test_saves_changes_and_logs_each_field(self):
-        response = self._post(payment_method="venmo", payment_info="@Jane-Doe", phone="407-555-0199",
-                              email="jane.new@example.com")
+        response = self._post(**{"pay-payment_method": "venmo", "pay-venmo_phone": "(407) 555-0123",
+                                 "pay-venmo_username": "@Jane-Doe"},
+                              phone="407-555-0199", email="jane.new@example.com")
         self.assertRedirects(response, self.url)
         self.agent.refresh_from_db()
-        self.assertEqual((self.agent.payment_method, self.agent.payment_info, self.agent.phone),
-                         ("venmo", "@Jane-Doe", "407-555-0199"))
+        self.assertEqual((self.agent.payment_method, self.agent.payment_info, self.agent.venmo_username,
+                          self.agent.phone), ("venmo", "407-555-0123", "Jane-Doe", "407-555-0199"))
         self.assertEqual(self.agent.user.email, "jane.new@example.com")
         logged = set(AuditLog.objects.filter(model_name="TravelAgent", object_id=self.agent.pk)
                      .values_list("field_name", flat=True))
-        self.assertEqual(logged, {"payment_method", "payment_info", "phone", "email"})
+        self.assertEqual(logged, {"payment_method", "payment_info", "venmo_username", "phone", "email"})
         info = AuditLog.objects.get(object_id=self.agent.pk, field_name="payment_info")
-        self.assertEqual((info.old_value, info.new_value, info.username), ("jane@paypal.example", "@Jane-Doe", "disp"))
+        self.assertEqual((info.old_value, info.new_value, info.username),
+                         ("jane@paypal.example", "407-555-0123", "disp"))
 
     def test_nothing_changed(self):
         response = self._post()
@@ -91,9 +93,33 @@ class ProfileEditTests(TestCase):
         self.agent.refresh_from_db()
         self.assertTrue(self.agent.agency_handles_payment)
 
-    def test_warns_when_venmo_handle_has_no_phone(self):
-        response = self._post(payment_method="venmo", payment_info="@Jane-Doe", phone="555-0100")
-        self.assertTrue(any("left out of the PayPal & Venmo batch" in m for m in self._messages(response)))
+    def test_venmo_needs_a_phone(self):
+        response = self._post(**{"pay-payment_method": "venmo", "pay-venmo_phone": "555-0100"})
+        self.assertContains(response, "10-digit US phone number on your Venmo")
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.payment_method, "paypal")
+
+    def test_bank_details_saved_and_account_number_masked_in_log(self):
+        response = self._post(**{
+            "pay-payment_method": "bank", "pay-bank_account_holder": "Jane Doe",
+            "pay-bank_account_type": "checking", "pay-bank_routing_number": "021000021",
+            "pay-bank_account_number": "000123456789", "pay-bank_account_number_confirm": "000123456789",
+        })
+        self.assertRedirects(response, self.url)
+        self.agent.refresh_from_db()
+        self.assertEqual((self.agent.bank_routing_number, self.agent.bank_account_number),
+                         ("021000021", "000123456789"))
+        self.assertEqual(self.agent.payment_info, "Checking ••••6789 · Jane Doe")
+        log = AuditLog.objects.get(object_id=self.agent.pk, field_name="bank_account_number")
+        self.assertEqual(log.new_value, "••••6789")
+        self.assertFalse(AuditLog.objects.filter(new_value__contains="000123456789").exists())
+
+    def test_staff_picking_agency_does_not_link_on_its_own(self):
+        Agency.objects.create(name="Ears Travel")
+        TravelAgent.objects.filter(pk=self.agent.pk).update(agency_name="Ears Travel")
+        self._post(**{"pay-payment_method": "agency"})
+        self.agent.refresh_from_db()
+        self.assertEqual((self.agent.payment_method, self.agent.agency_id), ("agency", None))
 
     def test_switching_off(self):
         self._post(is_active=None)

@@ -5,12 +5,39 @@ contact details, commission rate, how the agent gets paid, and whether they're
 active. Every changed field is written to the audit log with who changed it --
 payment handles especially, since a changed handle is where money goes missing.
 """
+import re
+
 from django import forms
 from django.contrib.auth.models import User
 from django.db import transaction
 
 from users.models import TravelAgent
+from users.payment_details import mask
 from users.paypal_batch import WALLETS, uploadable_recipient
+
+# Payment fields come from users.payment_details.PaymentDetailsForm; these are
+# their names in "Saved: ..." messages and the audit log.
+PAYMENT_LABELS = {
+    "payment_method": "Payment method",
+    "payment_info": "Payment details",
+    "venmo_username": "Venmo username",
+    "bank_account_holder": "Name on account",
+    "bank_account_type": "Account type",
+    "bank_routing_number": "Routing number",
+    "bank_account_number": "Account number",
+    "agency": "Agency",
+    "agency_handles_payment": "Agency pays",
+}
+_LONG_DIGITS = re.compile(r"\d{5,}")
+
+
+def _for_audit(name, value):
+    """Audit text for a value, with account-number-length digit runs masked."""
+    if value is None:
+        return ""
+    if name == "bank_account_number":
+        return mask(str(value))
+    return _LONG_DIGITS.sub(lambda m: mask(m.group(0)), str(value)) if name == "payment_info" else str(value)
 
 
 class AgentProfileForm(forms.ModelForm):
@@ -18,34 +45,25 @@ class AgentProfileForm(forms.ModelForm):
 
     class Meta:
         model = TravelAgent
-        fields = ["agent_name", "phone", "commission_rate", "payment_method", "payment_info",
-                  "agency_handles_payment", "is_active"]
+        fields = ["agent_name", "phone", "commission_rate", "agency_handles_payment", "is_active"]
         labels = {
             "agent_name": "Name",
             "phone": "Phone",
             "commission_rate": "Commission rate (%)",
-            "payment_method": "Payment method",
-            "payment_info": "Payment handle / details",
             "agency_handles_payment": "Agency pays",
             "is_active": "Active",
         }
         help_texts = {
             # The model's own hints are written to the agent ("Your full name"); staff need none there.
             "agent_name": "",
-            "payment_method": "",
-            "phone": "Venmo agents who gave a @handle are paid at this number.",
-            "payment_info": "PayPal: the email on their PayPal account. Venmo: their @handle or phone.",
+            "phone": "Also used for Venmo when only a @handle is on file.",
             "agency_handles_payment": "Their commission goes to their agency instead of to them.",
             "is_active": "Switched-off agents are hidden from payouts.",
         }
-        widgets = {"payment_info": forms.Textarea(attrs={"rows": 2})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["email"].initial = self.instance.user.email
-        self.fields["payment_method"].choices = [("", "— Not set —")] + list(TravelAgent.PAYMENT_METHOD_CHOICES)
-        self.fields["payment_method"].required = False
-        self.fields["payment_info"].required = False
         self.fields["agent_name"].required = False
         for name, field in self.fields.items():
             if isinstance(field.widget, forms.CheckboxInput):
@@ -81,14 +99,21 @@ class AgentProfileForm(forms.ModelForm):
             names.append("email")
         return names
 
-    def save_with_audit(self, *, user):
-        """Save, log each changed field, and return the list of changed labels."""
+    def save_with_audit(self, *, user, pay=None):
+        """Save, log each changed field, and return the list of changed labels.
+
+        `pay` is a validated PaymentDetailsForm; its changes are saved and
+        logged alongside. Staff set "Agency pays" themselves, so picking
+        "Agency" here never links an agency on its own.
+        """
         from reservations.models import AuditLog
 
         agent = self.instance
         # The instance already holds the NEW values after validation; read the old ones fresh.
         before = TravelAgent.objects.select_related("user").get(pk=agent.pk)
         changed = self.changed_fields()
+        if pay is not None:
+            changed += [f for f in pay.apply(agent, link_agency=False) if f not in changed]
         if not changed:
             return []
         with transaction.atomic():
@@ -103,10 +128,10 @@ class AgentProfileForm(forms.ModelForm):
                 new = agent.user.email if name == "email" else getattr(agent, name)
                 AuditLog.objects.create(
                     model_name="TravelAgent", object_id=agent.pk, action="updated", field_name=name,
-                    old_value="" if old is None else str(old), new_value="" if new is None else str(new),
+                    old_value=_for_audit(name, old), new_value=_for_audit(name, new),
                     user=user, username=user.get_username() if user else "system",
                 )
-        return [str(self.fields[n].label) for n in changed]
+        return [str(self.fields[n].label) if n in self.fields else PAYMENT_LABELS.get(n, n) for n in changed]
 
 
 def payout_warnings(agent):
@@ -128,6 +153,9 @@ def payout_warnings(agent):
         _, problem, _ = uploadable_recipient(method, info, agent.phone)
         if problem:
             return [f"They'll be left out of the PayPal & Venmo batch: {problem}"]
+    elif method == "bank" and not (agent.bank_routing_number and agent.bank_account_number):
+        return ["No routing and account number are saved, so they can't be paid by bank transfer."
+                + (" (Their old notes may have them; re-enter them in the bank fields.)" if info else "")]
     elif not info and method != "check":
         return ["No payment details are saved, so they can't be paid."]
     return []

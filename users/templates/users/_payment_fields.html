@@ -1,0 +1,74 @@
+{% comment %}
+  Payment details, one group per method; only the chosen method's group shows.
+  Used by agent sign-up, the agent's profile, and the staff editor.
+    pay          a users.payment_details.PaymentDetailsForm
+    label_class  CSS class for labels on this page
+    hint_class   CSS class for help text on this page
+{% endcomment %}
+<div class="pd" data-payment-details>
+  {% include 'users/_payment_field.html' with field=pay.payment_method %}
+
+  <div class="pd-group" data-method="paypal">
+    {% include 'users/_payment_field.html' with field=pay.paypal_email %}
+  </div>
+
+  <div class="pd-group" data-method="venmo">
+    <div class="pd-row">
+      {% include 'users/_payment_field.html' with field=pay.venmo_phone %}
+      {% include 'users/_payment_field.html' with field=pay.venmo_username %}
+    </div>
+  </div>
+
+  <div class="pd-group" data-method="zelle">
+    {% include 'users/_payment_field.html' with field=pay.zelle_contact %}
+  </div>
+
+  <div class="pd-group" data-method="bank">
+    <div class="pd-row">
+      {% include 'users/_payment_field.html' with field=pay.bank_account_holder %}
+      {% include 'users/_payment_field.html' with field=pay.bank_account_type %}
+    </div>
+    {% include 'users/_payment_field.html' with field=pay.bank_routing_number %}
+    <div class="pd-row">
+      {% include 'users/_payment_field.html' with field=pay.bank_account_number %}
+      {% include 'users/_payment_field.html' with field=pay.bank_account_number_confirm %}
+    </div>
+  </div>
+
+  <div class="pd-group" data-method="agency">
+    <p class="{{ hint_class }} pd-note">We'll pay your commission to your agency. Make sure the agency name above matches how your agency is known to us.</p>
+  </div>
+
+  {% if pay.retired_method %}
+  <div class="pd-group" data-method="{{ pay.retired_method }}">
+    <p class="{{ hint_class }} pd-note">This payment method is no longer offered for new details. It still works for now; pick another one above when you can.</p>
+    {% include 'users/_payment_field.html' with field=pay.legacy_details %}
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  .pd { display: grid; gap: 14px; }
+  .pd-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pd-group { display: grid; gap: 14px; }
+  .pd-group[hidden] { display: none; }
+  .pd-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .pd-error { color: #B23A33; font-size: .82rem; }
+  .pd-field.has-error input, .pd-field.has-error select { border-color: #B23A33; }
+  .pd-note { margin: 0; }
+  @media (max-width: 640px) { .pd-row { grid-template-columns: 1fr; } }
+</style>
+<script>
+  (function () {
+    document.querySelectorAll('[data-payment-details]').forEach(function (box) {
+      if (box.dataset.ready) return;
+      box.dataset.ready = '1';
+      var select = box.querySelector('select[name$="payment_method"]');
+      function show() {
+        box.querySelectorAll('.pd-group').forEach(function (g) { g.hidden = g.dataset.method !== select.value; });
+      }
+      select.addEventListener('change', show);
+      show();
+    });
+  })();
+</script>

@@ -22200,6 +22200,14 @@ def admin_travel_agent_detail(request, pk):
     """Per-agent admin detail with assign-agency control and in-page profile editing."""
     from reservations.models import Reservation as _R
     from users.agent_profile import AgentProfileForm, payout_warnings
+    from users.payment_details import PaymentDetailsForm
+
+    def payment_form(data=None):
+        form = PaymentDetailsForm(data, agent=agent, require_method=False,
+                                  input_css="form-control form-control-sm",
+                                  select_css="form-select form-select-sm")
+        form.fields["payment_method"].label = "Payment method"
+        return form
 
     agent = get_object_or_404(
         TravelAgent.objects.select_related("user", "agency"), pk=pk
@@ -22209,8 +22217,9 @@ def admin_travel_agent_detail(request, pk):
     # with the editor open and what the operator typed still in it.
     if request.method == "POST":
         profile_form = AgentProfileForm(request.POST, instance=agent)
-        if profile_form.is_valid():
-            changed = profile_form.save_with_audit(user=request.user)
+        pay_form = payment_form(request.POST)
+        if profile_form.is_valid() and pay_form.is_valid():
+            changed = profile_form.save_with_audit(user=request.user, pay=pay_form)
             if changed:
                 messages.success(request, "Saved: " + ", ".join(changed) + ".")
             else:
@@ -22222,6 +22231,7 @@ def admin_travel_agent_detail(request, pk):
         agent.refresh_from_db()  # the form wrote its rejected values onto the instance
     else:
         profile_form = AgentProfileForm(instance=agent)
+        pay_form = payment_form()
 
     lifetime = _agent_lifetime_stats(agent)
     live_unpaid = _agent_live_unpaid(agent)
@@ -22283,6 +22293,7 @@ def admin_travel_agent_detail(request, pk):
         "can_pay_directly": can_pay_directly,
         "bucket_summary": bucket_summary,
         "profile_form": profile_form,
+        "pay_form": pay_form,
         "edit_open": profile_form.is_bound or request.GET.get("edit") == "1",
     }
     return render(request, "dispatching/travel_agent_detail.html", context)

@@ -46,7 +46,7 @@
                        class="form-control"
                        id="agent_name"
                        name="agent_name"
-                       value="{{ travel_agent.agent_name }}"
+                       value="{{ travel_agent.agent_name|default:'' }}"
                        required />
               </div>
 
@@ -56,7 +56,7 @@
                        class="form-control"
                        id="agency_name"
                        name="agency_name"
-                       value="{{ travel_agent.agency_name }}"
+                       value="{{ travel_agent.agency_name|default:'' }}"
                        required />
               </div>
 
@@ -66,32 +66,21 @@
                        class="form-control"
                        id="phone"
                        name="phone"
-                       value="{{ travel_agent.phone }}"
+                       value="{{ travel_agent.phone|default:'' }}"
                        required />
               </div>
 
-              <div class="mb-3">
-                <label for="payment_method" class="form-label">Payment Method</label>
-                <select class="form-select"
-                        id="payment_method"
-                        name="payment_method">
-                  <option value="">Select payment method...</option>
-                  {% for value, label in payment_method_choices %}
-                    <option value="{{ value }}" {% if travel_agent.payment_method == value %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Select how you'd like to receive commission payments.</div>
-              </div>
-
-              <div class="mb-3">
-                <label for="payment_info" class="form-label">Payment Details</label>
-                <textarea class="form-control"
-                          id="payment_info"
-                          name="payment_info"
-                          rows="3"
-                          placeholder="Enter your payment details (e.g., PayPal email, Zelle phone number, bank account info, etc.)">{{ travel_agent.payment_info }}</textarea>
-                <div class="form-text">Provide the account details for your selected payment method.</div>
-              </div>
+              <h6 class="text-muted mt-4 mb-3">How we pay your commission</h6>
+              {% if paid_by_agency %}
+                <div class="alert alert-light border mb-3">
+                  Your commission is paid to your agency, <strong>{{ travel_agent.agency.name }}</strong>.
+                  To change that, contact us.
+                </div>
+              {% else %}
+                <div class="mb-3">
+                  {% include 'users/_payment_fields.html' with pay=pay label_class="form-label mb-0" hint_class="form-text mt-0" %}
+                </div>
+              {% endif %}
 
               <hr class="my-4" />
 
