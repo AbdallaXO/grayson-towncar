@@ -7,6 +7,7 @@ from .models import (
     LegPayment,
     DriverPayoutAdjustment,
     DriverDateOverride,
+    DriverWeeklySchedule,
 )
 from .forms import DriverProfileForm, DriverLicenseDetailsForm, DriverPermitDetailsForm
 from .license_ocr import scan_license, is_expiration_plausible, is_date_of_birth_plausible
@@ -32,7 +33,7 @@ from django.contrib import messages
 from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, IntegerField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from drivers.utils import get_drive_time as google_drive_time
-from drivers.availability import format_shift_preference
+from drivers.availability import format_shift_preference, format_override_label, fmt_hour_long
 from drivers import paperwork
 from dispatching.scheduler import (
     estimate_job_end_time,
@@ -1347,14 +1348,30 @@ def driver_profile(request, driver_id):
         if hasattr(driver, "weekly_schedule") else []
     )
 
-    # Date overrides (day off / vacation / sick / etc.) within the next 30 days.
+    # Date overrides (day off / vacation / sick / etc.) touching the next 30
+    # days — including a range that started before today and is still running.
+    # Approved rows are live; pending ones are shown flagged so dispatch can see
+    # a request is waiting. Denied/cancelled never affect availability.
     upcoming_overrides = []
     if hasattr(driver, "date_overrides"):
         upcoming_overrides = list(
             driver.date_overrides
-            .filter(date__gte=today, date__lte=today + timedelta(days=30))
+            .filter(status__in=("approved", "pending"), date__lte=today + timedelta(days=30))
+            .filter(Q(date__gte=today) | Q(end_date__gte=today))
             .order_by("date")
         )
+        for override in upcoming_overrides:
+            override.label = format_override_label(override)
+
+    # Shown when no weekly schedule is set: "Full Day, 6 AM – 11 PM".
+    shift_type = driver.default_shift_type or "full_day"
+    schedule_defaults = "{}, {} – {}".format(
+        dict(DriverWeeklySchedule.SHIFT_TYPE_CHOICES).get(
+            shift_type, shift_type.replace("_", " ").title()
+        ),
+        fmt_hour_long(driver.default_start_hour),
+        fmt_hour_long(driver.default_end_hour),
+    )
 
     # Availability today (uses model helper if present).
     is_available_today = (
@@ -1404,6 +1421,7 @@ def driver_profile(request, driver_id):
         "last_payment": last_payment,
         "weekly_schedule": weekly_schedule,
         "upcoming_overrides": upcoming_overrides,
+        "schedule_defaults": schedule_defaults,
         "is_available_today": is_available_today,
         "comms_tiles": comms_tiles,
         "comms_window": comms_window,

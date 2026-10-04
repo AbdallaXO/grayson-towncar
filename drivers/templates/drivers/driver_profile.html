@@ -46,7 +46,8 @@
       padding: 2px 8px; border-radius: 999px; margin-left: 0.4rem; letter-spacing: 0.02em;
     }
     .cred-pill.expired { background: rgba(248,113,113,0.18); color: #f87171; border: 1px solid rgba(248,113,113,0.4); }
-    .cred-pill.expiring { background: rgba(251,191,36,0.18); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4); }
+    .cred-pill.expiring,
+    .cred-pill.pending { background: rgba(251,191,36,0.18); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4); }
     .info-row .scan-link { color: var(--gt-muted); margin-left: 0.5rem; }
     .info-row .scan-link:hover { color: var(--gt-gold); }
 
@@ -833,11 +834,11 @@
               {% if weekly_schedule %}
                 <div class="schedule-grid">
                   {% for ws in weekly_schedule %}
-                    <div class="schedule-day {% if ws.excluded %}excluded{% endif %}">
+                    <div class="schedule-day{% if not ws.is_available %} excluded{% endif %}">
                       <div class="day-name">{{ ws.get_day_of_week_display|slice:":3" }}</div>
                       <div class="day-shift">
-                        {% if ws.excluded %}OFF
-                        {% elif ws.shift_type %}{{ ws.get_shift_type_display|default:ws.shift_type }}
+                        {% if not ws.is_available %}OFF
+                        {% elif ws.shift_type %}{{ ws.get_shift_type_display }}
                         {% else %}—{% endif %}
                       </div>
                     </div>
@@ -849,7 +850,7 @@
                 <div class="empty-state">
                   <i class="bi bi-calendar-x"></i>
                   <div>No weekly schedule set.</div>
-                  <div class="small-cta">Defaults: {{ driver.default_shift_type|default:"full day"|title }}, {{ driver.default_start_hour }}:00 – {{ driver.default_end_hour }}:00</div>
+                  <div class="small-cta">Defaults: {{ schedule_defaults }}</div>
                 </div>
               {% endif %}
 
@@ -860,11 +861,9 @@
                 <div class="mt-1">
                   {% for o in upcoming_overrides %}
                     <div class="info-row" style="padding: 0.4rem 0;">
-                      <span class="info-label">{{ o.date|date:"D, M j" }}</span>
+                      <span class="info-label">{{ o.date|date:"D, M j" }}{% if o.end_date and o.end_date != o.date %} – {{ o.end_date|date:"D, M j" }}{% endif %}</span>
                       <span class="info-value" style="font-size: 0.8rem;">
-                        {% if o.shift_type %}{{ o.get_shift_type_display|default:o.shift_type }}
-                        {% elif o.excluded %}OFF
-                        {% else %}Override{% endif %}
+                        {{ o.label }}{% if o.is_pending %}<span class="cred-pill pending" title="Waiting for approval — not on the schedule yet">PENDING</span>{% endif %}
                       </span>
                     </div>
                   {% endfor %}

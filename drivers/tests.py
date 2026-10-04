@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateformat import format as date_format
 
 from drivers.models import Driver, DriverWeeklySchedule, DriverDateOverride, FleetVehicle
 from rates.models import Vehicle
@@ -675,3 +676,83 @@ class DriverProfileEditTests(TestCase):
         self.assertIn('name="certified_vehicle_types"', html)
         self.assertIn(f'value="{self.sprinter.id}"', html)
         self.assertIn("checked", html)
+
+
+class DriverProfileScheduleCardTests(TestCase):
+    """The Weekly Schedule card on the staff driver profile — days off,
+    upcoming time-off/limited-hours exceptions, and the defaults line when
+    no weekly schedule is set."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            "sched_card_staff", password="x", is_staff=True
+        )
+        duser = User.objects.create_user("sched_card_driver", first_name="Sched", last_name="Card")
+        self.driver = Driver.objects.create(profile=duser, driver_type="inhouse")
+        self.today = timezone.localdate()
+        self.client.force_login(self.staff)
+
+    def _card(self):
+        html = self.client.get(
+            reverse("driver_profile", args=[self.driver.id])
+        ).content.decode()
+        return html.split("Weekly Schedule</span>", 1)[1].split('class="profile-card', 1)[0]
+
+    def _override(self, offset, **kwargs):
+        return DriverDateOverride.objects.create(
+            driver=self.driver, date=self.today + timedelta(days=offset), **kwargs
+        )
+
+    @staticmethod
+    def _day(d):
+        return date_format(d, "D, M j")
+
+    def test_a_day_off_in_the_weekly_schedule_reads_off(self):
+        DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=0, shift_type="morning")
+        # shift_type keeps its "full_day" default — a day off must not read as one.
+        DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=1, is_available=False)
+        card = self._card()
+        self.assertIn("Morning", card)
+        self.assertIn("OFF", card)
+        self.assertIn("schedule-day excluded", card)
+        self.assertNotIn("Full Day", card)
+
+    def test_overrides_say_what_kind_of_exception_and_when(self):
+        self._override(2, exception_type="off")
+        self._override(3, exception_type="available_until", end_time=time(16, 0))
+        self._override(4, exception_type="available_window",
+                       start_time=time(8, 0), end_time=time(14, 30))
+        self._override(5, exception_type="flexible")
+        card = self._card()
+        self.assertIn("Off (full day)", card)
+        self.assertIn("Until 4 PM", card)
+        self.assertIn("Window 8 AM – 2:30 PM", card)
+        self.assertIn("Flexible (override off-day)", card)
+        self.assertNotRegex(card, r">\s*Override\s*<")
+
+    def test_denied_and_cancelled_requests_stay_off_the_card(self):
+        approved = self._override(2)
+        pending = self._override(3, status="pending", submitted_by_driver=True)
+        denied = self._override(4, status="denied")
+        cancelled = self._override(5, status="cancelled")
+        card = self._card()
+        self.assertIn(self._day(approved.date), card)
+        self.assertIn(self._day(pending.date), card)
+        self.assertNotIn(self._day(denied.date), card)
+        self.assertNotIn(self._day(cancelled.date), card)
+        # A request the driver is still waiting on is marked as such.
+        self.assertEqual(card.count("PENDING"), 1)
+
+    def test_a_time_off_range_already_under_way_still_shows(self):
+        under_way = self._override(-3, end_date=self.today + timedelta(days=2), reason="vacation")
+        finished = self._override(-6, end_date=self.today - timedelta(days=1))
+        card = self._card()
+        self.assertIn(self._day(under_way.date), card)
+        self.assertIn(self._day(under_way.end_date), card)
+        self.assertNotIn(self._day(finished.date), card)
+
+    def test_empty_schedule_states_the_defaults_in_plain_words(self):
+        card = self._card()
+        self.assertIn("Full Day, 6 AM – 11 PM", card)
+        self.assertNotIn("Full_Day", card)
+        self.assertNotIn(":00", card)
