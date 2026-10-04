@@ -1,4 +1,10 @@
-# Stage 1 — Foundation: Implementation Plan (rev 3)
+# Stage 1 — Foundation: Implementation Plan (rev 4)
+
+> **Rev 4 (2026-10-04, founder clarifications; design 07 §13):**
+> - Stage 1 stays focused on driver facts, regular shifts, availability, minute precision and cross-midnight foundations. It adds no vehicle assignment and no trip optimization, and Day Setup is untouched.
+> - **Drive-only base→base (K10).** The Stage 1 lead/tail is just the drive to and from base plus the pickup buffer. The fuel (15), report/prep (25) and wash (61) allowances are removed. The founder's new handover timing (40-min return including an optional wash, 10-min takeover, wash skipped when it costs a trip; K7–K8) becomes a Stage 3 setting.
+> - **Strict 12h (S20).** A regular-shift driver whose day is already over 12h base→base takes no further planned trip.
+> - Both changes land in the new **Task 4b**, which revises code built in Tasks 1, 3 and 3c.
 
 > **Rev 3 (2026-10-04, founder request mid-build):**
 > - Every driver gets a **usual shift**: Morning, Midday, Evening or **Float** (any shape, fills gaps).
@@ -23,7 +29,8 @@
 **Tech Stack:** Django 5.1.4, Python 3.13, SQLite (dev and tests), Postgres (production), Bootstrap 5.3, server-rendered templates.
 
 **Spec:** [07_STRUCTURED_SHIFTS_DESIGN.md](07_STRUCTURED_SHIFTS_DESIGN.md), especially:
-- §2 rows U1, U2, U3, U5, U11, U14, U16, U19, C2, C3, C7, C8, C10, C11
+- §2 rows U1, U2, U3, U5, U11, C2, C3, C7, C8, C10, C11 (U14, U16 and U19 are superseded or open: §13 K7, K8, O2, O5)
+- §13, the founder clarifications, especially K10 (what Stage 1 does and does not do)
 - §3
 - §6.1
 - §8
@@ -46,27 +53,29 @@
 | S2 | Confirmation is stored on `Driver` (`regular_shift_confirmed_at`, `regular_shift_confirmed_by`). A week where every day is Off is a valid confirmed shift, e.g. a driver who takes extra shifts only. |
 | S3 | The switch is `SchedulerSettings.regular_shift_windows` (default False). It can only be turned on when "drivers without a regular shift" is empty. It can always be turned off. Only the Regular Shifts page writes it: the generic settings endpoint and "Reset to defaults" never touch it. |
 | S4 | **With the switch on**, a confirmed working day becomes a fixed, non-flexible window that is 12 hours wide on the edge that does not move (U11, C10: the handover edge floats):<br>• **Morning** is fixed at its start: `(start, start + max_span)`.<br>• **Evening** is fixed at its end: `(end − max_span, end)`.<br>• **Midday** keeps both of its typed times.<br>The window is then clipped by the hard limits. A confirmed Off day means unavailable. Approved time off still wins. A flexible exception falls back to today's behaviour. The stub is skipped for that driver; `USE_STUB_WINDOWS` itself stays True in Stage 1, and the switch acts as a per-driver bypass. A driver without a confirmed regular shift behaves exactly as today. |
-| S5 | **Times are base → base (U2, §6.1)**, through one pair of helpers in `handoff_chain`:<br>• `shift_lead_min(kind, pickup_zone)` = base→zone drive (central `BASE_TO_ZONE`) + pickup buffer (10 airport / 15 other), + 25 when `kind == "evening"` (U16: report ~10 min before car-ready, plus 15-min prep).<br>• `shift_tail_min(kind, drop_zone)` = drop zone→base drive + 15 fuel when `kind == "morning"` (U14). Otherwise it is `round(car_ready_min(drop_zone)[1])`: drop → wash → fuel → base, which is 61 min after an MCO drop (U19).<br>The engine checks `pickup − lead ≥ window start` and `clear + tail ≤ window end`. Pre-fill uses the same helpers. |
-| S6 | **Pre-fill (C8)** uses the 56 days before today:<br>• A pickup before 02:00 belongs to the previous day.<br>• A day's raw start is first pickup − `shift_lead_min("morning", zone)`, and its template is the one whose start band is nearest that raw start.<br>• On an Evening day the start moves a further 25 min earlier.<br>• A day's end is the latest P50 occupancy end + `shift_tail_min(kind, drop zone)`.<br>• A weekday is regular when it was worked in at least 4 of the 8 weeks.<br>• Start and end are medians. Start rounds **down** to 5 min and end rounds up to 5 min. The end is capped at start + the template's max span. |
+| S5 | **Times are base → base (U2), drive-only in Stage 1 (§13 K10)**, through one pair of helpers in `handoff_chain`:<br>• `shift_lead_min(kind, pickup_zone)` = base→zone drive (central `BASE_TO_ZONE`) + pickup buffer (10 airport / 15 other).<br>• `shift_tail_min(kind, drop_zone)` = drive from the drop zone back to base (central).<br>`kind` stays in both signatures but doesn't change the result in Stage 1. Stage 3 plugs in there: the handover settings (K7: 40-min return including an optional wash, then a 10-min takeover; K8: skip the wash when it would cost a trip) and the still-open end-of-night return (O2).<br>The engine checks `pickup − lead ≥ window start` and `clear + tail ≤ window end`. Pre-fill uses the same helpers. *(Rev 3 had fuel 15, report 25 and wash 61 here; Task 4b removes them.)* |
+| S6 | **Pre-fill (C8)** uses the 56 days before today:<br>• A pickup before 02:00 belongs to the previous day.<br>• A day's raw start is first pickup − `shift_lead_min("morning", zone)`, and its template is the one whose start band is nearest that raw start.<br>• A day's end is the latest P50 occupancy end + `shift_tail_min(kind, drop zone)`, i.e. plus the drive back to base. *(Rev 4: no evening report offset, no fuel, no wash.)*<br>• A weekday is regular when it was worked in at least 4 of the 8 weeks.<br>• Start and end are medians. Start rounds **down** to 5 min and end rounds up to 5 min. The end is capped at start + the template's max span. |
 | S7 | `extra_shift_days` is the list of weekdays the driver is open to an extra shift. Empty means not open. `hard_latest_finish` is a time plus a `hard_latest_finish_next_day` flag. |
 | S8 | **Template bands are targets (U11).** A shift outside its band gets a warning. A shift longer than `max_span_minutes` (≤ 720) is an error. The seed comes from §3. The lower end of Midday's end band (15:00) and of Evening's end band (20:00) are choices made in this plan, not values from §3. |
 | S9 | **Hour-only paths are unchanged in Stage 1**, and they never read availability: the farm-out optimizer's worked-span windows (`farmout_optimizer.py:792-807`) and `fleet_intel.py:374` (`configured=None`). Where an Auto-Assign modal hour was retyped by a dispatcher, the typed hours win: that driver keeps an hour window, still bypasses the stub (`"source": "regular"`), and gets no minute keys. |
 | S10 | Managers (`is_superuser`) edit regular shifts, hard limits and templates. Every staff user can view them. |
 | S11 | Validation checks rest both ways between consecutive working days, Sunday→Monday included, using `SchedulerSettings.rest_min_gap_minutes` (510, C7). |
 | S12 | *(withdrawn in rev 2: the hour path stays byte-for-byte, wrapping windows included)* |
-| S13 | Stage 1 does not change Day Setup (C3 lands in Stage 2 with weekly pairing, U23/C14). A regular car set on the profile stays Day Setup's first choice, as it is today when set in admin. Its Day Setup label changes from "his car (set in admin)" to "his regular car". |
+| S13 | **Stage 1 does not change Day Setup at all** (§13 K10). C3 lands in Stage 2 with weekly pairing (U23/C14). A regular car set on the profile stays Day Setup's first choice, as it already is when set in admin, and Day Setup's label stays as it is. |
 | S15 | **Usual shift per driver.** `Driver.shift_role` is a FK to `ShiftTemplate` (null means not set). It is shown as "Morning driver", "Evening driver", "Midday driver" or "Float — any shift". The editor sets it first. Each working day starts out as the usual shift and can be overridden on its own. The rows remain the source of truth; `shift_role` is the default and the label. |
 | S16 | **Float** is a fourth `ShiftTemplate` row: kind `float`, start band 03:00–16:00, end band 12:00–02:15, max span 720. A Float day means "any shape, wherever the day needs him", still within 12h and his limits. |
 | S17 | **Per-day options.** Each weekday row gains:<br>• `alt_template`: a second allowed shape, for "Morning or Evening".<br>• Per-day limits: `day_earliest_start`, `day_latest_finish` and `day_latest_finish_next_day`, for "Thursday: done by 3 PM".<br>`shift_start` and `shift_end` become optional. Leaving both blank means the shape's usual times (`band_fill`); filling in only one of them is an error. |
-| S18 | **Window with the switch on**, computed in one place (`regular_shifts.regular_window`):<br>• **Single fixed shape:** the S4 rule. Times come from the row, or from `band_fill` when blank.<br>• **Float, or two shapes:** from the earliest allowed `start_earliest` to the latest allowed `end_latest`.<br>• **Then:** clip by the driver's hard limits **and** the day's limits.<br>• **Every regular window** carries `max_span_min` (the template's `max_span_minutes`; for two shapes, the smaller of the two). The rules door checks span base → base: first pickup − lead to last clear + tail must be ≤ `max_span_min` (Task 3c). This keeps Float and two-shape days at 12h too.<br>• **Float lead/tail:** lead has no report time; tail is the full night return, the conservative choice. |
+| S18 | **Window with the switch on**, computed in one place (`regular_shifts.regular_window`):<br>• **Single fixed shape:** the S4 rule. Times come from the row, or from `band_fill` when blank.<br>• **Float, or two shapes:** from the earliest allowed `start_earliest` to the latest allowed `end_latest`.<br>• **Then:** clip by the driver's hard limits **and** the day's limits.<br>• **Every regular window** carries `max_span_min` (the template's `max_span_minutes`; for two shapes, the smaller of the two). The rules door checks span base → base: first pickup − lead to last clear + tail must be ≤ `max_span_min` (Task 3c). This keeps Float and two-shape days at 12h too.<br>• **Lead and tail** are the drive-only S5 values for every kind, Float included. |
 | S19 | **Driver knowledge is for people in Stage 1.** The engine does not read it.<br>• **Tags:** `DriverTag` vocabulary with category strength / habit / language / area and polarity positive / caution, plus `DriverTagAssignment`.<br>• **Log:** `DriverLogEntry` with kind compliment / complaint / incident / note, a strike flag, optional trip, and who/when.<br>• **Who can do what:** any staff user can add tags and log entries; only managers can mark a strike, remove a tag, or edit or delete an entry. Strikes are counted over the last 12 months.<br>• **Visibility:** staff-only. Never on any driver-facing page. |
 | S14 | **Accepted Stage 1 limit:** the engine judges each date's legs against that date's window only. With the switch on, an evening driver's after-midnight work (pickups 00:00–02:59 on the next date's board) can't go to him. Stage 3 builds cross-date shifts. The smoke test reports how many legs this affects. |
+| S20 | **No planned work into an overrun (§13 K9, K10).** When a regular window's day is already over `max_span_min` base→base before a leg is added, the minute path refuses the leg, even one that would not lengthen the day. The refusal reason is `"day already over 12h 0m base to base"`, filled in with the window's limit. This replaces Task 3c's delta exception for minute windows. The hour path's max-hours delta rule stays as it is, for parity. A dispatcher's own moves still only warn (§6.5). |
 
 ## Global Constraints
 
 - **Switch-off parity.** Every new engine behaviour sits behind `SchedulerSettings.regular_shift_windows` (default False). With the switch off, `docs/scheduling-redesign/analysis/14_pipeline_parity.py` must report `differences : 0` against `$SP/14_pipeline_parity_stage1_before.json`. The hour path of `window_check` stays byte-for-byte, wrapping windows included.
 - **12h ceiling.** `ShiftTemplate.max_span_minutes` ≤ 720. A regular-shift day may not exceed its template's `max_span_minutes`. The switch-on window is never wider than `max_span_minutes`.
 - **Data.** Times are stored with minute precision in **new** fields only. `DriverVehicleAssignment.planned_*` stays unwritten.
+- **Scope (§13 K10).** Don't build vehicle assignment, car sharing, handover timing or trip optimization in Stage 1, and don't change Day Setup.
 - **Drivers.** Nothing contacts a driver, and the driver app does not change (U6).
 - **Permissions.** Editing requires `request.user.is_superuser`, viewing requires `request.user.is_staff`, using the existing inline-check style (`drivers/views.py:1271,1283`).
 - **Switch reads.** The switch is read through `drivers.regular_shifts.regular_windows_on()`, which caches it in Django's cache under `dispatching.models.REGULAR_WINDOWS_CACHE_KEY` for 60s. Every writer deletes the key, and so does `SchedulerSettings.clear_cache()`.
@@ -107,7 +116,7 @@
 | File | Responsibility |
 |---|---|
 | `dispatching/feasibility_guards.py` | Minute path in `window_check` (lead/tail); regular windows bypass the stub; `regular_window_keys(eff)`; `legacy_hours()` |
-| `dispatching/handoff_chain.py` | `base_drive_min`, `shift_lead_min`, `shift_tail_min`, `HANDOVER_FUEL_MIN`, `EVENING_REPORT_LEAD_MIN` |
+| `dispatching/handoff_chain.py` | `base_drive_min`, `shift_lead_min`, `shift_tail_min` (drive-only after Task 4b) |
 | `drivers/models.py` + `drivers/migrations/0062_shift_facts.py`, `0063_seed_shift_templates.py` | `ShiftTemplate`; `Driver` facts; regular-shift fields on `DriverWeeklySchedule`; `SHIFT_TEMPLATES_CACHE_KEY` |
 | `dispatching/models.py` + `dispatching/migrations/0022_schedulersettings_regular_shift_windows.py` | The switch, `GUARDED_FIELDS`, `REGULAR_WINDOWS_CACHE_KEY` |
 | `drivers/test_support.py` (new) | `RegularShiftCacheMixin` |
@@ -160,7 +169,7 @@
 - **`regular_window_keys(eff: dict) -> dict`.** Returns `{"start_min", "end_min", "kind", "source": "regular"}` built from `eff["window_start_min"]`, `eff["window_end_min"]` and `eff["window_kind"]` when start and end are both non-None, otherwise `{}`. It uses `.get`, so a missing key counts as None.
 - **`legacy_hours(start_min: int, end_min: int) -> tuple[int, int]`** returns `(start_min // 60, 23 if end_min >= 1440 else min(23, ceil(end_min / 60)))`.
 - **`handoff_chain` additions:**
-  - `HANDOVER_FUEL_MIN = 15`
+  - *(Rev 4: Task 4b removes the next two constants.)* `HANDOVER_FUEL_MIN = 15`
   - `EVENING_REPORT_LEAD_MIN = 25`
   - `base_drive_min(zone) -> int`, the central `_base_to(zone)[1]`
   - `shift_lead_min(kind, pickup_zone) -> int`
@@ -566,7 +575,7 @@ def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = 
 
 **Interfaces:**
 - **`base_span_min`:** `base_span_min(legs: Iterable[tuple[datetime, str, datetime, str]], kind: str) -> Optional[int]` returns `max(clear + shift_tail_min(kind, drop)) − min(pickup − shift_lead_min(kind, pick))` in whole minutes, or None for no legs.
-- **Minute path:** when `max_span_min` and `base_span_min_after` are both set, reject when `after > max_span_min`, unless the day was already over before the leg and the leg does not make it longer. This is the same delta rule as the hour path's max-hours gate. Reason: `"base to base {H}h {M}m > {h}h {m}m"`, e.g. `"base to base 12h 5m > 12h 0m"`.
+- **Minute path:** when `max_span_min` and `base_span_min_after` are both set, reject when `after > max_span_min`, unless the day was already over before the leg and the leg does not make it longer. This is the same delta rule as the hour path's max-hours gate. *(Rev 4: Task 4b makes this strict for minute windows, per S20.)* Reason: `"base to base {H}h {M}m > {h}h {m}m"`, e.g. `"base to base 12h 5m > 12h 0m"`.
 
 - [ ] **Step 1: Write the failing tests.**
   - `test_base_span_helper`: a 05:00 MCO pickup clearing 06:15 at Disney, then 16:00 Disney→MCO clearing 16:40, kind morning → 04:38 → 17:07 = 749.
@@ -633,6 +642,58 @@ def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = 
 - [ ] **Step 3: Implement.** Keep `_weekly_or_defaults` unchanged. Add `_apply_regular(base, driver, entry, templates)`.
 - [ ] **Step 4: Run the tests and confirm they pass.** Run: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_availability_regular drivers.tests drivers.tests_regular_shifts`.
 - [ ] **Step 5: Commit.** Subject: "With the switch on, a confirmed regular shift is the driver's hours for the day". End the body with `Release-Note: none`.
+
+---
+
+### Task 4b: Drive-only base→base allowances and strict 12h (rev 4)
+
+This applies §13 K10, together with S5, S6, S18 and S20, to code already built in Tasks 1, 3 and 3c. It adds no new feature.
+
+**Files:**
+- `dispatching/handoff_chain.py`
+  - Delete `HANDOVER_FUEL_MIN` and `EVENING_REPORT_LEAD_MIN`.
+  - `shift_lead_min(kind, pickup_zone)` returns `base_drive_min(pickup_zone) + pickup_buffer_min(pickup_zone)`.
+  - `shift_tail_min(kind, drop_zone)` returns `base_drive_min(drop_zone)`.
+  - Rewrite the comment block to say:
+    - Stage 1 counts the drive only.
+    - Stage 3 adds two settings (07 §13 K7–K8): `handover_return_min` 40, from MCO, including an optional wash that is skipped when it would cost a trip; and `handover_takeover_min` 10.
+    - The end-of-night return and return times from other locations are still open (O2, O6).
+  - Leave `CHAIN_COMPONENTS`, `car_ready_min` and every other shipped helper exactly as they are.
+- `dispatching/feasibility_guards.py`, minute path only (S20):
+  - If `base_span_min_before > max_span_min`, refuse with `"day already over {h}h {m}m base to base"`.
+  - Otherwise refuse when `after > max_span_min`, with the existing reason.
+  - Do not touch the hour path.
+- `drivers/regular_shifts.py`: pre-fill per S6.
+  - Drop the Evening `− EVENING_REPORT_LEAD_MIN` offset.
+  - The end tail becomes drive-only through `shift_tail_min`.
+  - Fix the docstrings that mention the 25-min report or the night return.
+- Tests:
+  - Update every pinned value in `dispatching/tests_minute_windows.py` (lead/tail, tail examples, base span, `chain_ok`), `dispatching/tests_regular_shift_engine.py` and `drivers/tests_regular_shifts.py` (suggestion start and end times).
+  - Add the S20 tests below.
+  - Work out each new expected value from the drive-only rule. Never edit a value down to match what the code outputs.
+
+**Expected values (drive-only):**
+- `shift_lead_min("morning", "MCO Terminal") == 22`
+- `shift_tail_min("morning", "MCO Terminal") == 12`
+- `shift_tail_min("evening", "MCO Terminal") == 12`
+- `shift_lead_min("evening", "Disney Resort") == 50`
+- Tail example, window end 16:35: a 16:23 clear passes. A 16:24 clear fails with `"clears 16:24, back at base 16:36, after 16:35"`.
+- Cross-midnight tail, window end 02:15 the next day: a 02:03 clear passes. A 02:04 clear fails with `"clears 02:04, back at base 02:16, after 02:15 (next day)"`.
+- `base_span_min` for legs (05:00 MCO→Disney, clear 06:15) and (16:00 Disney→MCO, clear 16:40), any kind: 04:38 → 16:52 = **734**.
+- Pre-fill: 05:00 MCO first pickups still suggest a start of `time(4, 35)`.
+
+**New tests:**
+- `test_s20_refuses_leg_inside_overrun_day`: with `max_span_min` 720, before = 735 and after = 735, the leg is refused with `"day already over 12h 0m base to base"`.
+- `test_s20_hour_path_delta_rule_unchanged`: the hour path still allows a hole-fill on an over-cap day.
+- `test_no_handover_constants_left`: `hasattr(hc, "HANDOVER_FUEL_MIN")` and `hasattr(hc, "EVENING_REPORT_LEAD_MIN")` are both False.
+- `test_shipped_chain_unchanged`: `car_ready_min("MCO Terminal")[1]` rounds to 61, and `clear_to_pickup_min("MCO Terminal", "MCO Terminal")` is unchanged, so the shipped bands are untouched.
+
+- [ ] **Steps:**
+  1. Update and add the tests.
+  2. Run them and confirm they fail.
+  3. Implement.
+  4. Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_minute_windows dispatching.tests_regular_shift_engine dispatching.tests_feasibility_guards dispatching.tests_span_caps dispatching.tests_standby_mints dispatching.tests_day_setup drivers.tests_regular_shifts drivers.tests_availability_regular` and confirm they pass.
+  5. Commit with the subject "Stage 1 counts only the drive to and from base, and never plans more work into a day already over 12 hours" and the trailer `Release-Note: none`.
 
 ---
 
@@ -721,7 +782,7 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
   There are no links to the Task 7 and 8 pages yet; Task 7 adds them.
 - **Modify `drivers/templates/drivers/driver_profile.html`.** Include the card in the left column, above the Weekly Schedule card, in both modes. In edit mode, add a fourth form card, "Shift facts", in the page's manual field style.
 - **Modify `drivers/views.py` `driver_profile`.** Add `regular_rows` and `regular_summary` to the context.
-- **Modify `dispatching/day_setup.py:569`.** Change `"his car (set in admin)"` to `"his regular car"` (S13), and update any test that pins the old text.
+- *(Rev 4: the Day Setup label change is dropped. Day Setup stays untouched, per S13.)*
 - **Create `docs/release-notes/2026-10-04-regular-shifts-and-driver-facts.md`** from `_TEMPLATE.md`, audience Dispatchers. Draft, then tighten to the README's rules:
 
 > Hey team — every driver's profile now has a Shift facts card. It shows whether they're a Morning, Midday, Evening or Float driver (Float means any shift), each day of their regular week (including "Morning or Evening" days and "done by 3 PM" days), the earliest they'll ever start and the latest they'll ever finish, how many days a week they work, which days they'll take an extra shift, and their regular car.

@@ -1,6 +1,6 @@
 # 07 — Structured shifts, car splitting and driver facts (design)
 
-**Status:** adopted by the founder on 2026-10-03 (rev 3, the "combined version"). Not built. The next
+**Status:** adopted by the founder on 2026-10-03 (rev 3, the "combined version"). **Rev 4 (2026-10-04):** founder clarifications recorded in §13; superseded rows are marked inline. Not built. The next
 step is Stage 1 (§10), which the founder will start.
 **Evidence:** every number comes from read-only queries of the dev DB (cut 2026-09-28) and was
 re-derived by an independent check. "Estimate" marks modelled values. Delay reserves are
@@ -49,22 +49,22 @@ day goes long, and tomorrow's early start suffers because each day is planned on
 | U5 | Driver facts the system uses: regular shift, hard earliest start / latest finish, weekly cap, regular car, open to extra shifts. Home area is not used. |
 | U6 | The roster is staff-side first. How drivers see it is decided later; no driver-app change. |
 | U7 | A dated weekly roster is the source of who works when. |
-| U8 | The roster is sized on **projected** demand, not booked demand: core shifts + standby, re-forecast daily. |
-| U10 | **Car splitting is the centre of the design.** For each car, each day: SPLIT (morning + evening driver), ONE DRIVER (Midday or Morning-only), or UNUSED. |
+| U8 | The roster is sized on **projected** demand, not booked demand: core shifts + standby, re-forecast daily. *→ see §13 K2 / O4.* |
+| U10 | **Car splitting is the centre of the design.** For each car, each day: SPLIT (morning + evening driver), ONE DRIVER (Midday or Morning-only), or UNUSED. *→ revised by §13 K4 (a free car comes before a split).* |
 | U11 | Shift shapes are **targets, not limits**. The handover time is whatever is best that day. |
 | U12 | **An evening driver gets ≥ 3 jobs.** No evening shift is rostered unless projected evening demand fills it. |
 | U13 | Delay reserves are **placeholders until Stage 0 measures them.** |
-| U14 | **Fuel at every handover, no wash at midday.** A drops the last guest → fuel stop (15 min) → base → swap → 15-min prep → B leaves. No gap-exception swap; no tank-range modelling. |
+| U14 | **Fuel at every handover, no wash at midday.** A drops the last guest → fuel stop (15 min) → base → swap → 15-min prep → B leaves. No gap-exception swap; no tank-range modelling. *→ superseded by §13 K7–K8 (40-min return incl. optional wash + 10-min takeover).* |
 | U15 | No fixed handover window. A good handover means, in order: B gets real work (≥ 3 jobs), then **most trips kept in-house**, then **a clean last job for A** (ends at MCO, ideally a departure). An even split of hours is not a goal. |
-| U16 | **15-min prep buffer** after the car is ready, one standard buffer for every job. **B reports at car-ready or 10–15 min before; his 12h counts from his report time.** |
-| U17 | **The system decides each handover; a dispatcher OKs it** for now. Every rule is written down so it can later run on its own. |
+| U16 | **15-min prep buffer** after the car is ready, one standard buffer for every job. **B reports at car-ready or 10–15 min before; his 12h counts from his report time.** *→ the 15-min prep is superseded by §13 K7; the report rule is open (§13 O5).* |
+| U17 | **The system decides each handover; a dispatcher OKs it** for now. Every rule is written down so it can later run on its own. *→ revised by §13 K1: the system proposes, it never decides or applies.* |
 | U18 | **Farm only what is physically impossible**, meaning every eligible car is busy at that time. Order: another car's shift with room → pool leftovers into an extra evening shift on a free car → farm. A free car with no driver is a staffing gap, flagged at D-3 so a standby gets called; it is never a reason to farm. |
-| U19 | **Wash only at the end of the night.** The last driver of the day runs drop → wash → fuel → base (61 min after an MCO drop; setting), inside his 12h. |
+| U19 | **Wash only at the end of the night.** The last driver of the day runs drop → wash → fuel → base (61 min after an MCO drop; setting), inside his 12h. *→ open, §13 O2.* |
 | U20 | **Driver A running late** is handled by prevention in the plan, a re-check on facts, then a 5-step fix ladder (§9). The system names the exact car and driver for every fix. |
 | U21 | **Each day's schedule is finished ~2 days ahead** (Monday for Wednesday), then new trips are added as they come. A target, not a lock. |
-| U22 | **The combined build order (§5) is the design:** splits and the evening count are decided from the demand forecast; handover windows are reserved before packing; cars are packed for maximum in-house; one-driver windows float until the day is built; late trips may move a cut or a window. |
+| U22 | **The combined build order (§5) is the design:** splits and the evening count are decided from the demand forecast; handover windows are reserved before packing; cars are packed for maximum in-house; one-driver windows float until the day is built; late trips may move a cut or a window. *→ see §13 K4 (free car before a split).* |
 | U23 | **Weekly driver↔car pairing rotates week to week.** |
-| U24 | **No fairness or evenness rules for now.** In-house coverage is the only objective. |
+| U24 | **No fairness or evenness rules for now.** In-house coverage is the only objective. *→ revised by §13 K9 (in-house, then 12h, then less rearranging).* |
 | U25 | **Staffing: the founder will hire to cover the extra driver-days** the 12h rule needs (§11.2). The ≤ 1h overrun stays a day-of exception only, never a planning tool. |
 
 **Decided under delegation (the founder can overturn any):**
@@ -134,7 +134,7 @@ Driver facts → Weekly roster (core + standby) → D-3 car plan from the foreca
 - Evening drivers are attached to specific cars.
 - Each split car gets a provisional handover time from the curve. The latest possible is set by the
   morning shift's 12h; the earliest by B's 12h and ≥ 3 jobs.
-- A window of about 27 min before to 37 min after that time is reserved on the car (drive back + fuel;
+- *(Timing superseded by §13 K7.)* A window of about 27 min before to 37 min after that time is reserved on the car (drive back + fuel;
   prep + drive out).
 
 **Step 3 — Pack for maximum in-house (no fairness, U24).**
@@ -181,6 +181,7 @@ Driver facts → Weekly roster (core + standby) → D-3 car plan from the foreca
    - B's first pickup ≥ H + 15 + drive base→zone + pickup buffer.
    - H is stored in minutes on both drivers' rows (C11).
    - Settings: `handover_fuel_stop_min` 15, `handover_prep_min` 15, `night_return_min` 61.
+   - *Superseded by §13 K7–K8: `handover_return_min` 40 (from MCO, incl. an optional wash, skipped when it costs a trip) and `handover_takeover_min` 10, both adjustable; `night_return_min` is open (§13 O2).*
    - Founder's example: A's 12:00 PM MCO departure clears at 12:33 → fuel → car ready ~1:00 PM → B
      reports ~12:45, leaves ≥ 1:15 → earliest first pickup ~1:37 PM at MCO, ~2:05 PM at Disney.
 3. **Delay-safe end of a morning shift.** With the reserve added, H must still meet B's first
@@ -344,6 +345,38 @@ only.
   byte-identical on 10 dates (analysis/14 pattern).
 - **The Stage 0c replay gate** is re-run before each switch-on.
 - **A browser check** of the coverage view and roster pages, with a screenshot.
+
+## 13. Founder clarifications — 2026-10-04 (rev 4)
+
+These were recorded while Stage 1 was being built. They mostly steer Stages 2–4; K10 says what they change in Stage 1. Rows above that they supersede are marked inline.
+
+| # | Clarification | Effect on this design | Stages |
+|---|---|---|---|
+| K1 | This is a **human-operated planning tool**. The dispatcher requests a proposal, reviews it, adjusts it and approves it. No silent rearranging of approved schedules, and no automatic driver contact. | Confirms §4 and §9. Revises U17: the system **proposes** each handover and never decides or applies one. U17's "later run on its own" waits on O1. | 2–4 |
+| K2 | We plan **roughly two days ahead**, using drivers whose availability we already know. | Confirms U21. The daily build uses known availability: regular shifts, approved time off, and the roster. This conflicts with U8, C4, C5 and §5 step 1, which size the roster and decide splits from projected demand at D-3. Whether forecasting still sizes the roster or standby is open (O4). | 0b, 2 |
+| K3 | The system eventually **proposes vehicle assignments**, which cars to share, and handover times. It may propose moving trips between drivers or changing car pairings to make the day work. | Confirms C10, C14 and U23. Extends them: day-level pairing changes and trip moves are named outputs of a proposal. | 2–3 |
+| K4 | **Consider a suitable car that is free for the required period before creating an unnecessary shared-car handover.** | Revises U10 and §5 steps 1–2. A layer over 12h becomes SPLIT only when no suitable free car covers the second shift. If one does, the second driver takes that car and there is no handover. The Stage 0c replay must model this. | 0c, 2, 3 |
+| K5 | Later bookings are handled through **revised proposals** that show what changed and which drivers need a call. | Extends U21, U22, §5 step 5 and C13: a change view with a call list. | 3–4 |
+| K6 | Handovers happen at the **warehouse/base**. | Confirms U2, U4 and §6. | — |
+| K7 | **Handover timing.** After a trip finishes at MCO, allow **40 minutes total to return to base, including room for an optional wash**, then **10 minutes for takeover**. Both are adjustable. Travel to the next pickup comes on top. | Supersedes the 15-min fuel stop and 15-min prep in U14 and U16, §5 step 2's ~27/37-min window, and §6.2's H formula and settings. New Stage 3 settings: `handover_return_min` 40 (from MCO) and `handover_takeover_min` 10. | 3 |
+| K8 | **Skip the wash when it would cost a trip**, and use the direct return time instead. This replaces the earlier mandatory fuel/prep assumptions for that handover. Return timing from other locations still needs defining. | The handover wash becomes optional and is dropped when it costs a trip (direct MCO→base is about 12 min). Return times from other locations are open (O6). | 3 |
+| K9 | **Priorities:** keep trips in-house, keep drivers within 12 hours, reduce dispatcher rearranging. This does not authorize planned overruns. | Revises U24: in-house is no longer the only objective, and plan stability counts. Confirms U1 and U25. | 2–4 |
+
+**K10. What changes in Stage 1 (decided 2026-10-04)**
+- Stage 1 covers driver facts, regular shifts, availability, minute precision and cross-midnight foundations. It does no vehicle assignment and no trip optimization, and it leaves Day Setup untouched.
+- **Drive-only base→base in Stage 1.** The Stage 1 check counts the drive between base and the job plus the pickup buffer (10 min at an airport, 15 elsewhere). The fuel (15), report/prep (25) and end-of-night wash (61) allowances are removed from Stage 1. K7 and K8 land in Stage 3, where trips are actually placed.
+- **No planned work into an overrun.** A regular-shift driver whose day is already over 12h base→base takes no further planned trip, even one that fits inside the day. Dispatchers can still move trips by hand; that warns, it never blocks (§6.5).
+
+**Open questions (not decided)**
+- **O1. Live scheduling activation:** when, if ever, a proposal may apply without a dispatcher.
+- **O2. Overnight limits:**
+  - After-midnight work on an evening shift. Stage 1 judges each date's trips only against that date.
+  - The end-of-night return: U19's 61-min wash chain versus K7's 40 min.
+  - Rest across consecutive nights.
+- **O3. Not enough staff:** what happens when available drivers can't cover the day (U18, U25).
+- **O4. Roster sizing:** whether the roster and standby are still sized on projected demand (U8, C4, C5), given K2.
+- **O5. The 10-min takeover:** whose 12h carries it, and whether the incoming driver still reports before the car is ready (U16).
+- **O6. Return to base from other locations:** the timing from anywhere other than MCO.
 
 ---
 
