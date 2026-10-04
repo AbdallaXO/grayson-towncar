@@ -11,7 +11,8 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import redirect, render
 
 from users.agency_links import (
-    CHECK, MISSING, READY, LinkRefused, agency_payable, create_agency_and_link, link_to_agency, proposals,
+    CHECK, MISSING, READY, LinkRefused, agency_payable, create_agency_and_link_many, group_by_agency,
+    link_to_agency, proposals,
 )
 from users.models import Agency, TravelAgent
 
@@ -33,12 +34,13 @@ def agency_links(request):
     for p in found:
         p.agency_problem = agency_payable(p.agency) if p.agency else ""
     groups = {status: [p for p in found if p.status == status] for status in (READY, CHECK, MISSING)}
-    for rows in groups.values():
-        rows.sort(key=lambda p: -p.owed)
     return render(request, "dispatching/agency_links.html", {
         "ready": groups[READY],
         "check": groups[CHECK],
         "missing": groups[MISSING],
+        "ready_groups": group_by_agency(groups[READY]),
+        "check_groups": group_by_agency(groups[CHECK]),
+        "missing_groups": group_by_agency(groups[MISSING]),
         "ready_total": _total(groups[READY]),
         "check_total": _total(groups[CHECK]),
         "missing_total": _total(groups[MISSING]),
@@ -66,16 +68,28 @@ def _link(request):
 
 
 def _create(request):
+    """Add one agency and link the ticked agents under it (or the single agent sent)."""
     try:
-        agency, created = create_agency_and_link(int(request.POST.get("agent", "")), user=request.user)
+        agent_ids = [int(x) for x in request.POST.getlist("agent")]
+    except ValueError:
+        agent_ids = []
+    if not agent_ids:
+        messages.warning(request, "Nobody was ticked.")
+        return
+    name = request.POST.get("name", "").strip()
+    if not name:
+        agent = TravelAgent.objects.filter(pk=agent_ids[0]).first()
+        name = (agent.agency_name or "").strip() if agent else ""
+    try:
+        agency, created, linked, refused = create_agency_and_link_many(agent_ids, name, user=request.user)
     except LinkRefused as exc:
         messages.error(request, str(exc))
         return
-    except (ValueError, TravelAgent.DoesNotExist):
-        messages.error(request, "That row was out of date. Here's a fresh list.")
-        return
-    if created:
-        messages.success(request, f"Added {agency.name} and linked the agent. "
+    who = f"{linked} agent{'s' if linked != 1 else ''}"
+    if linked and created:
+        messages.success(request, f"Added {agency.name} and linked {who}. "
                                   "Add how the agency gets paid on its profile.")
-    else:
-        messages.success(request, f"Linked the agent to {agency.name}.")
+    elif linked:
+        messages.success(request, f"Linked {who} to {agency.name}.")
+    for reason in refused:
+        messages.error(request, reason)

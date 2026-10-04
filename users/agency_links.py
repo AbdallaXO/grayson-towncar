@@ -131,16 +131,93 @@ def link_to_agency(agent_id, agency_id, *, user):
 
 def create_agency_and_link(agent_id, *, user):
     """Add the agency the agent typed (or reuse one with that exact name) and link them to it."""
-    from users.models import Agency, TravelAgent
+    from users.models import TravelAgent
 
     agent = TravelAgent.objects.get(pk=agent_id)
     typed = (agent.agency_name or "").strip()
     if not typed:
         raise LinkRefused("They didn't type an agency name. Open their profile to set one.")
+    agency, created, _, refused = create_agency_and_link_many([agent.id], typed, user=user)
+    if refused:
+        raise LinkRefused(refused[0])
+    return agency, created
+
+
+def create_agency_and_link_many(agent_ids, name, *, user):
+    """Add one agency (or reuse an active one with this exact name) and link these agents to it.
+
+    Returns (agency, created, linked_count, refusals). Each agent is re-checked by
+    link_to_agency, so one who has since switched to Venmo is skipped, not linked.
+    """
+    from users.models import Agency, TravelAgent
+
+    name = " ".join((name or "").split())
+    if not name:
+        raise LinkRefused("No agency name to add. Open their profiles to set one.")
+    linked, refused = 0, []
     with transaction.atomic():
-        agency = Agency.objects.filter(name__iexact=typed, is_active=True).first()
+        agency = Agency.objects.filter(name__iexact=name, is_active=True).first()
         created = agency is None
         if created:
-            agency = Agency.objects.create(name=typed, is_active=True)
-        link_to_agency(agent.id, agency.id, user=user)
-    return agency, created
+            agency = Agency.objects.create(name=name, is_active=True)
+        for agent_id in agent_ids:
+            try:
+                link_to_agency(agent_id, agency.id, user=user)
+                linked += 1
+            except LinkRefused as exc:
+                refused.append(str(exc))
+            except TravelAgent.DoesNotExist:
+                refused.append("One agent no longer exists and was skipped.")
+        if created and not linked:
+            # Nobody could be linked: don't leave a new, empty agency behind.
+            transaction.set_rollback(True)
+    return agency, created, linked, refused
+
+
+@dataclass
+class Group:
+    """Proposals that share one agency, shown under a single heading."""
+    key: str
+    name: str
+    agency: object = None
+    rows: list = None
+    problem: str = ""
+
+    @property
+    def owed(self):
+        return sum((p.owed for p in self.rows), Decimal("0"))
+
+    @property
+    def variants(self):
+        return sorted({p.typed for p in self.rows if p.typed}, key=str.lower)
+
+
+def group_by_agency(rows):
+    """Group proposals under the agency they'd be linked to.
+
+    Linkable rows group by the proposed agency. Rows whose agency isn't in the
+    system group by the name they typed, ignoring case and words like
+    "Vacations" or "LLC", so "Best Day Ever" and "best day ever vacations" sit
+    together. Biggest money first.
+    """
+    groups = {}
+    for p in rows:
+        if p.agency:
+            key, name = f"agency:{p.agency.id}", p.agency.name
+        elif p.typed:
+            key, name = f"typed:{_norm(p.typed) or p.typed.lower()}", p.typed
+        else:
+            key, name = "blank", ""
+        g = groups.setdefault(key, Group(key, name, p.agency, []))
+        g.rows.append(p)
+    for g in groups.values():
+        g.rows.sort(key=lambda p: (-p.owed, (p.agent.agent_name or "").lower()))
+        if not g.agency and g.key != "blank":
+            # Name the new agency the way most of its agents typed it.
+            counts = {}
+            for p in g.rows:
+                counts[p.typed] = counts.get(p.typed, 0) + 1
+            g.name = max(counts, key=lambda t: (counts[t], len(t)))
+        if g.agency:
+            g.problem = agency_payable(g.agency)
+    return sorted(groups.values(), key=lambda g: (g.key == "blank", -g.owed, -len(g.rows), g.name.lower()))

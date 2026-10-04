@@ -78,12 +78,47 @@
   .al-section-note { font-size: .8rem; color: var(--gt-ink-3); }
   .al-list { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; }
   .al-row {
-    display: grid; grid-template-columns: 28px minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.3fr) 92px;
+    display: grid; grid-template-columns: 28px minmax(0, 1.3fr) minmax(0, 1.4fr) 92px;
     gap: 14px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem;
   }
   .al-row:first-child { border-top: 0; }
   .al-row-head { background: var(--gt-surface); font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 500; padding-top: 9px; padding-bottom: 9px; }
-  .al-missing .al-row { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.1fr) 92px 170px; }
+
+  /* One block per agency: a heading you can tick or open, its agents underneath. */
+  .al-group { border-top: 1px solid var(--gt-border); }
+  .al-list > .al-row-head + .al-group { border-top: 0; }
+  .al-group-head {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center;
+    padding: 13px 18px; background: #fff; position: relative; transition: background .15s ease;
+  }
+  .al-group-head.no-tick { grid-template-columns: minmax(0, 1fr) auto; }
+  .al-group-head::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: transparent; transition: background .15s ease; }
+  .al-group.is-open > .al-group-head { background: var(--gt-surface); }
+  .al-group.is-open > .al-group-head::before { background: var(--gt-gold); }
+  .al-group-head:hover { background: #FBFAF6; }
+  .al-group-tick { width: 17px; height: 17px; accent-color: var(--gt-dark); cursor: pointer; }
+  .al-group-toggle {
+    all: unset; cursor: pointer; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0;
+  }
+  .al-group-toggle:focus-visible { outline: 2px solid var(--gt-gold); outline-offset: 4px; border-radius: 4px; }
+  .al-caret { font-size: .8rem; color: var(--gt-ink-3); transition: transform .2s ease; align-self: center; }
+  .al-group.is-open .al-caret { transform: rotate(90deg); color: var(--gt-dark); }
+  .al-group-name { font-weight: 500; font-size: .98rem; color: var(--gt-dark); letter-spacing: -0.1px; }
+  .al-group-meta { font-size: .78rem; color: var(--gt-muted); }
+  .al-group-side { display: flex; align-items: center; gap: 16px; }
+  .al-group-side .al-amount { min-width: 92px; }
+  .al-group-open { font-size: .78rem; color: var(--gt-muted); font-weight: 400; }
+  .al-group-warn { grid-column: 2 / -1; margin: 0; }
+  .al-group-head.no-tick .al-group-warn { grid-column: 1 / -1; }
+  .al-group-body { display: none; }
+  .al-group.is-open > .al-group-body { display: block; animation: al-open .2s ease both; }
+  .al-group-body .al-row { padding-left: 34px; background: #fff; }
+  .al-group-body .al-row:first-child { border-top: 1px solid var(--gt-border-soft); }
+  .al-group-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 10px 18px 14px; border-top: 1px solid var(--gt-border-soft); background: #fff; }
+  .al-group-foot .al-typed { margin: 0; }
+  .al-group.is-hidden { display: none; }
+  form.al-group { margin: 0; }
+  .al-note { display: block; font-size: .76rem; color: var(--gt-gold-ink); margin-top: 2px; }
   .al-method { display: inline-block; font-size: .72rem; font-weight: 500; padding: 2px 9px; border-radius: 999px; background: var(--gt-surface); color: var(--gt-dark); }
   .al-chose .al-typed { margin-top: 4px; }
   .al-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 6px; position: sticky; top: 0; z-index: 40; padding: 10px 0; background: rgba(244,243,239,.94); backdrop-filter: blur(6px); }
@@ -110,6 +145,9 @@
     background: #fff; color: var(--gt-dark); border: 1px solid var(--gt-border); transition: border-color .15s ease;
   }
   .al-btn-sm:hover { border-color: var(--gt-dark); }
+  .al-btn-dark { background: var(--gt-dark); color: #fff; border-color: var(--gt-dark); }
+  .al-btn-dark:hover { background: var(--gt-dark-2); }
+  .al-btn-dark:disabled { background: #b9bdc9; border-color: #b9bdc9; cursor: not-allowed; }
 
   .al-bar {
     position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
@@ -127,7 +165,8 @@
   .al-empty { background: #fff; border: 1px dashed var(--gt-border); border-radius: var(--gt-radius); padding: 30px 20px; text-align: center; color: var(--gt-muted); font-size: .92rem; }
 
   @keyframes al-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .al-stat, .al-section { animation: none; } }
+  @keyframes al-open { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .al-stat, .al-section, .al-group-body { animation: none !important; } .al-caret { transition: none; } }
 
   @media (max-width: 720px) {
     .al-title { font-size: 1.6rem; }
@@ -135,10 +174,13 @@
     .al-row-head { display: none; }
     .al-row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 4px 10px; }
     .al-row > .al-chose { grid-column: 2 / -1; grid-row: 2; }
-    .al-row > .al-target { grid-column: 2 / -1; grid-row: 3; }
-    .al-missing .al-row { grid-template-columns: minmax(0, 1fr) auto; }
-    .al-missing .al-row > .al-chose, .al-missing .al-row > :nth-child(3) { grid-column: 1; grid-row: auto; }
-    .al-missing .al-row > .al-create { grid-column: 1 / -1; text-align: left; }
+    .al-group-body .al-row { padding-left: 18px; }
+    .al-group-head { grid-template-columns: 24px minmax(0, 1fr); padding: 12px 16px; }
+    .al-group-head.no-tick { grid-template-columns: minmax(0, 1fr); }
+    .al-group-side { grid-column: 2; justify-content: space-between; }
+    .al-group-head.no-tick .al-group-side { grid-column: 1; }
+    .al-group-foot { flex-direction: column; align-items: stretch; }
+    .al-group-foot .al-btn-sm { width: 100%; padding: .6rem; }
     .al-bar { left: 16px; right: 16px; transform: none; justify-content: space-between; }
   }
 </style>
@@ -194,6 +236,7 @@
       <input type="search" id="al-q" placeholder="Search agent or agency, e.g. Best Day" autocomplete="off">
     </label>
     <span class="al-shown" id="al-shown"></span>
+    <button type="button" class="al-btn-sm" id="al-openall"><i class="bi bi-arrows-expand me-1"></i>Open all</button>
     {% if ready or check %}
     <button type="button" class="al-btn-sm" data-tick="1"><i class="bi bi-check2-square me-1"></i>Tick all shown</button>
     <button type="button" class="al-btn-sm" data-tick="0"><i class="bi bi-square me-1"></i>Untick all shown</button>
@@ -210,11 +253,18 @@
     <section class="al-section" id="ready">
       <div class="al-section-head">
         <h2>Ready to link</h2>
-        <span class="al-section-note">Their agency is in the system under the name they gave. Ticked for you.</span>
+        <span class="al-section-note">{{ ready_groups|length }} agenc{{ ready_groups|length|pluralize:"y,ies" }}, each in the system under the name the agents gave. Ticked for you.</span>
       </div>
       <div class="al-list">
-        <div class="al-row al-row-head"><span></span><span>Agent</span><span>They chose</span><span>Link to</span><span class="al-amount">Owed now</span></div>
-        {% for p in ready %}{% include 'dispatching/_agency_link_row.html' with p=p checked=True %}{% endfor %}
+        <div class="al-row al-row-head"><span></span><span>Agency · agents</span><span>They chose</span><span class="al-amount">Owed now</span></div>
+        {% for g in ready_groups %}
+        <div class="al-group" data-group>
+          {% include 'dispatching/_agency_link_group_head.html' with g=g tickable=True %}
+          <div class="al-group-body">
+            {% for p in g.rows %}{% include 'dispatching/_agency_link_row.html' with p=p checked=True %}{% endfor %}
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </section>
     {% endif %}
@@ -226,8 +276,15 @@
         <span class="al-section-note">Close, but not an exact match. Tick the ones that are the same agency.</span>
       </div>
       <div class="al-list">
-        <div class="al-row al-row-head"><span></span><span>Agent</span><span>They chose</span><span>Probably</span><span class="al-amount">Owed now</span></div>
-        {% for p in check %}{% include 'dispatching/_agency_link_row.html' with p=p checked=False %}{% endfor %}
+        <div class="al-row al-row-head"><span></span><span>Probably this agency · agents</span><span>They chose</span><span class="al-amount">Owed now</span></div>
+        {% for g in check_groups %}
+        <div class="al-group" data-group>
+          {% include 'dispatching/_agency_link_group_head.html' with g=g tickable=True %}
+          <div class="al-group-body">
+            {% for p in g.rows %}{% include 'dispatching/_agency_link_row.html' with p=p checked=False %}{% endfor %}
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </section>
     {% endif %}
@@ -243,29 +300,36 @@
   <section class="al-section al-missing" id="missing">
     <div class="al-section-head">
       <h2>Agency not in the system</h2>
-      <span class="al-section-note">Add the agency they typed and link them in one click. Then add how the agency gets paid.</span>
+      <span class="al-section-note">Grouped by the agency they typed. Add it once and link everyone under it.</span>
     </div>
     <div class="al-list">
-      <div class="al-row al-row-head"><span>Agent</span><span>They chose</span><span>Agency they typed</span><span class="al-amount">Owed now</span><span></span></div>
-      {% for p in missing %}
-      <div class="al-row" data-search="{{ p.agent.agent_name|default:p.agent.user.username|lower }} {{ p.typed|lower }} {{ p.agent.payment_info|default:''|lower }}">
-        <span><a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}">{{ p.agent.agent_name|default:p.agent.user.username }}</a></span>
-        {% include 'dispatching/_agency_link_chose.html' with agent=p.agent %}
-        <span>{{ p.typed|default:"(left blank)" }}</span>
-        <span class="al-amount{% if not p.owed %} zero{% endif %}">${{ p.owed|floatformat:2|intcomma }}</span>
-        <span class="al-create">
-          {% if p.typed %}
-          <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-            <input type="hidden" name="agent" value="{{ p.agent.id }}">
-            <button type="submit" class="al-btn-sm"><i class="bi bi-plus-lg me-1"></i>Add agency &amp; link</button>
-          </form>
-          {% else %}
-          <a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}">Open profile</a>
+      <div class="al-row al-row-head"><span></span><span>Agency they typed · agents</span><span>They chose</span><span class="al-amount">Owed now</span></div>
+      {% for g in missing_groups %}
+      <form method="post" class="al-group" data-group data-create>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+        <input type="hidden" name="name" value="{{ g.name }}">
+        {% if g.name %}{% include 'dispatching/_agency_link_group_head.html' with g=g tickable=True %}{% else %}{% include 'dispatching/_agency_link_group_head.html' with g=g tickable=False %}{% endif %}
+        <div class="al-group-body">
+          {% for p in g.rows %}
+          <label class="al-row" data-search="{{ p.agent.agent_name|default:p.agent.user.username|lower }} {{ p.typed|lower }} {{ p.agent.payment_info|default:''|lower }}">
+            {% if g.name %}<input type="checkbox" name="agent" value="{{ p.agent.id }}" checked>{% else %}<span></span>{% endif %}
+            <span>
+              <a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}" onclick="event.stopPropagation();">{{ p.agent.agent_name|default:p.agent.user.username }}</a>
+              <span class="al-typed">{% if p.typed %}Typed: {{ p.typed }}{% else %}Left the agency name blank. Open their profile to set it.{% endif %}</span>
+            </span>
+            {% include 'dispatching/_agency_link_chose.html' with agent=p.agent %}
+            <span class="al-amount{% if not p.owed %} zero{% endif %}">${{ p.owed|floatformat:2|intcomma }}</span>
+          </label>
+          {% endfor %}
+          {% if g.name %}
+          <div class="al-group-foot">
+            {% if g.variants|length > 1 %}<span class="al-typed">Saved as "{{ g.name }}". You can rename it on the agency's profile.</span>{% endif %}
+            <button type="submit" class="al-btn-sm al-btn-dark"><i class="bi bi-plus-lg me-1"></i>Add {{ g.name }} &amp; link <span class="al-create-n"></span></button>
+          </div>
           {% endif %}
-        </span>
-      </div>
+        </div>
+      </form>
       {% endfor %}
     </div>
   </section>
@@ -285,21 +349,47 @@
     var form = document.getElementById('al-form');
     var count = document.getElementById('al-count');
     var submit = document.getElementById('al-submit');
+    var openAll = document.getElementById('al-openall');
     var rows = Array.prototype.slice.call(document.querySelectorAll('.al-row[data-search]'));
+    var groups = Array.prototype.slice.call(document.querySelectorAll('[data-group]'));
 
-    // Only rows on screen count. A search must never let a ticked-but-hidden row ride along.
-    function visibleTicked() {
-      if (!form) return [];
-      return Array.prototype.filter.call(form.querySelectorAll('input[name=pair]:checked'), function (cb) {
+    function boxName(g) { return g.hasAttribute('data-create') ? 'agent' : 'pair'; }
+    // Only rows the search leaves on screen count. A ticked-but-hidden row never rides along.
+    function shownBoxes(scope, name) {
+      return Array.prototype.filter.call(scope.querySelectorAll('input[name=' + name + ']'), function (cb) {
         return !cb.closest('.al-row').classList.contains('is-hidden');
       });
     }
+    function ticked(scope, name) {
+      return shownBoxes(scope, name).filter(function (cb) { return cb.checked; });
+    }
+    function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+    function setOpen(g, open) {
+      g.classList.toggle('is-open', open);
+      g.querySelector('.al-group-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
     function refresh() {
+      groups.forEach(function (g) {
+        var boxes = shownBoxes(g, boxName(g));
+        var on = boxes.filter(function (cb) { return cb.checked; }).length;
+        var tick = g.querySelector('.al-group-tick');
+        if (tick) {
+          tick.checked = boxes.length > 0 && on === boxes.length;
+          tick.indeterminate = on > 0 && on < boxes.length;
+        }
+        var picked = g.querySelector('.al-group-picked');
+        if (picked) picked.textContent = on + ' ticked';
+        var n = g.querySelector('.al-create-n');
+        if (n) {
+          n.textContent = plural(on, 'agent', 'agents');
+          n.closest('button').disabled = on === 0;
+        }
+      });
       if (!form) return;
-      var n = visibleTicked().length;
+      var n = ticked(form, 'pair').length;
       count.textContent = n + ' selected';
       submit.disabled = n === 0;
-      submit.textContent = n ? 'Link ' + n + ' agent' + (n === 1 ? '' : 's') : 'Link selected';
+      submit.textContent = n ? 'Link ' + plural(n, 'agent', 'agents') : 'Link selected';
     }
     function filter() {
       var term = (q ? q.value : '').trim().toLowerCase();
@@ -309,31 +399,73 @@
         row.classList.toggle('is-hidden', !hit);
         if (hit) visible++;
       });
+      groups.forEach(function (g) {
+        var any = !!g.querySelector('.al-row[data-search]:not(.is-hidden)');
+        g.classList.toggle('is-hidden', !any);
+        // A search opens the agencies it finds; clearing it puts them back how they were.
+        setOpen(g, term ? any : g.dataset.userOpen === '1');
+      });
       document.querySelectorAll('.al-section').forEach(function (section) {
         section.classList.toggle('is-empty', !section.querySelector('.al-row[data-search]:not(.is-hidden)'));
       });
       if (shown) shown.textContent = term ? visible + ' of ' + rows.length + ' shown' : '';
       refresh();
     }
+
+    groups.forEach(function (g) {
+      // Agencies with one or two agents start open; bigger ones start as a single line.
+      g.dataset.userOpen = g.querySelectorAll('.al-row[data-search]').length <= 2 ? '1' : '0';
+      g.querySelector('.al-group-toggle').addEventListener('click', function () {
+        var open = !g.classList.contains('is-open');
+        g.dataset.userOpen = open ? '1' : '0';
+        setOpen(g, open);
+      });
+      var tick = g.querySelector('.al-group-tick');
+      if (tick) tick.addEventListener('change', function () {
+        shownBoxes(g, boxName(g)).forEach(function (cb) { cb.checked = tick.checked; });
+        refresh();
+      });
+      if (g.hasAttribute('data-create')) {
+        g.addEventListener('change', refresh);
+        g.addEventListener('submit', function (e) {
+          var n = ticked(g, 'agent').length;
+          var name = g.querySelector('input[name=name]').value;
+          var msg = 'Add ' + name + ' as an agency and link ' + plural(n, 'agent', 'agents') + ' to it?' +
+                    String.fromCharCode(10, 10) + 'Their commission will be paid to the agency from now on.';
+          if (!n || !window.confirm(msg)) { e.preventDefault(); return; }
+          g.querySelectorAll('.al-row.is-hidden input[name=agent]').forEach(function (cb) { cb.disabled = true; });
+        });
+      }
+    });
+
+    if (openAll) openAll.addEventListener('click', function () {
+      var open = openAll.dataset.open !== '1';
+      openAll.dataset.open = open ? '1' : '0';
+      openAll.innerHTML = open ? '<i class="bi bi-arrows-collapse me-1"></i>Close all'
+                               : '<i class="bi bi-arrows-expand me-1"></i>Open all';
+      groups.forEach(function (g) {
+        g.dataset.userOpen = open ? '1' : '0';
+        if (!g.classList.contains('is-hidden')) setOpen(g, open);
+      });
+    });
     if (q) q.addEventListener('input', filter);
     document.querySelectorAll('[data-tick]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var on = btn.dataset.tick === '1';
-        rows.forEach(function (row) {
-          var cb = row.querySelector('input[name=pair]');
-          if (cb && !row.classList.contains('is-hidden')) cb.checked = on;
-        });
+        if (form) shownBoxes(form, 'pair').forEach(function (cb) { cb.checked = on; });
         refresh();
       });
     });
     if (form) {
       form.addEventListener('change', refresh);
       form.addEventListener('submit', function (e) {
-        var n = visibleTicked().length;
-        var msg = 'Link ' + n + ' agent' + (n === 1 ? '' : 's') + ' to their agency?' +
+        var picked = ticked(form, 'pair');
+        var agencies = {};
+        picked.forEach(function (cb) { agencies[cb.value.split(':')[1]] = 1; });
+        var a = Object.keys(agencies).length;
+        var msg = 'Link ' + plural(picked.length, 'agent', 'agents') + ' to ' + plural(a, 'agency', 'agencies') + '?' +
                   String.fromCharCode(10, 10) + 'Their commission will be paid to the agency from now on.';
-        if (!n || !window.confirm(msg)) { e.preventDefault(); return; }
-        // Leave rows hidden by the search out of what's sent.
+        if (!picked.length || !window.confirm(msg)) { e.preventDefault(); return; }
         form.querySelectorAll('.al-row.is-hidden input[name=pair]').forEach(function (cb) { cb.disabled = true; });
       });
     }

@@ -1,0 +1,20 @@
+{# Heading for one agency's agents: tick them all, open/close the list, see the total. #}
+{% load humanize %}
+<div class="al-group-head{% if not tickable %} no-tick{% endif %}">
+  {% if tickable %}<input type="checkbox" class="al-group-tick" aria-label="Tick every agent under {{ g.name|default:'this agency' }}">{% endif %}
+  <button type="button" class="al-group-toggle" aria-expanded="false">
+    <i class="bi bi-chevron-right al-caret"></i>
+    <span class="al-group-name">
+      {% if g.agency %}{{ g.agency.name }}{% elif g.name %}{{ g.name }}{% else %}No agency typed{% endif %}
+    </span>
+    <span class="al-group-meta">
+      {{ g.rows|length }} agent{{ g.rows|length|pluralize }}{% if tickable %} · <span class="al-group-picked"></span>{% endif %}
+      {% if g.variants|length > 1 %} · typed {{ g.variants|length }} ways{% endif %}
+    </span>
+  </button>
+  <span class="al-group-side">
+    {% if g.agency %}<a class="al-link al-group-open" href="{% url 'admin_travel_agency_detail' g.agency.id %}">Agency profile</a>{% endif %}
+    <span class="al-amount{% if not g.owed %} zero{% endif %}">${{ g.owed|floatformat:2|intcomma }}</span>
+  </span>
+  {% if g.problem %}<span class="al-warn al-group-warn"><i class="bi bi-exclamation-triangle me-1"></i>{{ g.problem }} Linking still works; you just can't pay them until it's added.</span>{% endif %}
+</div>

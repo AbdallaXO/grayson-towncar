@@ -13,7 +13,9 @@ from django.test import TestCase
 from django.urls import reverse
 
 from reservations.models import AuditLog
-from users.agency_links import CHECK, MISSING, READY, LinkRefused, link_to_agency, proposals
+from users.agency_links import (
+    CHECK, MISSING, READY, LinkRefused, group_by_agency, link_to_agency, proposals,
+)
 from users.models import Agency, TravelAgent
 
 
@@ -143,3 +145,54 @@ class PageTests(TestCase):
     def test_non_staff_cannot_open_it(self):
         self.client.force_login(User.objects.create_user("guest", password="x"))
         self.assertNotEqual(self.client.get(self.url).status_code, 200)
+
+
+class GroupTests(TestCase):
+    """The page shows one heading per agency with its agents underneath."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_user("disp", password="x", is_staff=True))
+        self.url = reverse("agency_links")
+        self.bdev = Agency.objects.create(name="Best Day Ever Vacations")
+
+    def test_agents_of_one_agency_share_a_heading(self):
+        make_agent("ann", typed="Best Day Ever Vacations")
+        make_agent("bo", typed="best day ever vacations")
+        make_agent("cy", typed="Mouse Counselors")
+        groups = group_by_agency(proposals())
+        ready = next(g for g in groups if g.agency == self.bdev)
+        self.assertEqual(len(ready.rows), 2)
+        self.assertEqual(len(groups), 2)
+
+    def test_missing_agencies_group_by_how_they_were_typed(self):
+        make_agent("ann", typed="Pixie Dust Vacations")
+        make_agent("bo", typed="pixie dust")
+        make_agent("cy", typed="Pixie Dust Vacations")
+        make_agent("dee", typed="")
+        groups = group_by_agency([p for p in proposals() if p.status == MISSING])
+        self.assertEqual([len(g.rows) for g in groups], [3, 1])
+        self.assertEqual(groups[0].name, "Pixie Dust Vacations")  # the way most typed it
+        self.assertEqual(groups[-1].key, "blank")  # no name typed goes last
+
+    def test_add_one_agency_and_link_the_ticked_agents(self):
+        ann = make_agent("ann", typed="Pixie Dust Vacations")
+        bo = make_agent("bo", typed="pixie dust")
+        cy = make_agent("cy", typed="Pixie Dust Vacations")
+        self.client.post(self.url, {"action": "create", "name": "Pixie Dust Vacations", "agent": [ann.id, bo.id]})
+        self.assertEqual(Agency.objects.filter(name__iexact="pixie dust vacations").count(), 1)
+        for agent, linked in ((ann, True), (bo, True), (cy, False)):
+            agent.refresh_from_db()
+            self.assertEqual(agent.agency_handles_payment, linked)
+
+    def test_no_empty_agency_left_when_nobody_can_be_linked(self):
+        ann = make_agent("ann", typed="Pixie Dust Vacations")
+        TravelAgent.objects.filter(pk=ann.pk).update(payment_method="venmo")
+        self.client.post(self.url, {"action": "create", "name": "Pixie Dust Vacations", "agent": [ann.id]})
+        self.assertFalse(Agency.objects.filter(name="Pixie Dust Vacations").exists())
+
+    def test_page_shows_the_agency_heading(self):
+        make_agent("ann", typed="Best Day Ever Vacations")
+        make_agent("bo", typed="Pixie Dust")
+        response = self.client.get(self.url)
+        self.assertContains(response, 'class="al-group-name"')
+        self.assertContains(response, "Add Pixie Dust &amp; link")
