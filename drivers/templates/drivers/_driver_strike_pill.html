@@ -1,6 +1,7 @@
 {% comment %}
   "N strikes in the last 12 months", in the profile hero and the Log card
   header: amber for 1 or 2, red for 3 or more. The caller shows it only when
-  strike_count is above 0. Styled by .strike-pill in _driver_log_card.html.
+  strike_count is above 0. Styled by _driver_strike_pill_styles.html, in the
+  profile's head.
 {% endcomment %}
 <a href="#driver-log" class="strike-pill strike-{% if strike_count >= 3 %}red{% else %}amber{% endif %}" data-strikes="{{ strike_count }}"><i class="bi bi-flag-fill" aria-hidden="true"></i>{{ strike_count }} strike{{ strike_count|pluralize }} in the last 12 months</a>

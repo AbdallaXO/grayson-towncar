@@ -1433,7 +1433,8 @@ def driver_profile(request, driver_id):
     log_filter = request.GET.get("log", "")
     log_filter = log_filter if log_filter in driver_knowledge.LOG_KINDS else ""
     context["log_filter"] = log_filter
-    context["log_filters"] = driver_knowledge.LOG_FILTERS
+    context["log_filters"] = driver_knowledge.log_filter_links(request.path, request.GET, edit_mode)
+    context["log_all_href"] = driver_knowledge.log_filter_href(request.path, request.GET, "", edit_mode)
     context["log_entries"] = list(driver_knowledge.log_entries(driver, log_filter or None))
     context["strike_count"] = driver_knowledge.strike_count(driver, today)
     context["log_form"] = DriverLogEntryForm(driver, request.user)

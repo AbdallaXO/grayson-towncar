@@ -34,6 +34,7 @@ class Migration(migrations.Migration):
             options={
                 'verbose_name_plural': 'driver log entries',
                 'ordering': ['-occurred_on', '-logged_at'],
+                'constraints': [models.CheckConstraint(condition=models.Q(('is_strike', False), ('kind__in', ('complaint', 'incident')), _connector='OR'), name='driverlog_strike_is_complaint_or_incident', violation_error_message='A strike must be a complaint or an incident.')],
             },
         ),
     ]

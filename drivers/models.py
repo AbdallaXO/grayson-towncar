@@ -3007,6 +3007,16 @@ class DriverLogEntry(models.Model):
     class Meta:
         ordering = ["-occurred_on", "-logged_at"]
         verbose_name_plural = "driver log entries"
+        constraints = [
+            # A strike is only on STRIKE_KINDS. The log form says so too; this
+            # keeps an admin, shell or import write from putting a strike on a
+            # compliment or a note, where strike_count would count it.
+            models.CheckConstraint(
+                condition=Q(is_strike=False) | Q(kind__in=("complaint", "incident")),
+                name="driverlog_strike_is_complaint_or_incident",
+                violation_error_message="A strike must be a complaint or an incident.",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.driver} · {self.occurred_on} · {self.get_kind_display()}"

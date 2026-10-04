@@ -16,8 +16,10 @@ from decimal import Decimal
 from django.apps import apps as django_apps
 from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
-from django.db import IntegrityError, transaction
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -513,6 +515,19 @@ class LogEntryTests(_LogBase):
             self.assertEqual(self.post_entry(kind=kind, is_strike="on").status_code, 302)
         self.assertEqual(DriverLogEntry.objects.filter(is_strike=True).count(), 2)
 
+    def test_database_refuses_a_strike_on_a_compliment_or_note(self):
+        """Not only the form: an admin, shell or import write can't put a
+        strike on a compliment or a note either, so strike_count can't count one."""
+        for kind in ("compliment", "note"):
+            with self.subTest(kind=kind), self.assertRaises(IntegrityError):
+                with transaction.atomic():
+                    self.entry(kind, strike=True)
+        e = DriverLogEntry(driver=self.driver, kind="compliment", occurred_on=self.today,
+                           is_strike=True, summary="Kind words")
+        with self.assertRaisesMessage(ValidationError, "A strike must be a complaint or an incident."):
+            e.full_clean()
+        self.assertEqual(driver_knowledge.strike_count(self.driver, self.today), 0)
+
     def test_severity_only_on_complaints_and_incidents(self):
         self.client.force_login(self.dispatcher)
         self.post_entry(kind="compliment", severity="serious", summary="Kind words")
@@ -592,6 +607,37 @@ class LogEntryTests(_LogBase):
         self.client.force_login(self.manager)
         resp = self.client.get(self.profile_url(), {"edit": "1"})
         self.assertContains(resp, 'href="?edit=1&amp;log=incident#driver-log"')
+
+    def test_filter_links_keep_the_rest_of_the_address(self):
+        """A filter link changes only ?log=, so the guest-texting window and
+        edit mode stay as they were."""
+        self.entry("complaint", summary="Zq complaint")
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self.profile_url(), {"comms": "90", "log": "complaint"})
+        self.assertEqual(resp.context["comms_window"], "90")
+        links = {key: href for key, _, href in resp.context["log_filters"]}
+        self.assertEqual(links, {"": "?comms=90", "compliment": "?comms=90&log=compliment",
+                                 "complaint": "?comms=90&log=complaint",
+                                 "incident": "?comms=90&log=incident",
+                                 "note": "?comms=90&log=note"})
+        self.assertContains(resp, 'href="?comms=90&amp;log=note#driver-log"')
+        self.assertContains(resp, 'href="?comms=90#driver-log"')            # All
+        # nothing of that kind: "Show everything" keeps the window too
+        resp = self.client.get(self.profile_url(), {"comms": "90", "log": "incident"})
+        self.assertContains(resp, "None of these in the log.")
+        self.assertEqual(resp.context["log_all_href"], "?comms=90")
+        # with nothing else on the address, "All" is the profile itself
+        resp = self.client.get(self.profile_url(), {"log": "note"})
+        self.assertContains(resp, f'href="{self.profile_url()}#driver-log"')
+        # ?edit=1 means nothing to a dispatcher, so the links don't carry it
+        resp = self.client.get(self.profile_url(), {"edit": "1", "comms": "7"})
+        self.assertContains(resp, 'href="?comms=7&amp;log=note#driver-log"')
+        self.assertNotContains(resp, "edit=1&amp;log=")
+        # a manager in edit mode keeps both
+        self.client.force_login(self.manager)
+        resp = self.client.get(self.profile_url(), {"comms": "7", "edit": "1", "log": "note"})
+        self.assertContains(resp, 'href="?comms=7&amp;edit=1&amp;log=incident#driver-log"')
+        self.assertContains(resp, 'href="?comms=7&amp;edit=1#driver-log"')  # All
 
     def test_timeline_is_newest_first(self):
         old = self.entry(days_ago=20, summary="Old")
@@ -683,17 +729,70 @@ class LogEntryTests(_LogBase):
         self.assertContains(resp, "Add to the log")
         self.assertNotContains(resp, "data-strikes=")
 
+    def test_summary_and_details_are_escaped(self):
+        self.entry("complaint", summary="<script>alert('zq')</script>",
+                   details="<b>Zq bold</b>\nZq second line")
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self.profile_url())
+        self.assertNotContains(resp, "<script>alert(")
+        self.assertNotContains(resp, "<b>Zq bold</b>")
+        self.assertContains(resp, "&lt;script&gt;alert(")
+        self.assertContains(resp, "&lt;b&gt;Zq bold&lt;/b&gt;<br>Zq second line")
+
+    def test_profile_queries_do_not_grow_with_the_log(self):
+        """Each entry's trip, reservation and who logged or edited it come with
+        the log's one query, so a longer log costs no more queries."""
+        def add_entries(n):
+            for i in range(n):
+                day = i + 1
+                self.entry("complaint", days_ago=day, strike=True, leg=self.leg(self.days_ago(day)),
+                           logged_by=self.dispatcher, updated_by=self.manager, details="Zq details")
+
+        def queries():
+            with CaptureQueriesContext(connection) as ctx:
+                resp = self.client.get(self.profile_url())
+            self.assertEqual(resp.status_code, 200)
+            return len(ctx.captured_queries), len(resp.context["log_entries"])
+
+        self.client.force_login(self.manager)       # managers also get Edit and Delete on each entry
+        add_entries(3)
+        self.client.get(self.profile_url())         # warm the caches the page reads
+        few, shown = queries()
+        self.assertEqual(shown, 3)
+        add_entries(3)
+        many, shown = queries()
+        self.assertEqual(shown, 6)
+        self.assertEqual(many, few)
+
     def test_log_never_on_driver_app(self):
         leg = self.leg(self.days_ago(1))
         self.entry("complaint", strike=True, summary="Zq office-only summary",
                    details="Zq office-only details", leg=leg)
         self.entry("compliment", summary="Zq kind words")
+        hidden = ("Zq office-only", "Zq kind words", "data-strikes=", 'id="driver-log"',
+                  "in the last 12 months", "kb-kind")
         self.client.force_login(self.driver_user)
         for name in ("drivers_dashboard", "schedule", "completed_trips", "driver_my_details"):
             resp = self.client.get(reverse(name))
             self.assertEqual(resp.status_code, 200, name)
-            for text in ("Zq office-only", "Zq kind words", "data-strikes=", 'id="driver-log"',
-                         "in the last 12 months", "kb-kind"):
+            for text in hidden:
+                self.assertNotContains(resp, text, msg_prefix=name)
+
+        # nor on the operator portal (drivers/operator_views.py), for an operator's own log
+        op_user = User.objects.create_user("kb_operator", first_name="Acme", last_name="Limo")
+        operator = Driver.objects.create(profile=op_user, driver_type="affiliate",
+                                         portal_role="operator")
+        today_leg = self.leg(self.today, 15, 0, driver=operator, status="in-progress")
+        self.leg(self.today + timedelta(days=2), driver=operator, status="in-progress")
+        self.leg(self.days_ago(2), driver=operator, status="completed")
+        self.entry("incident", strike=True, summary="Zq office-only operator summary",
+                   details="Zq office-only operator details", leg=today_leg, driver=operator)
+        self.entry("compliment", summary="Zq kind words for the operator", driver=operator)
+        self.client.force_login(op_user)
+        for name in ("operator_board", "operator_upcoming", "operator_completed"):
+            resp = self.client.get(reverse(name))
+            self.assertEqual(resp.status_code, 200, name)
+            for text in hidden:
                 self.assertNotContains(resp, text, msg_prefix=name)
 
     def test_hero_shows_strike_pill(self):

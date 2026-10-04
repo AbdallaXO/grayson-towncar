@@ -3,27 +3,18 @@
   newest first, with strikes (structured shifts, Stage 1, S19). Staff profile
   only, never in the driver app.
 
-  Self-contained: it carries its own styles (including .strike-pill, which the
-  profile hero uses too), and its forms post on their own, so it must never be
-  placed inside the profile edit form. Any staff user adds to the log; managers
+  Self-contained: it carries its own styles, and its forms post on their own,
+  so it must never be placed inside the profile edit form. The strike pill it
+  shares with the profile hero is styled in the profile's head instead
+  (drivers/_driver_strike_pill_styles.html), so the hero's pill is never
+  unstyled while the page loads. Any staff user adds to the log; managers
   (can_edit) also mark strikes and get Edit and Delete on each entry.
 
-  Context: driver, can_edit, edit_mode, log_entries, log_filter, log_filters,
-  strike_count and log_form (drivers/driver_knowledge.py, drivers/forms.py).
+  Context: driver, can_edit, edit_mode, log_entries, log_filter, log_filters
+  as (key, label, href), log_all_href, strike_count and log_form
+  (drivers/driver_knowledge.py, drivers/forms.py).
 {% endcomment %}
 <style>
-  .strike-pill {
-    display: inline-flex; align-items: center; gap: .35rem; vertical-align: middle;
-    font-size: .72rem; font-weight: 600; letter-spacing: .01em; line-height: 1.2;
-    padding: 4px 10px; border-radius: 999px; border: 1px solid; text-decoration: none;
-    transition: background-color .18s ease, border-color .18s ease;
-  }
-  .strike-pill.strike-amber { background: rgba(245,158,11,.15); color: #fbbf24; border-color: rgba(245,158,11,.4); }
-  .strike-pill.strike-amber:hover { background: rgba(245,158,11,.24); color: #fbbf24; }
-  .strike-pill.strike-red { background: rgba(248,113,113,.16); color: #f87171; border-color: rgba(248,113,113,.45); }
-  .strike-pill.strike-red:hover { background: rgba(248,113,113,.26); color: #f87171; }
-  .profile-hero .strike-pill { margin-left: .5rem; }
-
   #driver-log .kb-private {
     display: inline-flex; align-items: center; gap: .35rem;
     font-size: .68rem; font-weight: 600; letter-spacing: .03em; color: var(--gt-muted);
@@ -69,13 +60,18 @@
   .kb-log-trip a { color: #60a5fa; text-decoration: none; }
   .kb-log-trip a:hover { text-decoration: underline; }
   .kb-log-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; font-size: .7rem; color: var(--gt-muted); margin-top: .4rem; }
-  .kb-log-meta form { display: inline; margin: 0; }
-  .kb-log-meta a, .kb-log-meta button {
+  .kb-log-meta form { display: inline-flex; margin: 0; }
+  /* Edit and Delete: a 40px-tall target each, set apart, so a thumb at phone width can't take the wrong one */
+  .kb-log-actions { display: inline-flex; align-items: center; gap: .6rem; margin: 0 -.6rem 0 auto; }
+  .kb-log-meta .kb-log-actions a, .kb-log-meta .kb-log-actions button {
+    display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .6rem;
     font-size: .72rem; font-weight: 600; color: var(--gt-gold); text-decoration: none;
-    background: none; border: 0; padding: .3rem .1rem; cursor: pointer;
+    background: none; border: 0; border-radius: 6px; cursor: pointer;
+    transition: color .15s ease, background-color .15s ease;
   }
-  .kb-log-meta a:hover { text-decoration: underline; }
-  .kb-log-meta button:hover { color: #f87171; text-decoration: underline; }
+  .kb-log-meta .kb-log-actions a:hover { background: rgba(201,162,39,.1); }
+  .kb-log-meta .kb-log-actions button:hover { color: #f87171; background: rgba(248,113,113,.1); }
+  .kb-log-meta .kb-log-actions a:focus-visible, .kb-log-meta .kb-log-actions button:focus-visible { outline: 2px solid var(--gt-gold); outline-offset: 1px; }
   .kb-log-add summary {
     display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; list-style: none;
     font-size: .82rem; font-weight: 600; color: var(--gt-gold);
@@ -94,8 +90,8 @@
   </div>
   <div class="card-body">
     <nav class="kb-log-filter" aria-label="Show in the log">
-      {% for key, label in log_filters %}
-        <a href="{% if key %}?{% if edit_mode %}edit=1&amp;{% endif %}log={{ key }}{% else %}{% url 'driver_profile' driver.id %}{% if edit_mode %}?edit=1{% endif %}{% endif %}#driver-log" class="{% if log_filter == key %}on{% endif %}"{% if log_filter == key %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% for key, label, href in log_filters %}
+        <a href="{{ href }}#driver-log" class="{% if log_filter == key %}on{% endif %}"{% if log_filter == key %} aria-current="true"{% endif %}>{{ label }}</a>
       {% endfor %}
     </nav>
 
@@ -126,11 +122,13 @@
               <div class="kb-log-meta">
                 <span>Logged{% if e.logged_by %} by {{ e.logged_by.first_name|default:e.logged_by.username }}{% endif %} on {{ e.logged_at|date:"M j, Y" }}{% if e.updated_by %} &middot; edited by {{ e.updated_by.first_name|default:e.updated_by.username }}{% endif %}</span>
                 {% if can_edit %}
-                  <a href="{% url 'driver_log_edit' driver.id e.id %}">Edit</a>
-                  <form method="post" action="{% url 'driver_log_delete' driver.id e.id %}" onsubmit="return confirm('Delete this entry from the log? This cannot be undone.');">
-                    {% csrf_token %}
-                    <button type="submit">Delete</button>
-                  </form>
+                  <span class="kb-log-actions">
+                    <a href="{% url 'driver_log_edit' driver.id e.id %}">Edit</a>
+                    <form method="post" action="{% url 'driver_log_delete' driver.id e.id %}" onsubmit="return confirm('Delete this entry from the log? This cannot be undone.');">
+                      {% csrf_token %}
+                      <button type="submit">Delete</button>
+                    </form>
+                  </span>
                 {% endif %}
               </div>
             </div>
@@ -138,7 +136,7 @@
         {% endfor %}
       </ol>
     {% elif log_filter %}
-      <div class="kb-empty">None of these in the log. <a href="{% url 'driver_profile' driver.id %}{% if edit_mode %}?edit=1{% endif %}#driver-log" style="color: var(--gt-gold);">Show everything</a></div>
+      <div class="kb-empty">None of these in the log. <a href="{{ log_all_href }}#driver-log" style="color: var(--gt-gold);">Show everything</a></div>
     {% else %}
       <div class="kb-empty">
         Nothing in the log yet. Write down compliments, complaints, incidents and anything else worth remembering about {{ driver.profile.first_name|default:"this driver" }}, with the date and the trip.

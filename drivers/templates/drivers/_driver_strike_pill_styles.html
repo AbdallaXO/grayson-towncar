@@ -1,0 +1,16 @@
+{% comment %}
+  Styles for the strike pill (drivers/_driver_strike_pill.html). Included in
+  driver_profile.html's head <style>, so the pill in the profile hero is styled
+  before the page reaches the Log card further down.
+{% endcomment %}
+    .strike-pill {
+      display: inline-flex; align-items: center; gap: .35rem; vertical-align: middle;
+      font-size: .72rem; font-weight: 600; letter-spacing: .01em; line-height: 1.2;
+      padding: 4px 10px; border-radius: 999px; border: 1px solid; text-decoration: none;
+      transition: background-color .18s ease, border-color .18s ease;
+    }
+    .strike-pill.strike-amber { background: rgba(245,158,11,.15); color: #fbbf24; border-color: rgba(245,158,11,.4); }
+    .strike-pill.strike-amber:hover { background: rgba(245,158,11,.24); color: #fbbf24; }
+    .strike-pill.strike-red { background: rgba(248,113,113,.16); color: #f87171; border-color: rgba(248,113,113,.45); }
+    .strike-pill.strike-red:hover { background: rgba(248,113,113,.26); color: #f87171; }
+    .profile-hero .strike-pill { margin-left: .5rem; }

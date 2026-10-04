@@ -131,6 +131,29 @@ LOG_FILTERS = [
 RECENT_TRIP_DAYS = 60
 
 
+def log_filter_href(path, query, kind="", edit_mode=False):
+    """The profile's address with only ?log= changed (dropped for "", which is
+    everything), so whatever else is on it, like the guest-texting window
+    (?comms=), stays put. ?edit=1 is kept in edit mode and dropped otherwise.
+    A relative "?…" when anything is left; otherwise `path` itself."""
+    params = query.copy()
+    params.pop("log", None)
+    if edit_mode:
+        params["edit"] = "1"
+    else:
+        params.pop("edit", None)
+    if kind:
+        params["log"] = kind
+    qs = params.urlencode()
+    return f"?{qs}" if qs else path
+
+
+def log_filter_links(path, query, edit_mode=False):
+    """The log card's filter links, as (?log= value, label, href)."""
+    return [(key, label, log_filter_href(path, query, key, edit_mode))
+            for key, label in LOG_FILTERS]
+
+
 def log_entries(driver, kind=None):
     """The driver's log, newest first (by the day it happened, then by when it
     was logged). `kind` narrows it to one kind; anything else means all.
