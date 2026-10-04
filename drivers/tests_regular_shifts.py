@@ -1,5 +1,7 @@
 """The regular-shift module (structured shifts, Stage 1): suggestions from the
-last 8 weeks, validation, saving, labels, the roster and the switch.
+last 8 weeks, validation, saving, labels, the roster and the switch — plus the
+usual shift per driver, Float, and the per-day options (a second shape, a
+day's own limits, blank times meaning the shape's usual times) from Task 3b.
 
 Two review-focus guards live here: confirming a regular shift must not move
 anything the legacy availability resolver returns (Review Focus 2), and saving
@@ -87,15 +89,20 @@ class _Fixture(RegularShiftCacheMixin, TestCase):
             pickup_location=pickup, dropoff_location=dropoff, route=self.route, status=status)
 
     def week(self, **days):
-        """Seven DayShifts; a day given as (kind, start, end) works, the rest are Off."""
+        """Seven DayShifts; a day given as (kind, start, end) works, the rest are Off.
+        An optional fourth item holds the day's options: alt (a kind), day_earliest,
+        day_latest and day_latest_next_day."""
         out = []
         for i, key in enumerate(_DAY_KEYS):
             spec = days.get(key)
             if spec is None:
                 out.append(DayShift(i, None, None, None))
-            else:
-                kind, start, end = spec
-                out.append(DayShift(i, self.t[kind].id, start, end))
+                continue
+            kind, start, end, *rest = spec
+            extra = dict(rest[0]) if rest else {}
+            if "alt" in extra:
+                extra["alt_template_id"] = self.t[extra.pop("alt")].id
+            out.append(DayShift(i, self.t[kind].id, start, end, **extra))
         return out
 
     def validate(self, days, templates=None, rest_min=510, **limits):
@@ -349,6 +356,17 @@ class SuggestTests(_Fixture):
         self.assertEqual(set(got), {d.id for d in drivers})
         self.assertTrue(all(got[d.id][0].template_id == self.t["morning"].id for d in drivers))
 
+    def test_suggest_never_picks_float(self):
+        # Float's start band covers the whole day, so it would be "nearest" to a
+        # start between two shapes; a suggestion is always a fixed shape and
+        # Float is the manager's call.
+        d = _driver()
+        for day in _lookback(0)[:4]:
+            self.leg(d, day, 10, 22, MCO, DISNEY)          # raw 10:00: 1h past Midday
+        monday = rs.suggest_regular_shifts([d], TODAY)[d.id][0]
+        self.assertEqual(monday.template_id, self.t["midday"].id)
+        self.assertEqual(monday.start, time(10, 0))
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # Validation, band warnings and the band fill
@@ -402,10 +420,12 @@ class ValidateTests(_Fixture):
                          ["Monday to Tuesday: only 0h 0m off between shifts; the minimum is 8h 30m."])
 
     def test_validate_unknown_shape(self):
-        days = [DayShift(0, 99999, time(4, 10), time(15, 30)), DayShift(1, 99999, None, None)]
+        days = [DayShift(0, 99999, time(4, 10), time(15, 30)), DayShift(1, 99999, None, None),
+                DayShift(2, self.t["morning"].id, None, None, alt_template_id=99999)]
         self.assertEqual(self.validate(days), [
-            "Monday: pick Morning, Midday or Evening, or set the day to Off.",
-            "Tuesday: pick Morning, Midday or Evening, or set the day to Off.",
+            "Monday: pick Morning, Midday, Evening or Float, or set the day to Off.",
+            "Tuesday: pick Morning, Midday, Evening or Float, or set the day to Off.",
+            "Wednesday: pick Morning, Midday, Evening or Float, or set the day to Off.",
         ])
 
     def test_validate_messages_come_in_day_order(self):
@@ -440,7 +460,8 @@ class ValidateTests(_Fixture):
         fills = {kind: rs.band_fill(t) for kind, t in self.t.items()}
         self.assertEqual(fills, {"morning": (time(6), time(16)),
                                  "midday": (time(9), time(21)),
-                                 "evening": (time(16), time(2, 15))})
+                                 "evening": (time(16), time(2, 15)),
+                                 "float": (time(16), time(2, 15))})
         for kind, (start, end) in fills.items():
             with self.subTest(kind=kind):
                 days = self.week(**{k: (kind, start, end) for k in _DAY_KEYS})
@@ -514,7 +535,7 @@ class SaveTests(_Fixture):
             rs.save_regular_shift(d, [DayShift(0, 99999, time(4, 10), time(15, 30))],
                                   self.manager)
         self.assertEqual(str(cm.exception),
-                         "Monday: pick Morning, Midday or Evening, or set the day to Off.")
+                         "Monday: pick Morning, Midday, Evening or Float, or set the day to Off.")
         self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
         d.refresh_from_db()
         self.assertIsNone(d.regular_shift_confirmed_at)
@@ -585,9 +606,11 @@ class SaveTests(_Fixture):
         # Review Focus 1: the planner's Driver Schedules modal and the Edit
         # Schedules drawer both post here; neither may touch a regular shift.
         d = _driver()
-        days = self.week(mon=("morning", time(4, 10), time(15, 30)),
-                         fri=("evening", time(14, 15), time(2, 15)))
-        rs.save_regular_shift(d, days, self.manager)
+        days = self.week(mon=("morning", time(4, 10), time(15, 30), {"day_latest": time(15, 30)}),
+                         wed=("midday", None, None, {"alt": "evening"}),
+                         fri=("evening", time(14, 15), time(2, 15),
+                              {"day_latest": time(2, 15), "day_latest_next_day": True}))
+        rs.save_regular_shift(d, days, self.manager, role_template_id=self.t["morning"].id)
         self.client.force_login(self.dispatcher)
         modal = {"drivers": [{
             "id": d.id, "default_start_hour": 6, "default_end_hour": 23,
@@ -617,6 +640,7 @@ class SaveTests(_Fixture):
                 self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), days)
         d.refresh_from_db()
         self.assertTrue(d.has_regular_shift)
+        self.assertEqual(d.shift_role_id, self.t["morning"].id)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -713,7 +737,8 @@ class RosterAndSwitchTests(_Fixture):
             first = rs.templates_by_id()
         with self.assertNumQueries(0):
             self.assertEqual(rs.templates_by_id(), first)
-        self.assertEqual({t.kind for t in first.values()}, {"morning", "midday", "evening"})
+        self.assertEqual({t.kind for t in first.values()},
+                         {"morning", "midday", "evening", "float"})
         rs.clear_template_cache()
         with self.assertNumQueries(1):
             rs.templates_by_id()
@@ -755,3 +780,347 @@ class LabelTests(_Fixture):
         suggestion = rs.suggest_regular_shifts([d], TODAY)[d.id]
         self.assertEqual(rs.summary_label(suggestion, rs.templates_by_id()),
                          "Mon Morning 4:35 AM–10:05 AM")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Task 3b: the usual shift, Float, and per-day options (S15–S18)
+# ════════════════════════════════════════════════════════════════════════════
+
+_LEGACY_ROW_FIELDS = ("is_available", "shift_type", "start_hour", "end_hour", "flexible",
+                      "max_hours", "preferred_shift", "preference", "scheduling_notes")
+_NO_HARD = dict(hard_lo=None, hard_hi=None)
+
+
+class UsualShiftTests(_Fixture):
+    def test_float_template_seeded(self):
+        f = ShiftTemplate.objects.get(kind="float")
+        self.assertEqual((f.name, f.start_earliest, f.start_latest, f.end_earliest,
+                          f.end_latest, f.max_span_minutes, f.sort_order),
+                         ("Float", time(3), time(16), time(12), time(2, 15), 720, 4))
+        self.assertEqual(f.notes, "Any shape — goes wherever the day needs him, still "
+                                  "within 12 hours and his limits.")
+        self.assertEqual(f.get_kind_display(), "Float")
+        self.assertEqual(f.end_band_minutes(), (720, 1575))
+        self.assertEqual([t.kind for t in sorted(rs.templates_by_id().values(),
+                                                 key=lambda t: t.sort_order)],
+                         ["morning", "midday", "evening", "float"])
+
+    def test_role_saved_and_labelled(self):
+        d = _driver()
+        tpl = rs.templates_by_id()
+        self.assertEqual(rs.role_label(d, tpl), "")
+        rs.save_regular_shift(d, self.week(mon=("morning", time(4, 10), time(15, 30))),
+                              self.manager, role_template_id=self.t["morning"].id)
+        d = Driver.objects.get(pk=d.pk)
+        self.assertEqual(d.shift_role_id, self.t["morning"].id)
+        with self.assertNumQueries(0):                 # reads shift_role_id, never the row
+            self.assertEqual(rs.role_label(d, tpl), "Morning driver")
+        for kind, label in (("midday", "Midday driver"), ("evening", "Evening driver"),
+                            ("float", "Float — any shift")):
+            d.shift_role_id = self.t[kind].id
+            self.assertEqual(rs.role_label(d, tpl), label)
+        d.shift_role_id = 99999
+        self.assertEqual(rs.role_label(d, tpl), "")
+        # The role is the default and the label; the days stay the source of truth.
+        rs.save_regular_shift(Driver.objects.get(pk=d.pk), self.week(), self.manager)
+        self.assertIsNone(Driver.objects.get(pk=d.pk).shift_role_id)
+
+    def test_save_refuses_an_unknown_role(self):
+        d = _driver()
+        with self.assertRaises(ValueError) as cm:
+            rs.save_regular_shift(d, self.week(mon=("morning", None, None)), self.manager,
+                                  role_template_id=99999)
+        self.assertEqual(str(cm.exception),
+                         "Pick Morning, Midday, Evening or Float as the usual shift.")
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertIsNone(d.regular_shift_confirmed_at)
+
+    def test_suggest_role_most_common(self):
+        S = rs.DaySuggestion
+        tpl = rs.templates_by_id()
+        m, mid, e = self.t["morning"].id, self.t["midday"].id, self.t["evening"].id
+        off = [S(i, 0, None, None, None) for i in range(7)]
+        mostly_evening = [S(0, 5, m, time(4, 35), time(15)), S(1, 6, e, time(14), time(2)),
+                          S(2, 6, e, time(14), time(2)), S(3, 4, mid, time(7), time(19)),
+                          S(4, 2, None, None, None)]
+        self.assertEqual(rs.suggest_role(mostly_evening, tpl), e)
+        tie = [S(0, 4, e, time(14), time(2)), S(1, 4, m, time(4), time(15))]
+        self.assertEqual(rs.suggest_role(tie, tpl), m)         # the lower sort_order
+        self.assertIsNone(rs.suggest_role(off, tpl))
+        self.assertIsNone(rs.suggest_role([], tpl))
+
+    def test_suggest_role_from_real_suggestions(self):
+        d = _driver()
+        for day in _lookback(0)[:5] + _lookback(1)[:5]:
+            self.leg(d, day, 5, 0, MCO, DISNEY)
+        for day in _lookback(4)[:4]:
+            self.leg(d, day, 16, 0, MCO, DISNEY)
+        suggestion = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        self.assertEqual(rs.suggest_role(suggestion, rs.templates_by_id()), self.t["morning"].id)
+
+
+class DayOptionTests(_Fixture):
+    def test_blank_times_use_band_fill(self):
+        tpl = rs.templates_by_id()
+        days = self.week(mon=("morning", None, None), wed=("midday", None, None),
+                         fri=("evening", None, None), sun=("float", None, None))
+        self.assertEqual(self.validate(days), [])
+        self.assertEqual([rs.effective_minutes(day, tpl) for day in days],
+                         [(360, 960), None, (540, 1260), None, (960, 1575), None, (960, 1575)])
+        typed = self.week(mon=("morning", time(4, 10), time(15, 30)))[0]
+        self.assertEqual(rs.effective_minutes(typed, tpl), (250, 930))
+        self.assertEqual(rs.regular_window(days[0], tpl, **_NO_HARD),
+                         rs.RegularWindow(360, 1080, "morning", 720))
+        self.assertEqual(rs.regular_window(days[2], tpl, **_NO_HARD),
+                         rs.RegularWindow(540, 1260, "midday", 720))
+        self.assertEqual(rs.regular_window(days[4], tpl, **_NO_HARD),
+                         rs.RegularWindow(855, 1575, "evening", 720))
+        self.assertEqual(rs.band_warnings(days, tpl), [])
+        d = _driver()
+        rs.save_regular_shift(d, days, self.manager)
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), days)
+
+    def test_one_time_blank_refused(self):
+        days = self.week(mon=("morning", None, time(15, 30)), tue=("float", time(5), None),
+                         wed=("morning", None, None, {"alt": "evening"}))
+        self.assertEqual(self.validate(days), [
+            "Monday: pick a start and an end time, or set the day to Off.",
+            "Tuesday: pick a start and an end time, or set the day to Off.",
+        ])
+        d = _driver()
+        with self.assertRaises(ValueError):
+            rs.save_regular_shift(d, days, self.manager)
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+
+    def test_alt_shape_must_differ(self):
+        self.assertEqual(self.validate(self.week(mon=("morning", None, None, {"alt": "morning"}))),
+                         ["Monday: the second shift must be different from the first."])
+        self.assertEqual(self.validate(self.week(mon=("morning", None, None, {"alt": "evening"}))),
+                         [])
+
+    def test_float_cannot_have_alt(self):
+        days = self.week(tue=("float", None, None, {"alt": "evening"}),
+                         wed=("morning", None, None, {"alt": "float"}))
+        self.assertEqual(self.validate(days), [
+            "Tuesday: Float already covers every shift — no second shift needed.",
+            "Wednesday: Float already covers every shift — no second shift needed.",
+        ])
+
+    def test_day_limit_messages(self):
+        thu = self.week(thu=("morning", time(4, 10), time(15, 30), {"day_latest": time(15)}))
+        msg = ["Thursday: ends at 3:30 PM — after that day's finish-by (3 PM)."]
+        self.assertEqual(self.validate(thu), msg)
+        self.assertEqual(rs.limit_messages(thu, **_NO_LIMITS), msg)
+        self.assertEqual(
+            self.validate(self.week(fri=("morning", time(4, 10), time(15, 30),
+                                         {"day_earliest": time(5)}))),
+            ["Friday: starts at 4:10 AM — before that day's earliest start (5 AM)."])
+        late = {"day_latest_next_day": True}
+        self.assertEqual(
+            self.validate(self.week(sat=("evening", time(14, 15), time(2, 15),
+                                         {**late, "day_latest": time(1)}))),
+            ["Saturday: ends at 2:15 AM — after that day's finish-by (1 AM)."])
+        self.assertEqual(
+            self.validate(self.week(sat=("evening", time(14, 15), time(2, 15),
+                                         {**late, "day_latest": time(2, 30)}))), [])
+        self.assertEqual(
+            self.validate(self.week(sat=("evening", time(14, 15), time(2, 15),
+                                         {"day_latest": time(23)}))),
+            ["Saturday: ends at 2:15 AM — after that day's finish-by (11 PM)."])
+        # The driver's own limit and the day's both apply, the driver's first.
+        self.assertEqual(
+            self.validate(self.week(mon=("morning", time(4, 10), time(15, 30),
+                                         {"day_earliest": time(4, 30)})),
+                          hard_earliest_start=time(5)),
+            ["Monday: starts at 4:10 AM — before this driver's earliest start (5 AM).",
+             "Monday: starts at 4:10 AM — before that day's earliest start (4:30 AM)."])
+        # Usual times are clipped by the day's limit, not refused by it.
+        self.assertEqual(self.validate(self.week(thu=("morning", None, None,
+                                                      {"day_latest": time(15)}))), [])
+
+    def test_limits_that_leave_no_time_are_refused(self):
+        forgot_next_day = self.week(mon=("float", None, None, {"day_latest": time(2)}))
+        msg = ["Monday: the start and finish limits leave no time for a shift."]
+        self.assertEqual(self.validate(forgot_next_day), msg)
+        self.assertEqual(rs.limit_messages(forgot_next_day, **_NO_LIMITS), msg)
+        self.assertEqual(self.validate(self.week(tue=("morning", None, None)),
+                                       hard_latest_finish=time(5)),
+                         ["Tuesday: the start and finish limits leave no time for a shift."])
+        # A typed time already refused for the same limit says so only once.
+        self.assertEqual(
+            self.validate(self.week(wed=("morning", time(4, 10), time(15, 30),
+                                         {"day_earliest": time(17)}))),
+            ["Wednesday: starts at 4:10 AM — before that day's earliest start (5 PM)."])
+
+    def test_open_days_typed_times_are_labels_only(self):
+        # Float and two-shape days skip the typed-time span and limit checks;
+        # the window and the base-to-base 12h check (Task 3c) hold them.
+        days = self.week(mon=("float", time(3), time(16)),
+                         tue=("morning", time(4), time(15), {"alt": "midday"}))
+        self.assertEqual(self.validate(days, hard_earliest_start=time(5)), [])
+        self.assertEqual(rs.band_warnings(self.week(mon=("float", time(1), time(5)),
+                                                    tue=("morning", time(1), time(5),
+                                                         {"alt": "evening"})),
+                                          rs.templates_by_id()), [])
+
+    def test_rest_check_uses_each_days_window(self):
+        # A Morning day's end floats to start + 12h, so rest counts from there.
+        self.assertEqual(self.validate(self.week(mon=("morning", time(6), time(14)),
+                                                 tue=("morning", time(2), time(10)))),
+                         ["Monday to Tuesday: only 8h 0m off between shifts; "
+                          "the minimum is 8h 30m."])
+        # ...and from the window as the day's own limits clip it.
+        tue = ("morning", time(7), time(15))
+        self.assertEqual(self.validate(self.week(mon=("evening", None, None), tue=tue)),
+                         ["Monday to Tuesday: only 4h 45m off between shifts; "
+                          "the minimum is 8h 30m."])
+        self.assertEqual(self.validate(self.week(mon=("evening", None, None,
+                                                      {"day_latest": time(23)}), tue=tue)),
+                         ["Monday to Tuesday: only 8h 0m off between shifts; "
+                          "the minimum is 8h 30m."])
+
+    def test_rest_check_skips_float_and_two_shape_days(self):
+        self.assertEqual(self.validate(self.week(mon=("float", None, None),
+                                                 tue=("morning", time(3), time(12)))), [])
+        self.assertEqual(self.validate(self.week(sun=("evening", time(14), time(2)),
+                                                 mon=("morning", time(3), time(12),
+                                                      {"alt": "midday"}))), [])
+
+    def test_save_writes_new_fields_only(self):
+        d = _driver(default_start_hour=5, default_end_hour=19, default_flexible=False)
+        DriverWeeklySchedule.objects.create(driver=d, day_of_week=3, is_available=False,
+                                            shift_type="custom", start_hour=8, end_hour=14,
+                                            flexible=True, scheduling_notes="school run")
+
+        def legacy():
+            return list(DriverWeeklySchedule.objects.filter(driver=d)
+                        .order_by("day_of_week").values_list("day_of_week", *_LEGACY_ROW_FIELDS))
+
+        before = legacy()
+        days = self.week(mon=("morning", None, None, {"alt": "evening"}),
+                         thu=("morning", time(4, 10), time(15, 30),
+                              {"day_earliest": time(4), "day_latest": time(15, 30)}),
+                         sat=("evening", time(14, 15), time(2, 15),
+                              {"day_latest": time(2, 15), "day_latest_next_day": True}))
+        rs.save_regular_shift(d, days, self.manager, role_template_id=self.t["morning"].id)
+        after = legacy()
+        self.assertEqual([r for r in after if r[0] == 3], before)  # the legacy row is untouched
+        thu = DriverWeeklySchedule.objects.get(driver=d, day_of_week=3)
+        self.assertEqual((thu.shift_template_id, thu.shift_start, thu.shift_end,
+                          thu.alt_template_id, thu.day_earliest_start, thu.day_latest_finish,
+                          thu.day_latest_finish_next_day),
+                         (self.t["morning"].id, time(4, 10), time(15, 30), None, time(4),
+                          time(15, 30), False))
+        mon = DriverWeeklySchedule.objects.get(driver=d, day_of_week=0)
+        self.assertEqual((mon.alt_template_id, mon.shift_start, mon.shift_end),
+                         (self.t["evening"].id, None, None))
+        self.assertEqual((mon.is_available, mon.start_hour, mon.end_hour, mon.flexible),
+                         (True, 5, 19, False))                 # a new row copies the defaults
+        self.assertTrue(DriverWeeklySchedule.objects.get(driver=d, day_of_week=5)
+                        .day_latest_finish_next_day)
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), days)
+
+        # Setting a day Off clears its options too, and still leaves the legacy fields be.
+        rs.save_regular_shift(d, self.week(), self.manager)
+        self.assertEqual(legacy(), after)
+        for row in DriverWeeklySchedule.objects.filter(driver=d):
+            self.assertEqual((row.shift_template_id, row.alt_template_id, row.shift_start,
+                              row.shift_end, row.day_earliest_start, row.day_latest_finish,
+                              row.day_latest_finish_next_day),
+                             (None, None, None, None, None, None, False))
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), self.week())
+
+
+class RegularWindowTests(_Fixture):
+    def window(self, day, **hard):
+        return rs.regular_window(day, rs.templates_by_id(), **{**_NO_HARD, **hard})
+
+    def test_regular_window_morning_evening_midday(self):
+        W = rs.RegularWindow
+        days = self.week(mon=("morning", time(4, 10), time(15, 30)),
+                         tue=("evening", time(14, 15), time(2, 15)),
+                         wed=("midday", time(7), time(19)),
+                         thu=("evening", time(6), time(11)))
+        self.assertEqual(self.window(days[0]), W(250, 970, "morning", 720))
+        self.assertEqual(self.window(days[1]), W(855, 1575, "evening", 720))
+        self.assertEqual(self.window(days[2]), W(420, 1140, "midday", 720))
+        self.assertEqual(self.window(days[3]), W(0, 660, "evening", 720))   # never before 00:00
+        self.assertIsNone(self.window(days[4]))                             # Off
+
+    def test_regular_window_float(self):
+        W = rs.RegularWindow
+        day = self.week(mon=("float", None, None))[0]
+        self.assertEqual(self.window(day), W(180, 1575, "float", 720))
+        typed = self.week(mon=("float", time(9), time(17)))[0]
+        self.assertEqual(self.window(typed), W(180, 1575, "float", 720))    # labels only
+
+    def test_regular_window_morning_or_evening(self):
+        W = rs.RegularWindow
+        day = self.week(mon=("morning", time(4, 10), time(15, 30), {"alt": "evening"}))[0]
+        self.assertEqual(self.window(day), W(180, 1575, "float", 720))
+        short = copy.copy(self.t["evening"])
+        short.max_span_minutes = 600
+        templates = {**rs.templates_by_id(), short.id: short}
+        self.assertEqual(rs.regular_window(day, templates, **_NO_HARD),
+                         W(180, 1575, "float", 600))                        # the smaller span
+        midday_or_evening = self.week(mon=("midday", None, None, {"alt": "evening"}))[0]
+        self.assertEqual(self.window(midday_or_evening), W(360, 1575, "float", 720))
+
+    def test_regular_window_clipped_by_day_and_hard_limits(self):
+        W = rs.RegularWindow
+        days = self.week(mon=("float", None, None),
+                         tue=("float", None, None, {"day_earliest": time(6)}),
+                         thu=("morning", time(4, 10), time(15, 30), {"day_latest": time(15)}),
+                         sat=("evening", time(14, 15), time(2, 15),
+                              {"day_latest": time(1), "day_latest_next_day": True}))
+        self.assertEqual(self.window(days[3], hard_lo=270), W(270, 900, "morning", 720))
+        self.assertEqual(self.window(days[5]), W(855, 1500, "evening", 720))
+        self.assertEqual(self.window(days[0], hard_lo=300, hard_hi=1500),
+                         W(300, 1500, "float", 720))
+        self.assertEqual(self.window(days[1]), W(360, 1575, "float", 720))
+        self.assertEqual(self.window(days[1], hard_lo=420), W(420, 1575, "float", 720))
+        self.assertIsNone(self.window(days[0], hard_hi=120))               # nothing left
+
+    def test_regular_window_needs_a_known_shape_and_both_times(self):
+        self.assertIsNone(self.window(DayShift(0, 99999, None, None)))
+        self.assertIsNone(self.window(self.week(mon=("morning", time(4, 10), None))[0]))
+
+
+class DayOptionLabelTests(_Fixture):
+    def test_day_label_variants(self):
+        tpl = rs.templates_by_id()
+        cases = [
+            (("morning", time(4, 10), time(15, 30)), "Morning 4:10 AM – 3:30 PM"),
+            (("morning", None, None), "Morning (usual times)"),
+            (("morning", None, None, {"alt": "evening"}), "Morning or Evening"),
+            (("morning", time(4, 10), time(15, 30), {"alt": "evening"}), "Morning or Evening"),
+            (("float", None, None), "Float"),
+            (("float", time(9), time(17)), "Float"),
+            (("morning", time(4, 10), time(15, 30), {"day_latest": time(15)}),
+             "Morning 4:10 AM – 3:30 PM · done by 3 PM"),
+            (("midday", None, None, {"day_earliest": time(6)}),
+             "Midday (usual times) · not before 6 AM"),
+            (("evening", time(14, 15), time(2, 15),
+              {"day_earliest": time(15), "day_latest": time(1), "day_latest_next_day": True}),
+             "Evening 2:15 PM – 2:15 AM · not before 3 PM · done by 1 AM (next day)"),
+        ]
+        for spec, label in cases:
+            with self.subTest(label=label):
+                self.assertEqual(rs.day_label(self.week(mon=spec)[0], tpl), label)
+        self.assertEqual(rs.day_label(self.week()[0], tpl), "Off")
+
+    def test_summary_label_with_day_options(self):
+        tpl = rs.templates_by_id()
+        morning = ("morning", time(4, 10), time(15, 30))
+        days = self.week(mon=morning, tue=morning, wed=morning,
+                         thu=(*morning, {"day_latest": time(15)}),
+                         fri=("float", None, None),
+                         sat=("morning", None, None, {"alt": "evening"}),
+                         sun=("midday", None, None))
+        self.assertEqual(rs.summary_label(days, tpl),
+                         "Mon–Wed Morning 4:10 AM–3:30 PM · Thu Morning 4:10 AM–3:30 PM, "
+                         "done by 3 PM · Fri Float · Sat Morning or Evening · "
+                         "Sun Midday (usual times)")
+        floats = self.week(mon=("float", time(4), time(15)), tue=("float", None, None))
+        self.assertEqual(rs.summary_label(floats, tpl), "Mon–Tue Float")

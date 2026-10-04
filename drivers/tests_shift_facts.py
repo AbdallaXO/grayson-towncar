@@ -1,16 +1,18 @@
 """Driver facts, shift templates and the regular-shift switch (structured shifts, Stage 1).
 
-Covers the model layer only: the seeded Morning / Midday / Evening templates and
-their 12-hour ceiling, the minute helpers on DriverWeeklySchedule and Driver, and
+Covers the model layer only: the seeded Morning / Midday / Evening / Float
+templates and their 12-hour ceiling, the minute helpers on DriverWeeklySchedule and Driver, and
 the guard that keeps SchedulerSettings.regular_shift_windows out of the generic
 settings endpoint and "Reset to defaults" (only the Regular Shifts page may write it).
 
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_shift_facts
 """
+import importlib
 import json
 from datetime import time
 from unittest import mock
 
+from django.apps import apps as django_apps
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -36,9 +38,10 @@ class ShiftTemplateTests(RegularShiftCacheMixin, TestCase):
                                                    "end_earliest", "end_latest", "max_span_minutes")),
             [("morning", time(3), time(6), time(12), time(16), 720),
              ("midday", time(6), time(9), time(15), time(21), 720),
-             ("evening", time(12), time(16), time(20), time(2, 15), 720)])
+             ("evening", time(12), time(16), time(20), time(2, 15), 720),
+             ("float", time(3), time(16), time(12), time(2, 15), 720)])
         self.assertEqual(list(ShiftTemplate.objects.values_list("name", flat=True)),
-                         ["Morning", "Midday", "Evening"])
+                         ["Morning", "Midday", "Evening", "Float"])
         self.assertTrue(all(ShiftTemplate.objects.values_list("notes", flat=True)))
 
     def test_template_span_ceiling(self):
@@ -100,6 +103,41 @@ class ShiftTemplateTests(RegularShiftCacheMixin, TestCase):
         self.assertEqual(str(ShiftTemplate.objects.get(kind="midday")), "Midday")
 
 
+class FloatSeedMigrationTests(RegularShiftCacheMixin, TestCase):
+    """drivers 0065's two steps, run on today's models (the same fields as the
+    migration's state)."""
+    mig = importlib.import_module("drivers.migrations.0065_seed_float_template")
+
+    def _float_exists(self):
+        return ShiftTemplate.objects.filter(kind="float").exists()
+
+    def test_reverse_drops_an_unused_float_and_forwards_brings_it_back(self):
+        self.mig.unseed(django_apps, None)
+        self.assertFalse(self._float_exists())
+        self.mig.unseed(django_apps, None)                   # nothing to remove: fine
+        self.mig.seed(django_apps, None)
+        self.mig.seed(django_apps, None)                     # re-running is a no-op
+        self.assertEqual(ShiftTemplate.objects.filter(kind="float").count(), 1)
+
+    def test_reverse_keeps_a_float_someone_uses(self):
+        floater = ShiftTemplate.objects.get(kind="float")
+        driver = _driver(shift_role=floater)                 # as the usual shift
+        self.mig.unseed(django_apps, None)
+        self.assertTrue(self._float_exists())
+        Driver.objects.filter(pk=driver.pk).update(shift_role=None)
+        row = DriverWeeklySchedule.objects.create(driver=driver, day_of_week=0,
+                                                  alt_template=floater)   # as a second shift
+        self.mig.unseed(django_apps, None)
+        self.assertTrue(self._float_exists())
+        DriverWeeklySchedule.objects.filter(pk=row.pk).update(alt_template=None,
+                                                              shift_template=floater)
+        self.mig.unseed(django_apps, None)                   # as the day's shift
+        self.assertTrue(self._float_exists())
+        row.delete()
+        self.mig.unseed(django_apps, None)
+        self.assertFalse(self._float_exists())
+
+
 class DriverShiftFactsTests(RegularShiftCacheMixin, TestCase):
     def test_weekly_regular_minutes(self):
         driver = _driver()
@@ -141,6 +179,22 @@ class DriverShiftFactsTests(RegularShiftCacheMixin, TestCase):
         self.assertFalse(driver.has_regular_shift)
         self.assertIsNone(driver.max_days_per_week)
         self.assertFalse(driver.hard_latest_finish_next_day)
+
+    def test_usual_shift_and_day_options_default_blank_and_protect_the_shape(self):
+        floater = ShiftTemplate.objects.get(kind="float")
+        evening = ShiftTemplate.objects.get(kind="evening")
+        driver = _driver(shift_role=floater)
+        row = DriverWeeklySchedule.objects.create(driver=_driver("pat"), day_of_week=0)
+        self.assertEqual((row.alt_template_id, row.day_earliest_start, row.day_latest_finish,
+                          row.day_latest_finish_next_day), (None, None, None, False))
+        self.assertIsNone(_driver("lee").shift_role_id)
+        row.alt_template = evening
+        row.save()
+        for shape in (floater, evening):                     # a usual shift / second shape
+            with self.subTest(kind=shape.kind), self.assertRaises(ProtectedError):
+                shape.delete()
+        driver.refresh_from_db()
+        self.assertEqual(driver.shift_role_id, floater.id)
 
     def test_has_regular_shift_once_confirmed(self):
         from django.utils import timezone

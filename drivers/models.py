@@ -178,6 +178,13 @@ class Driver(models.Model):
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
         help_text="The manager who confirmed this driver's regular shift.",
     )
+    # The default each working day starts from, and the label ("Morning
+    # driver"); the weekly rows stay the source of truth (S15).
+    shift_role = models.ForeignKey(
+        "ShiftTemplate", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="role_drivers",
+        help_text="The driver's usual shift: Morning, Midday, Evening, or Float for anything.",
+    )
 
     # ── Onboarding & personal details ─────────────────────────────────────────
     # What the office needs on file for every person who drives for us, beyond
@@ -578,25 +585,28 @@ class Driver(models.Model):
 
 
 class ShiftTemplate(models.Model):
-    """One of the three regular-shift shapes: Morning, Midday or Evening.
+    """One of the four regular-shift shapes: Morning, Midday, Evening or Float.
 
     The start and end bands are targets, not limits (U11): a regular shift
     outside them is allowed with a warning. max_span_minutes is the hard
     ceiling — no regular-shift day may run longer, base to base, and it can
     never be set past 720 (12 hours). An end band whose latest time is earlier
     than its earliest runs past midnight (Evening is back 8 PM–2:15 AM).
-    Seeded by drivers 0063 from §3 of
+    Float (S16) is "any shape, wherever the day needs him": its bands span the
+    other three, and a Float day is still held to its 12 hours.
+    Seeded by drivers 0063 (and 0065 for Float) from §3 of
     docs/scheduling-redesign/07_STRUCTURED_SHIFTS_DESIGN.md.
     """
     KIND_CHOICES = [
         ("morning", "Morning"),
         ("midday", "Midday"),
         ("evening", "Evening"),
+        ("float", "Float"),
     ]
 
     kind = models.CharField(
         max_length=12, choices=KIND_CHOICES, unique=True,
-        help_text="Which shape this is: Morning, Midday or Evening.",
+        help_text="Which shape this is: Morning, Midday, Evening or Float.",
     )
     name = models.CharField(max_length=40, help_text="The name dispatchers see.")
     start_earliest = models.TimeField(help_text="Earliest usual time to leave base.")
@@ -726,20 +736,41 @@ class DriverWeeklySchedule(models.Model):
     # Kept apart from the legacy fields above on purpose: new code never rewrites
     # is_available / shift_type / start_hour / end_hour / flexible on an existing
     # row, so what auto-assign reads with the regular-shift switch off cannot move.
-    # Only counts once the driver's regular_shift_confirmed_at is set.
+    # Only counts once the driver's regular_shift_confirmed_at is set. Both times
+    # blank = the shape's usual times (S17); the day's own limits clip the shift
+    # on top of the driver's hard limits.
     shift_template = models.ForeignKey(
         ShiftTemplate, null=True, blank=True, on_delete=models.PROTECT,
         related_name="weekly_rows",
-        help_text="This day's regular shift: Morning, Midday or Evening. Blank = Off.",
+        help_text="This day's regular shift: Morning, Midday, Evening or Float. Blank = Off.",
     )
     shift_start = models.TimeField(
         null=True, blank=True,
-        help_text="When this day's regular shift leaves base.",
+        help_text="When this day's regular shift leaves base. Leave both times blank for "
+                  "the shift's usual times.",
     )
     shift_end = models.TimeField(
         null=True, blank=True,
         help_text="When this day's regular shift is back at base. At or before the start "
-                  "means the next day.",
+                  "means the next day. Leave both times blank for the shift's usual times.",
+    )
+    alt_template = models.ForeignKey(
+        ShiftTemplate, null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+        help_text="A second shift this day can be instead, e.g. Morning or Evening. "
+                  "Blank = only the shift above.",
+    )
+    day_earliest_start = models.TimeField(
+        null=True, blank=True,
+        help_text="This day only: never leaves base before this time. Blank = no limit.",
+    )
+    day_latest_finish = models.TimeField(
+        null=True, blank=True,
+        help_text="This day only: back at base by this time, e.g. done by 3 PM on "
+                  "Thursdays. Blank = no limit.",
+    )
+    day_latest_finish_next_day = models.BooleanField(
+        default=False,
+        help_text="Tick when this day's finish-by above is after midnight.",
     )
 
     class Meta:
@@ -749,8 +780,9 @@ class DriverWeeklySchedule(models.Model):
     def regular_minutes(self):
         """(start, end) of this day's regular shift in minutes after midnight, the
         end +1440 when it is at or before the start (14:15–02:15 -> (855, 1575)).
-        None when the day is Off or a time is missing. Reads shift_template_id
-        only, so it never costs a query."""
+        None when the day is Off or a time is missing (blank times mean the
+        shape's usual times: regular_shifts.effective_minutes fills those in).
+        Reads shift_template_id only, so it never costs a query."""
         if self.shift_template_id is None or self.shift_start is None or self.shift_end is None:
             return None
         start, end = _time_minutes(self.shift_start), _time_minutes(self.shift_end)
