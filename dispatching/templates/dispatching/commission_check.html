@@ -54,7 +54,7 @@
   .cc-flash li.error   { background: var(--gt-red-soft);   border-color: transparent; color: var(--gt-red-ink); }
 
   /* Two tabs as large cards: what's flagged, and how much of it would be paid today. */
-  .cc-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px; }
+  .cc-tabs { display: grid; grid-template-columns: 1fr 1fr minmax(0, .7fr); gap: 12px; margin-bottom: 10px; }
   .cc-tab {
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); padding: 15px 17px;
     box-shadow: var(--gt-shadow-sm); text-decoration: none; color: inherit; transition: box-shadow .15s ease, border-color .15s ease;
@@ -131,6 +131,16 @@
     .cc-dup > .cc-legs { grid-column: 1 / -1; }
     .cc-dup > .cc-actions { grid-column: 1 / -1; }
   }
+  .cc-done { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) 104px 110px; gap: 16px; align-items: center; padding: 13px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem; }
+  .cc-done:first-child { border-top: 0; }
+  .cc-verdict { font-size: .74rem; padding: 3px 9px; border-radius: 999px; background: var(--gt-green-soft); color: var(--gt-green-ink); }
+  .cc-verdict.off { background: var(--gt-surface); color: var(--gt-dark); }
+  @media (max-width: 860px) {
+    .cc-done { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .cc-done > .cc-what { grid-column: 1 / -1; }
+    .cc-done > .cc-actions { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) { .cc-tabs { grid-template-columns: 1fr 1fr; } .cc-tabs > :last-child { grid-column: 1 / -1; } }
   @media (max-width: 520px) { .cc-tabs { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
@@ -170,6 +180,11 @@
       <div class="cc-tab-value">{{ duplicates|length }}</div>
       <div class="cc-tab-meta">${{ dup_total|floatformat:2|intcomma }} in commission · {{ dup_now }} booking{{ dup_now|pluralize }} payable now</div>
     </a>
+    <a class="cc-tab{% if tab == 'decided' %} is-on{% endif %}" href="?tab=decided">
+      <div class="cc-tab-label">Decided</div>
+      <div class="cc-tab-value">{{ decided|length }}</div>
+      <div class="cc-tab-meta">Undo any decision</div>
+    </a>
   </div>
 
   {% if tab == 'personal' %}
@@ -208,6 +223,39 @@
   </div>
   {% else %}
   <div class="cc-empty"><i class="bi bi-check2-circle"></i>No possible personal trips left to check.</div>
+  {% endif %}
+
+  {% elif tab == 'decided' %}
+  <p class="cc-rule"><i class="bi bi-info-circle me-1"></i>Everything decided on this screen, newest first. Undo puts the booking back on its list, and switches commission back on if it was marked not commissionable.</p>
+  {% if decided %}
+  <div class="cc-list">
+    {% for c in decided %}{% with r=c.reservation %}
+    <div class="cc-done">
+      <span>
+        <a class="cc-link" href="{% url 'reservation_details' r.uuid %}">#{{ r.display_number }}</a> · {{ r.customer.first_name }} {{ r.customer.last_name }}
+        <span class="cc-small">{{ c.get_kind_display }}</span>
+      </span>
+      <span>
+        {% if r.travel_agent %}<a class="cc-link" href="{% url 'admin_travel_agent_detail' r.travel_agent.id %}">{{ r.travel_agent.agent_name|default:r.travel_agent.user.username }}</a>{% endif %}
+      </span>
+      <span class="cc-what">
+        <span class="cc-verdict{% if c.decision == 'excluded' %} off{% endif %}">{% if c.decision == 'excluded' %}Not commissionable{% elif c.kind == 'duplicate' %}Not a duplicate, paid{% else %}It's fine, paid{% endif %}</span>
+        <span class="cc-small">{{ c.decided_by.get_full_name|default:c.decided_by.username|default:"Someone" }} · {{ c.decided_at|date:"M j, g:i A" }}</span>
+      </span>
+      <span class="cc-amount">${{ r.base_price|floatformat:2|intcomma }}<span class="cc-status">fare</span></span>
+      <span class="cc-actions">
+        {% if r.commission_paid %}<span class="cc-small">Already paid</span>{% else %}
+        <form method="post" data-confirm="Undo this decision on #{{ r.display_number }}? It goes back on the list{% if c.decision == 'excluded' %} and commission is switched back on{% endif %}.">
+          {% csrf_token %}<input type="hidden" name="tab" value="decided"><input type="hidden" name="check" value="{{ c.id }}">
+          <button class="cc-btn" name="action" value="undo"><i class="bi bi-arrow-counterclockwise me-1"></i>Undo</button>
+        </form>
+        {% endif %}
+      </span>
+    </div>
+    {% endwith %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="cc-empty"><i class="bi bi-clock-history" style="color: var(--gt-ink-3)"></i>Nothing decided yet.</div>
   {% endif %}
 
   {% else %}

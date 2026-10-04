@@ -12,12 +12,12 @@ from django.urls import reverse
 
 from reservations.models import Reservation
 from users.commission_check import (
-    CheckRefused, duplicate_groups, exclude, mark_fine, personal_suspects,
+    CheckRefused, duplicate_groups, exclude, mark_fine, personal_suspects, recent_decisions, undo,
 )
 from users.eligibility import STATUS_READY
 from users.models import CommissionCheck
 
-TABS = ("personal", "duplicates")
+TABS = ("personal", "duplicates", "decided")
 PERSONAL_REASON = "Personal trip — non-commissionable"
 
 
@@ -38,10 +38,12 @@ def commission_check(request):
 
     personal = personal_suspects()
     duplicates = duplicate_groups()
+    decided = recent_decisions()
     return render(request, "dispatching/commission_check.html", {
         "tab": tab,
         "personal": personal,
         "duplicates": duplicates,
+        "decided": decided,
         "personal_now": sum((f.commission for f in personal if f.status == STATUS_READY), Decimal("0")),
         "personal_total": sum((f.commission for f in personal), Decimal("0")),
         "dup_now": sum((g.payable_now for g in duplicates), 0),
@@ -55,6 +57,16 @@ def _number(res_id):
 
 def _decide(request):
     action = request.POST.get("action", "")
+    if action == "undo":
+        try:
+            res = undo(int(request.POST.get("check", "")), user=request.user)
+        except ValueError:
+            messages.warning(request, "That row was out of date. Here's a fresh list.")
+        except CheckRefused as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f"Undone. #{res.display_number} is back on the list to decide again.")
+        return
     ids = _ids(request, "reservation")
     if not ids:
         messages.warning(request, "That row was out of date. Here's a fresh list.")
@@ -62,7 +74,7 @@ def _decide(request):
     try:
         if action == "personal_exclude":
             exclude(ids[0], kind=CommissionCheck.PERSONAL, reason=PERSONAL_REASON, user=request.user)
-            messages.success(request, f"{_number(ids[0])} is now not commissionable. It won't be paid.")
+            messages.success(request, f"{_number(ids[0])} is now not commissionable. It won't be paid. (Undo it under Decided.)")
         elif action == "personal_fine":
             mark_fine(ids[:1], kind=CommissionCheck.PERSONAL, user=request.user)
             messages.success(request, f"{_number(ids[0])} will be paid as normal and won't be flagged again.")

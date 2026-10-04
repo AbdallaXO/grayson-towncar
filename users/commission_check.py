@@ -231,3 +231,47 @@ def mark_fine(reservation_ids, *, kind, user):
             _record(res, kind, "fine", user)
             _audit(res, "checked: pay as normal" + (" (not a duplicate)" if kind == "duplicate" else ""), user)
     return rows
+
+
+def recent_decisions(limit=200):
+    """Decisions made on this screen, newest first, for the Decided tab."""
+    from users.models import CommissionCheck
+
+    return list(
+        CommissionCheck.objects.select_related(
+            "reservation", "reservation__customer", "reservation__travel_agent", "reservation__travel_agent__user",
+            "decided_by",
+        ).order_by("-decided_at", "-id")[:limit]
+    )
+
+
+def undo(check_id, *, user):
+    """Take back one decision. The booking goes back on the list it came from.
+
+    If it was marked not commissionable here, commission is switched back on
+    (unless it has since been paid, which can't be undone from this screen).
+    Returns the reservation.
+    """
+    from users.models import CommissionCheck
+
+    with transaction.atomic():
+        check = CommissionCheck.objects.select_for_update(of=("self",)).select_related("reservation").filter(pk=check_id).first()
+        if check is None:
+            raise CheckRefused("That decision was already undone. Here's a fresh list.")
+        res = check.reservation
+        if check.decision == CommissionCheck.EXCLUDED and res.commission_excluded:
+            if res.commission_paid:
+                raise CheckRefused(f"#{res.display_number}'s commission was already paid, so it can't be undone here.")
+            res.commission_excluded = False
+            res.commission_exclusion_reason = ""
+            res.commission_excluded_at = None
+            res.commission_excluded_by = None
+            rate = (res.travel_agent.commission_rate or Decimal("0")) / Decimal("100") if res.travel_agent else Decimal("0")
+            res.commission_amount = ((res.base_price or Decimal("0")) * rate).quantize(Decimal("0.01"))
+            res.save(update_fields=["commission_excluded", "commission_exclusion_reason",
+                                    "commission_excluded_at", "commission_excluded_by", "commission_amount"])
+            _audit(res, "undone: commission counted again", user)
+        else:
+            _audit(res, f"undone: back on the {check.get_kind_display().lower()} list", user)
+        check.delete()
+    return res

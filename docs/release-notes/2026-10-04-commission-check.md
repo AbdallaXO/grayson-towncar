@@ -28,4 +28,4 @@ title: Check personal trips and duplicate bookings before paying agents
 
 **Expect to be asked:**
 - "The agent's own email is on a client's booking. Why isn't it flagged?" Agents do that all the time, so it isn't a sign of a personal trip.
-- "I marked one by mistake." Tell Abdalla. It can be switched back, but there is no undo button on this screen yet.
+- "I marked one by mistake." Open the Decided tab and click Undo. The booking goes back on the list and commission is switched back on.

@@ -129,3 +129,50 @@ class DuplicateTests(Fixture):
     def test_non_staff_cannot_open_it(self):
         self.client.force_login(User.objects.create_user("guest", password="x"))
         self.assertNotEqual(self.client.get(self.url).status_code, 200)
+
+
+class UndoTests(Fixture):
+    def check_id(self, res, kind="personal"):
+        return CommissionCheck.objects.get(reservation=res, kind=kind).id
+
+    def test_undo_not_commissionable_pays_again_and_relists(self):
+        res = self.book("Cassie", "Chin")
+        self.client.post(self.url, {"action": "personal_exclude", "reservation": res.id})
+        self.client.post(self.url, {"action": "undo", "check": self.check_id(res), "tab": "decided"})
+        res.refresh_from_db()
+        self.assertFalse(res.commission_excluded)
+        self.assertEqual(res.commission_amount, Decimal("20.00"))
+        self.assertEqual(sum_ready(self.agent), Decimal("20.00"))
+        self.assertIn(res.id, {f.reservation.id for f in personal_suspects()})
+        self.assertFalse(CommissionCheck.objects.exists())
+
+    def test_undo_its_fine_relists(self):
+        res = self.book("Cassie", "Chin")
+        self.client.post(self.url, {"action": "personal_fine", "reservation": res.id})
+        self.client.post(self.url, {"action": "undo", "check": self.check_id(res)})
+        self.assertIn(res.id, {f.reservation.id for f in personal_suspects()})
+
+    def test_undo_a_duplicate_brings_the_group_back(self):
+        a = self.book("Ann", "Lee")
+        b = self.book("Ann", "Lee")
+        self.client.post(self.url, {"action": "dup_exclude", "reservation": b.id, "group": [a.id, b.id]})
+        self.client.post(self.url, {"action": "undo", "check": self.check_id(b, "duplicate")})
+        b.refresh_from_db()
+        self.assertFalse(b.commission_excluded)
+        self.assertEqual(len(duplicate_groups()), 1)
+
+    def test_undo_refused_once_paid(self):
+        res = self.book("Cassie", "Chin")
+        self.client.post(self.url, {"action": "personal_exclude", "reservation": res.id})
+        Reservation.objects.filter(pk=res.pk).update(commission_paid=True)
+        response = self.client.post(self.url, {"action": "undo", "check": self.check_id(res)}, follow=True)
+        self.assertContains(response, "already paid")
+        res.refresh_from_db()
+        self.assertTrue(res.commission_excluded)
+
+    def test_decided_tab_lists_it_with_undo(self):
+        res = self.book("Cassie", "Chin")
+        self.client.post(self.url, {"action": "personal_exclude", "reservation": res.id})
+        response = self.client.get(self.url + "?tab=decided")
+        self.assertContains(response, f"#{res.display_number}")
+        self.assertContains(response, 'value="undo"')
