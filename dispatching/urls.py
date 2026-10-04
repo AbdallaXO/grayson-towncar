@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import advisor_views
+from . import paypal_batch_views
 from . import flight_verify_views
 from . import overnight_views
 from . import keoi_views
@@ -485,6 +486,11 @@ urlpatterns = [
         views.affiliate_payments,
         {"section_lock": "history"},
         name="affiliate_payments_history",
+    ),
+    path(
+        "affiliate-payments/paypal-batch/",
+        paypal_batch_views.paypal_batch,
+        name="paypal_batch",
     ),
     path(
         "affiliate-payments/process-agent/",

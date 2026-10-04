@@ -154,11 +154,31 @@ def process_bulk_payouts(items, *, sent_by):
         - "reference": str (optional, defaults to "")
         - "method":    str (optional, defaults to the payee's stored method)
         - "email":     bool (optional)
+        - "expected_amount": str (optional) -- refuse unless the payee is owed
+          exactly this much right now. The PayPal batch sends it, so the app
+          never records a payout PayPal didn't send.
 
     Each item runs in its own transaction so one failure does not roll back successes.
     Returns a list of result dicts, one per input item, in the same order.
     """
     from users.models import TravelAgent, Agency
+    from users.eligibility import sum_ready
+
+    def _amount_moved(expected, now_owed):
+        """{} when the payee may be paid, else the failure fields to report."""
+        if expected in (None, ""):
+            return {}
+        try:
+            expected = Decimal(str(expected)).quantize(Decimal("0.01"))
+        except (ArithmeticError, ValueError):
+            return {"error": "Invalid expected amount."}
+        if expected == now_owed:
+            return {}
+        return {
+            "error": f"Amount changed: ${expected} when the PayPal file was made, ${now_owed} now.",
+            "expected_amount": str(expected),
+            "owed_now": str(now_owed),
+        }
 
     results = []
     for item in items:
@@ -183,6 +203,14 @@ def process_bulk_payouts(items, *, sent_by):
                         "error": "No unpaid commissions.",
                     })
                     continue
+                moved = _amount_moved(item.get("expected_amount"), sum_ready(agent))
+                if moved:
+                    results.append({
+                        "ok": False, "type": "agent", "id": obj_id,
+                        "name": agent.agent_name or agent.user.get_username(),
+                        **moved,
+                    })
+                    continue
                 payout, amount, agency_payout = process_agent_payout(
                     agent,
                     sent_by=sent_by,
@@ -205,15 +233,19 @@ def process_bulk_payouts(items, *, sent_by):
                 # unpaid_commissions stat. A stale stat could either incorrectly
                 # block a payout that has Ready items, or claim there are items
                 # when eligibility actually says nothing's Ready.
-                from users.eligibility import sum_ready
-                owing_agents = sum(
-                    1 for a in agency.agents.filter(agency_handles_payment=True)
-                    if sum_ready(a) > 0
-                )
+                ready = [sum_ready(a) for a in agency.agents.filter(agency_handles_payment=True)]
+                owing_agents = sum(1 for amount in ready if amount > 0)
                 if owing_agents == 0:
                     results.append({
                         "ok": False, "type": "agency", "id": obj_id, "name": agency.name,
                         "error": "No commissions ready to pay in this agency.",
+                    })
+                    continue
+                moved = _amount_moved(item.get("expected_amount"), sum(ready, Decimal("0")))
+                if moved:
+                    results.append({
+                        "ok": False, "type": "agency", "id": obj_id, "name": agency.name,
+                        **moved,
                     })
                     continue
                 recipient_email = None
