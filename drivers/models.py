@@ -2875,3 +2875,73 @@ class VehicleInspectionPhoto(models.Model):
 
     def __str__(self):
         return f"{self.inspection} · {self.item_key or 'general'}"
+
+
+# ── Driver knowledge (structured shifts, Stage 1, S19) ──────────────────────
+# What the desk knows about each driver, for people to read: the engine does
+# not use it yet. Staff-only — never on a driver-facing page or API. The logic
+# lives in drivers/driver_knowledge.py.
+
+class DriverTag(models.Model):
+    """One word the desk uses about a driver: a strength ("Airport pro"), a
+    habit ("Always early", "Runs late"), a language, or an area they know.
+
+    Caution tags are the habits to plan around. A retired tag (is_active off)
+    stays on the drivers who have it but is no longer offered. Names are unique
+    regardless of case (driver_knowledge.create_tag). Seeded by drivers 0067.
+    """
+    CATEGORY_CHOICES = [
+        ("strength", "Strength"),
+        ("habit", "Habit"),
+        ("language", "Language"),
+        ("area", "Area"),
+    ]
+    POLARITY_CHOICES = [
+        ("positive", "Positive"),
+        ("caution", "Caution"),
+    ]
+
+    name = models.CharField(max_length=60, unique=True)
+    category = models.CharField(max_length=12, choices=CATEGORY_CHOICES)
+    polarity = models.CharField(
+        max_length=10, choices=POLARITY_CHOICES, default="positive",
+        help_text="Caution = something to plan around, e.g. Runs late.",
+    )
+    description = models.CharField(max_length=200, blank=True, default="")
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Untick to stop offering this tag. Drivers who have it keep it.",
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["category", "sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class DriverTagAssignment(models.Model):
+    """A tag on one driver, with an optional note ("knows every MCO terminal")
+    and who added it. One per driver and tag: adding it again updates the note."""
+
+    driver = models.ForeignKey(
+        Driver, on_delete=models.CASCADE, related_name="tag_assignments",
+    )
+    tag = models.ForeignKey(
+        DriverTag, on_delete=models.PROTECT, related_name="assignments",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+    added_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("driver", "tag")
+
+    def __str__(self):
+        return f"{self.driver} · {self.tag}"

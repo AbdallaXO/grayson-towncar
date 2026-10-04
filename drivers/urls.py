@@ -1,5 +1,6 @@
 from django.urls import path
 from . import comms_views, onboarding_views, operator_views, views
+from . import driver_knowledge_views
 
 
 urlpatterns = [
@@ -146,4 +147,11 @@ urlpatterns = [
     path("welcome/<str:token>/", onboarding_views.driver_welcome, name="driver_welcome"),
     path("my-details/", onboarding_views.my_details, name="driver_my_details"),
     path("my-details/password/", onboarding_views.my_password, name="driver_my_password"),
+    # Driver knowledge on the staff profile (staff-only, never in the driver app)
+    path("<int:driver_id>/tags/add/", driver_knowledge_views.driver_tag_add,
+         name="driver_tag_add"),
+    path("<int:driver_id>/tags/<int:tag_id>/remove/", driver_knowledge_views.driver_tag_remove,
+         name="driver_tag_remove"),
+    path("<int:driver_id>/tags/new/", driver_knowledge_views.driver_tag_create,
+         name="driver_tag_create"),
 ]

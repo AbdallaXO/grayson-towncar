@@ -1,0 +1,139 @@
+{% comment %}
+  Strengths & habits: what the desk knows about this driver (structured
+  shifts, Stage 1, S19). Staff profile only, never in the driver app.
+
+  Self-contained: it carries its own styles, and its forms post on their own,
+  so it must never be placed inside the profile edit form. Any staff user adds
+  a tag; managers (can_edit) also get the remove x and the New tag form.
+
+  Context: driver, can_edit, edit_mode, tag_groups and available_tags
+  (both [(heading, [...])], from drivers/driver_knowledge.py).
+{% endcomment %}
+<style>
+  .kb-card .kb-private {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .68rem; font-weight: 600; letter-spacing: .03em; color: var(--gt-muted);
+  }
+  .kb-group + .kb-group { margin-top: .9rem; }
+  .kb-group-label {
+    font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--gt-muted); font-weight: 600; margin-bottom: .45rem;
+  }
+  .kb-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .kb-chip {
+    display: inline-flex; align-items: flex-start; gap: .45rem; max-width: 100%;
+    padding: .35rem .7rem; border: 1px solid; border-radius: 8px;
+    font-size: .8rem; font-weight: 600; line-height: 1.3;
+    transition: border-color .18s ease, background-color .18s ease;
+  }
+  .kb-chip.kb-positive { background: rgba(201,162,39,.09); border-color: rgba(201,162,39,.4); color: #E8D5B7; }
+  .kb-chip.kb-positive:hover { border-color: var(--gt-gold); background: rgba(201,162,39,.14); }
+  .kb-chip.kb-caution { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.45); color: #fbbf24; }
+  .kb-chip.kb-caution:hover { border-color: #fbbf24; background: rgba(245,158,11,.18); }
+  .kb-chip .kb-icon { font-size: .7rem; margin-top: .12rem; }
+  .kb-chip .kb-text { display: flex; flex-direction: column; min-width: 0; }
+  .kb-chip .kb-note { font-size: .7rem; font-weight: 500; color: var(--gt-muted); overflow-wrap: anywhere; margin-top: .1rem; }
+  .kb-chip form { display: inline; margin: 0; }
+  .kb-chip .kb-x {
+    background: none; border: 0; color: inherit; opacity: .5; cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: .05rem .25rem; margin: -.1rem -.35rem 0 0;
+    transition: opacity .15s ease;
+  }
+  .kb-chip .kb-x:hover, .kb-chip .kb-x:focus-visible { opacity: 1; }
+  .kb-empty { color: var(--gt-muted); font-size: .85rem; line-height: 1.55; }
+  .kb-add { border-top: 1px solid var(--gt-border); margin-top: 1.1rem; padding-top: 1rem; }
+  .kb-add-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: stretch; }
+  .kb-add-row .gt-field { flex: 1 1 11rem; width: auto; min-width: 0; }
+  .kb-add-row .btn { flex: 0 0 auto; }
+  .kb-new { margin-top: .85rem; }
+  .kb-new summary {
+    display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; list-style: none;
+    font-size: .78rem; font-weight: 600; color: var(--gt-gold);
+  }
+  .kb-new summary::-webkit-details-marker { display: none; }
+  .kb-new[open] summary { margin-bottom: .6rem; }
+  .kb-hint { font-size: .72rem; color: var(--gt-muted); margin-top: .55rem; line-height: 1.5; }
+</style>
+
+<div class="profile-card kb-card mb-3" id="strengths-habits">
+  <div class="card-header">
+    <span><i class="bi bi-stars me-2"></i>Strengths &amp; habits</span>
+    <span class="kb-private" title="Drivers never see this card"><i class="bi bi-eye-slash"></i>Office only</span>
+  </div>
+  <div class="card-body">
+    {% if tag_groups %}
+      {% for label, rows in tag_groups %}
+        <div class="kb-group">
+          <div class="kb-group-label">{{ label }}</div>
+          <div class="kb-chips">
+            {% for a in rows %}
+              <div class="kb-chip kb-{{ a.tag.polarity }}" data-tag="{{ a.tag.name }}" title="Added{% if a.added_by %} by {{ a.added_by.first_name|default:a.added_by.username }}{% endif %} on {{ a.added_at|date:'M j, Y' }}">
+                {% if a.tag.polarity == "caution" %}<i class="bi bi-exclamation-triangle-fill kb-icon" aria-label="Caution"></i>{% endif %}
+                <span class="kb-text">
+                  <span>{{ a.tag.name }}</span>
+                  {% if a.note %}<span class="kb-note">{{ a.note }}</span>{% endif %}
+                </span>
+                {% if can_edit %}
+                  <form method="post" action="{% url 'driver_tag_remove' driver.id a.tag_id %}" onsubmit="return confirm('Take {{ a.tag.name|escapejs }} off this profile?');">
+                    {% csrf_token %}
+                    <button type="submit" class="kb-x" aria-label="Remove {{ a.tag.name }}" title="Remove {{ a.tag.name }}">&times;</button>
+                  </form>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="kb-empty">
+        Nothing noted yet. Add what the desk knows: what {{ driver.profile.first_name|default:"this driver" }} is great at, habits to plan around, the languages they speak and the areas they know.
+      </div>
+    {% endif %}
+
+    <div class="kb-add">
+      {% if available_tags %}
+        <form method="post" action="{% url 'driver_tag_add' driver.id %}" class="kb-add-row">
+          {% csrf_token %}
+          <select name="tag" class="gt-field" required aria-label="Tag to add">
+            <option value="">Add a tag&hellip;</option>
+            {% for label, tags in available_tags %}
+              <optgroup label="{{ label }}">
+                {% for t in tags %}<option value="{{ t.id }}">{{ t.name }}{% if t.polarity == "caution" %} (caution){% endif %}</option>{% endfor %}
+              </optgroup>
+            {% endfor %}
+          </select>
+          <input type="text" name="note" class="gt-field" maxlength="200" placeholder="Short note (optional)" aria-label="Note">
+          <button type="submit" class="btn btn-sm btn-primary-action"><i class="bi bi-plus-lg me-1"></i>Add</button>
+        </form>
+      {% else %}
+        <div class="kb-empty">Every tag is already on this profile.</div>
+      {% endif %}
+
+      {% if can_edit %}
+        <details class="kb-new">
+          <summary><i class="bi bi-plus-circle"></i>New tag</summary>
+          <form method="post" action="{% url 'driver_tag_create' driver.id %}" class="kb-add-row">
+            {% csrf_token %}
+            <input type="text" name="name" class="gt-field" maxlength="60" required placeholder="Name, e.g. Night owl" aria-label="New tag name">
+            <select name="category" class="gt-field" aria-label="Kind of tag">
+              <option value="strength">Strength</option>
+              <option value="habit">Habit</option>
+              <option value="language">Language</option>
+              <option value="area">Area they know</option>
+            </select>
+            <select name="polarity" class="gt-field" aria-label="A plus or a caution">
+              <option value="positive">A plus</option>
+              <option value="caution">A caution</option>
+            </select>
+            <button type="submit" class="btn btn-sm">Create &amp; add</button>
+          </form>
+          <div class="kb-hint">It goes on this profile now and is offered for every driver from then on.</div>
+        </details>
+      {% endif %}
+
+      {% if edit_mode %}
+        <div class="kb-hint">Tags save on their own. Save your other changes first.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

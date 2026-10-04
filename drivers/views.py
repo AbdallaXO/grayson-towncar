@@ -1420,6 +1420,12 @@ def driver_profile(request, driver_id):
             if driver.driver_type == "inhouse" else None
         ),
     }
+
+    # Strengths & habits: staff-only driver knowledge (drivers/driver_knowledge.py).
+    from drivers import driver_knowledge
+
+    context["tag_groups"] = driver_knowledge.tags_by_category(driver)
+    context["available_tags"] = driver_knowledge.available_tags(driver)
     return render(request, "drivers/driver_profile.html", context)
 
 
