@@ -1236,7 +1236,9 @@ def check_feasibility(
             span_after = (new_end_dt - new_pickup_dt).total_seconds() / 3600
             span_before = 0.0
         ok, reason = fg.window_check(driver_window, new_leg.pickup_time, new_end_dt, span_after,
-                                     target_date=target_date, span_hours_before=span_before)
+                                     target_date=target_date, span_hours_before=span_before,
+                                     pickup_category=new_pickup_cat,
+                                     dropoff_category=new_dropoff_cat)
         if not ok:
             return FeasibilityResult(feasible=False, buffer_minutes=-999,
                                      reason=f"Outside driver window: {reason}")
@@ -2577,7 +2579,9 @@ def _chain_ok(driver_schedule, target_date, driver_window=None):
         span = (last_end - first_pickup).total_seconds() / 3600
         for s in slots:
             ok, _ = fg.window_check(driver_window, s.pickup_time, s.estimated_end_time,
-                                    span, target_date=target_date)
+                                    span, target_date=target_date,
+                                    pickup_category=s.pickup_category,
+                                    dropoff_category=s.dropoff_category)
             if not ok:
                 return False
     return True

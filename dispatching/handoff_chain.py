@@ -12,6 +12,8 @@ What lives here, by build:
   * Build 2 (this build): the zone chain (drop zone -> wash -> fuel -> base ->
     next-pickup zone, low/central/high), the green/amber/red handoff
     feasibility rule (03 §3.2) and the flight-volatility guard (03 §3.3).
+  * Structured shifts, Stage 1: the base → base shift lead and tail that a
+    minute-precision regular-shift window is checked against (07 §6.1).
 
 Every number is labeled with its source per 00's convention.
 """
@@ -157,6 +159,44 @@ def car_ready_min(drop_zone):
         to_wash = tuple(d + x for x in c["mco_to_wash"])
     return tuple(to_wash[i] + c["wash"][i] + c["fuel"][i] + c["wash_to_base"][i]
                  for i in range(3))
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SHIFT = BASE → BASE — lead before the first pickup, tail after the last clear
+# ════════════════════════════════════════════════════════════════════════════
+# A driver's regular shift is measured base → base (07 §6.1, U2): it starts when he
+# leaves base for his first pickup and ends when he is back at base after his last
+# job. The rules door (feasibility_guards window_check) and the regular-shift
+# pre-fill both go through these two helpers, so they can never disagree.
+# 07 §6.2 names these values as Stage 3 settings (handover_fuel_stop_min,
+# handover_prep_min, night_return_min); until then they are constants here.
+HANDOVER_FUEL_MIN = 15          # [founder-supplied U14] morning driver fuels before the handover
+EVENING_REPORT_LEAD_MIN = 25    # [founder-supplied U16] report ~10 min before car-ready + 15 prep
+
+
+def base_drive_min(zone):
+    """Central drive minutes between base and ``zone`` (BASE_TO_ZONE)."""
+    return _base_to(zone)[1]
+
+
+def shift_lead_min(kind, pickup_zone):
+    """Minutes before a pickup in ``pickup_zone`` that the driver's shift has
+    started: drive base → zone + the pre-pickup buffer (10 airport / 15 other).
+    An evening driver also reports ahead of the car being ready (U16)."""
+    lead = base_drive_min(pickup_zone) + pickup_buffer_min(pickup_zone)
+    if kind == "evening":
+        lead += EVENING_REPORT_LEAD_MIN
+    return lead
+
+
+def shift_tail_min(kind, drop_zone):
+    """Minutes after the last clear in ``drop_zone`` until the shift ends back at
+    base. A morning driver drives back and fuels for the handover (U14); anyone
+    else returns the car washed and fueled — drop → wash → fuel → base, 61 min
+    after an MCO drop (U19)."""
+    if kind == "morning":
+        return base_drive_min(drop_zone) + HANDOVER_FUEL_MIN
+    return round(car_ready_min(drop_zone)[1])
 
 
 def clear_to_pickup_min(drop_zone, pickup_zone):

@@ -6,11 +6,21 @@ Design goals:
     call inside the scheduler's hot loops. Callers fetch DB data and pass it in.
   * All policy lives behind clearly-named, trivially-flippable config flags.
   * The per-driver windows are a STUB derived from observed history (see
-    docs/driver_reality_report.md). Swapping in real, production-configured windows is a
-    one-line change: set USE_STUB_WINDOWS = False (then get_effective_window reads the
-    live DriverWeeklySchedule the caller passes in). NEVER writes to driver records.
+    docs/driver_reality_report.md). The stub is bypassed PER DRIVER when the caller's
+    configured window carries source="regular" — a confirmed regular shift, passed in
+    only while SchedulerSettings.regular_shift_windows is on — so USE_STUB_WINDOWS
+    stays True and every other driver keeps the stub. Setting USE_STUB_WINDOWS = False
+    still swaps EVERY driver to the live DriverWeeklySchedule window the caller passes
+    in. NEVER writes to driver records.
+  * Window dicts are hour-based ({"start", "end", ...}) unless they carry start_min /
+    end_min (minutes after 00:00 of the target date; over 1440 = next day). Those are
+    checked base -> base via handoff_chain.shift_lead_min / shift_tail_min; hour windows
+    take the original hour path unchanged.
 """
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timedelta
+from math import ceil
+
+from dispatching import handoff_chain as hc
 
 # ── Airport terminals (kept consistent with dispatching.analytics.categorize_location) ──
 AIRPORT_TERMINALS = ("MCO Terminal", "SFB Terminal")
@@ -78,6 +88,8 @@ BUFFER_MODES = {
 BUFFER_EXEMPT_SAME_TERMINAL_ARRIVAL = True
 
 # Guard C — use the observed-history STUB windows below until real windows are configured.
+# A configured window with source="regular" (a confirmed regular shift) bypasses the stub
+# for that one driver — see get_effective_window.
 USE_STUB_WINDOWS = True
 
 # ── Duty-span caps (Span Governor, 2026-06: docs/scheduler-automation/auto-assign-hour-
@@ -305,13 +317,19 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
     Pass enforce_cap=False on analytics / manual-sovereign paths (fleet_intel, the manual
     swap-validation endpoint) so the cap never silently changes shipped numbers or blocks a
     dispatcher's intentional long day.
+
+    A `configured` window with source="regular" is a confirmed regular shift (or the
+    dispatcher's retyped modal hours for such a driver): it is the driver's real hours, so
+    it skips the stub branch and takes the configured-window logic below, keeping every
+    key (start_min / end_min / kind ride through to window_check).
     """
     cap_on = ENFORCE_SPAN_CAPS and enforce_cap
     # enforce_cap=False marks the MANUAL-SOVEREIGN callers (manual swap revalidation,
     # analytics): their windows carry night_exempt so the night rule never hard-blocks
     # an intentional dispatcher move (founder: "flag but do it").
     night_exempt = not enforce_cap
-    if USE_STUB_WINDOWS:
+    regular = configured is not None and configured.get("source") == "regular"
+    if USE_STUB_WINDOWS and not regular:
         w = STUB_DRIVER_WINDOWS.get(driver_id)
         # Use the observed-history stub for start/end/max, but HONOR the driver's REAL
         # flexible flag (from the caller's `configured` window) — never hardcode False.
@@ -357,12 +375,109 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
     return capped
 
 
+def regular_window_keys(eff):
+    """The minute keys a confirmed regular shift adds to a configured window.
+
+    `eff` is a resolve_effective_availability result. Its window_start_min /
+    window_end_min are set only while SchedulerSettings.regular_shift_windows is on, so
+    with the switch off this is always {} and merging it changes nothing.
+    """
+    if not eff:
+        return {}
+    start_min, end_min = eff.get("window_start_min"), eff.get("window_end_min")
+    if start_min is None or end_min is None:
+        return {}
+    return {"start_min": start_min, "end_min": end_min,
+            "kind": eff.get("window_kind"), "source": "regular"}
+
+
+def legacy_hours(start_min, end_min):
+    """(start_hour, end_hour) for code that still reads hour windows.
+
+    The start floors to its hour; the end rounds UP so the hour window never cuts the
+    minute window short, and a shift that runs past midnight reads as end 23 — the hour
+    fields cannot say "next day".
+    """
+    return (start_min // 60, 23 if end_min >= 1440 else min(23, ceil(end_min / 60)))
+
+
+def _hhmm(minutes):
+    """Minutes after 00:00 as HH:MM (same text as strftime('%H:%M')); wraps past 24h."""
+    minutes = int(minutes) % 1440
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
+                         target_date, mode, frcb, span_hours_before,
+                         pickup_category, dropoff_category):
+    """window_check for a window carrying start_min / end_min, checked base -> base.
+
+    The shift starts when the driver leaves base (pickup - shift_lead_min) and ends when
+    he is back (clear + shift_tail_min). Both are 0 unless the window names its `kind`
+    and the caller passed the leg's location category. Flexible / night / LAST_PICKUP /
+    max-hours semantics mirror the hour path exactly.
+    """
+    flexible = bool(window.get("flexible", False))
+    start_min = int(window["start_min"])
+    end_min = int(window["end_min"])
+    kind = window.get("kind")
+    lead = hc.shift_lead_min(kind, pickup_category) if (kind and pickup_category) else 0
+    tail = hc.shift_tail_min(kind, dropoff_category) if (kind and dropoff_category) else 0
+    p = pickup_time.hour * 60 + pickup_time.minute
+    p_s = pickup_time.strftime('%H:%M')
+    end_s = _hhmm(end_min) + (" (next day)" if end_min >= 1440 else "")
+
+    # START bound — leaving base for this pickup must not be before the shift starts.
+    if not flexible and p - lead < start_min:
+        if lead:
+            return False, (f"pickup {p_s} means leaving base {_hhmm(p - lead)}, "
+                           f"before start {_hhmm(start_min)}")
+        return False, f"pickup {p_s} before start {_hhmm(start_min)}"
+
+    # NIGHT bound — the hour path's rule; the explicit-start escape reads the minute start.
+    if (flexible and NIGHT_LEG_FLEX_BLOCK
+            and pickup_time.hour < NIGHT_LEG_BOUNDARY_HOUR
+            and not window.get("night_exempt")
+            and not (start_min <= p)):
+        return False, (f"night pickup {p_s} needs an explicit "
+                       f"night-shift window (Flexible does not cover "
+                       f"00:00-0{NIGHT_LEG_BOUNDARY_HOUR}:00)")
+
+    # END bound — back at base by the shift's end, which may be on the next day.
+    if mode == "CLEAR_BY":
+        enforce_end = (not flexible) or frcb
+        if enforce_end and clear_dt is not None:
+            if target_date is not None:
+                base_date = target_date
+            elif clear_dt.time() >= pickup_time:
+                base_date = clear_dt.date()
+            else:  # cleared after midnight: the shift belongs to the pickup's day
+                base_date = clear_dt.date() - timedelta(days=1)
+            base_dt = datetime.combine(base_date, dt_time(0))
+            back_dt = clear_dt + timedelta(minutes=tail)
+            if back_dt > base_dt + timedelta(minutes=end_min):
+                if tail:
+                    return False, (f"clears {clear_dt.strftime('%H:%M')}, back at base "
+                                   f"{back_dt.strftime('%H:%M')}, after {end_s}")
+                return False, f"clears {clear_dt.strftime('%H:%M')} after clear-by {end_s}"
+    else:  # LAST_PICKUP
+        if not flexible and p > end_min:
+            return False, f"pickup {p_s} after last-pickup {end_s}"
+
+    # MAX HOURS — run the hour path's own block on a cap-only window (no start / end /
+    # flexible, so nothing else in it can fire): one rule, no copy to drift.
+    return window_check({"max_hours": window.get("max_hours")}, pickup_time, clear_dt,
+                        span_hours_after, span_hours_before=span_hours_before)
+
+
 def window_check(window, pickup_time, clear_dt, span_hours_after,
                  target_date=None, mode=None, flexible_respects_clear_by=None,
-                 span_hours_before=None):
+                 span_hours_before=None, pickup_category=None, dropoff_category=None):
     """(ok, reason) for whether adding a leg respects the driver's window + max_hours.
 
-    window: {"start", "end", "max_hours", "flexible"}; None => skip.
+    window: {"start", "end", "max_hours", "flexible"}; None => skip. A window that also
+        carries start_min / end_min (a regular shift, to the minute, possibly past
+        midnight) takes _minute_window_check instead; hour windows never do.
     pickup_time: datetime.time of the new leg's pickup.
     clear_dt: datetime when the new leg clears (finishes).
     span_hours_after: driver's day span (first pickup -> last clear) IF this leg is added.
@@ -373,9 +488,18 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
         (a pre-existing/manual board, or a modal cap set below the saved day), only inserts
         that GROW the span are blocked — hole-fills that leave the span unchanged stay legal,
         so an over-cap driver isn't frozen out of every insert. None => legacy total-span gate.
+    pickup_category / dropoff_category: the leg's categorize_location zones. Only the
+        minute path reads them (the drive from / back to base); hour windows ignore them.
     """
     if not window:
         return True, ""
+    if window.get("start_min") is not None:
+        return _minute_window_check(
+            window, pickup_time, clear_dt, span_hours_after, target_date,
+            END_HOUR_MODE if mode is None else mode,
+            FLEXIBLE_RESPECTS_CLEAR_BY if flexible_respects_clear_by is None
+            else flexible_respects_clear_by,
+            span_hours_before, pickup_category, dropoff_category)
     mode = END_HOUR_MODE if mode is None else mode
     frcb = FLEXIBLE_RESPECTS_CLEAR_BY if flexible_respects_clear_by is None else flexible_respects_clear_by
     flexible = bool(window.get("flexible", False))
