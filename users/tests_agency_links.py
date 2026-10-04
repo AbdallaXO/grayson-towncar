@@ -117,6 +117,14 @@ class PageTests(TestCase):
         self.assertTrue(ann.agency_handles_payment)
         self.assertFalse(bo.agency_handles_payment)
 
+    def test_shows_what_they_chose_and_is_searchable(self):
+        ann = make_agent("ann", typed="Best Day Ever Vacations")
+        TravelAgent.objects.filter(pk=ann.pk).update(payment_info="Pay my agency please")
+        response = self.client.get(self.url)
+        self.assertContains(response, "They chose")
+        self.assertContains(response, "Pay my agency please")
+        self.assertContains(response, 'data-search="ann best day ever vacations best day ever vacations pay my agency please"')
+
     def test_add_agency_and_link(self):
         cy = make_agent("cy", typed="Pixie Vacations")
         self.client.post(self.url, {"action": "create", "agent": cy.id})

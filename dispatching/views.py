@@ -22110,12 +22110,31 @@ def admin_travel_agencies(request):
 @login_required
 @staff_member_required
 def admin_travel_agent_detail(request, pk):
-    """Per-agent admin detail with assign-agency control."""
+    """Per-agent admin detail with assign-agency control and in-page profile editing."""
     from reservations.models import Reservation as _R
+    from users.agent_profile import AgentProfileForm, payout_warnings
 
     agent = get_object_or_404(
         TravelAgent.objects.select_related("user", "agency"), pk=pk
     )
+
+    # Profile edits post back here; a form with errors re-renders the page
+    # with the editor open and what the operator typed still in it.
+    if request.method == "POST":
+        profile_form = AgentProfileForm(request.POST, instance=agent)
+        if profile_form.is_valid():
+            changed = profile_form.save_with_audit(user=request.user)
+            if changed:
+                messages.success(request, "Saved: " + ", ".join(changed) + ".")
+            else:
+                messages.info(request, "Nothing changed.")
+            agent.refresh_from_db()
+            for warning in payout_warnings(agent):
+                messages.warning(request, warning)
+            return redirect("admin_travel_agent_detail", pk=agent.pk)
+        agent.refresh_from_db()  # the form wrote its rejected values onto the instance
+    else:
+        profile_form = AgentProfileForm(instance=agent)
 
     lifetime = _agent_lifetime_stats(agent)
     live_unpaid = _agent_live_unpaid(agent)
@@ -22176,6 +22195,8 @@ def admin_travel_agent_detail(request, pk):
         "pending_preview": pending_preview,
         "can_pay_directly": can_pay_directly,
         "bucket_summary": bucket_summary,
+        "profile_form": profile_form,
+        "edit_open": profile_form.is_bound or request.GET.get("edit") == "1",
     }
     return render(request, "dispatching/travel_agent_detail.html", context)
 

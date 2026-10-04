@@ -78,12 +78,21 @@
   .al-section-note { font-size: .8rem; color: var(--gt-ink-3); }
   .al-list { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; }
   .al-row {
-    display: grid; grid-template-columns: 28px minmax(0, 1.3fr) minmax(0, 1.5fr) 100px;
+    display: grid; grid-template-columns: 28px minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.3fr) 92px;
     gap: 14px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem;
   }
   .al-row:first-child { border-top: 0; }
   .al-row-head { background: var(--gt-surface); font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 500; padding-top: 9px; padding-bottom: 9px; }
-  .al-missing .al-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.3fr) 100px 170px; }
+  .al-missing .al-row { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.1fr) 92px 170px; }
+  .al-method { display: inline-block; font-size: .72rem; font-weight: 500; padding: 2px 9px; border-radius: 999px; background: var(--gt-surface); color: var(--gt-dark); }
+  .al-chose .al-typed { margin-top: 4px; }
+  .al-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 6px; position: sticky; top: 0; z-index: 40; padding: 10px 0; background: rgba(244,243,239,.94); backdrop-filter: blur(6px); }
+  .al-search { position: relative; flex: 1 1 280px; max-width: 420px; margin: 0; }
+  .al-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--gt-ink-3); }
+  .al-search input { width: 100%; font: .9rem 'Roboto', sans-serif; padding: .6rem .8rem .6rem 2.1rem; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm); background: #fff; }
+  .al-search input:focus { outline: none; border-color: var(--gt-dark); box-shadow: 0 0 0 3px rgba(15,27,61,.08); }
+  .al-shown { font-size: .8rem; color: var(--gt-muted); }
+  .al-row.is-hidden, .al-section.is-empty { display: none; }
   label.al-row { cursor: pointer; margin: 0; transition: background .12s ease; }
   label.al-row:hover { background: #FCFBF8; }
   .al-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gt-dark); cursor: pointer; }
@@ -125,9 +134,10 @@
     .al-stats { grid-template-columns: 1fr; }
     .al-row-head { display: none; }
     .al-row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 4px 10px; }
-    .al-row > .al-target { grid-column: 2 / -1; grid-row: 2; }
+    .al-row > .al-chose { grid-column: 2 / -1; grid-row: 2; }
+    .al-row > .al-target { grid-column: 2 / -1; grid-row: 3; }
     .al-missing .al-row { grid-template-columns: minmax(0, 1fr) auto; }
-    .al-missing .al-row > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .al-missing .al-row > .al-chose, .al-missing .al-row > :nth-child(3) { grid-column: 1; grid-row: auto; }
     .al-missing .al-row > .al-create { grid-column: 1 / -1; text-align: left; }
     .al-bar { left: 16px; right: 16px; transform: none; justify-content: space-between; }
   }
@@ -177,6 +187,20 @@
   </div>
   <p class="al-rule"><i class="bi bi-shield-check me-1"></i>Only agents who picked "Agency" as how they get paid. Anyone who picked Venmo, PayPal, or another method is paid directly and never shows here.</p>
 
+  {% if ready or check or missing %}
+  <div class="al-tools">
+    <label class="al-search">
+      <i class="bi bi-search"></i>
+      <input type="search" id="al-q" placeholder="Search agent or agency, e.g. Best Day" autocomplete="off">
+    </label>
+    <span class="al-shown" id="al-shown"></span>
+    {% if ready or check %}
+    <button type="button" class="al-btn-sm" data-tick="1"><i class="bi bi-check2-square me-1"></i>Tick all shown</button>
+    <button type="button" class="al-btn-sm" data-tick="0"><i class="bi bi-square me-1"></i>Untick all shown</button>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if ready or check %}
   <form method="post" id="al-form">
     {% csrf_token %}
@@ -189,7 +213,7 @@
         <span class="al-section-note">Their agency is in the system under the name they gave. Ticked for you.</span>
       </div>
       <div class="al-list">
-        <div class="al-row al-row-head"><span></span><span>Agent</span><span>Link to</span><span class="al-amount">Owed now</span></div>
+        <div class="al-row al-row-head"><span></span><span>Agent</span><span>They chose</span><span>Link to</span><span class="al-amount">Owed now</span></div>
         {% for p in ready %}{% include 'dispatching/_agency_link_row.html' with p=p checked=True %}{% endfor %}
       </div>
     </section>
@@ -202,7 +226,7 @@
         <span class="al-section-note">Close, but not an exact match. Tick the ones that are the same agency.</span>
       </div>
       <div class="al-list">
-        <div class="al-row al-row-head"><span></span><span>Agent</span><span>Probably</span><span class="al-amount">Owed now</span></div>
+        <div class="al-row al-row-head"><span></span><span>Agent</span><span>They chose</span><span>Probably</span><span class="al-amount">Owed now</span></div>
         {% for p in check %}{% include 'dispatching/_agency_link_row.html' with p=p checked=False %}{% endfor %}
       </div>
     </section>
@@ -222,10 +246,11 @@
       <span class="al-section-note">Add the agency they typed and link them in one click. Then add how the agency gets paid.</span>
     </div>
     <div class="al-list">
-      <div class="al-row al-row-head"><span>Agent</span><span>Agency they typed</span><span class="al-amount">Owed now</span><span></span></div>
+      <div class="al-row al-row-head"><span>Agent</span><span>They chose</span><span>Agency they typed</span><span class="al-amount">Owed now</span><span></span></div>
       {% for p in missing %}
-      <div class="al-row">
+      <div class="al-row" data-search="{{ p.agent.agent_name|default:p.agent.user.username|lower }} {{ p.typed|lower }} {{ p.agent.payment_info|default:''|lower }}">
         <span><a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}">{{ p.agent.agent_name|default:p.agent.user.username }}</a></span>
+        {% include 'dispatching/_agency_link_chose.html' with agent=p.agent %}
         <span>{{ p.typed|default:"(left blank)" }}</span>
         <span class="al-amount{% if not p.owed %} zero{% endif %}">${{ p.owed|floatformat:2|intcomma }}</span>
         <span class="al-create">
@@ -255,24 +280,64 @@
 {% block extra_js %}
 <script>
   (function () {
+    var q = document.getElementById('al-q');
+    var shown = document.getElementById('al-shown');
     var form = document.getElementById('al-form');
-    if (!form) return;
     var count = document.getElementById('al-count');
     var submit = document.getElementById('al-submit');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.al-row[data-search]'));
+
+    // Only rows on screen count. A search must never let a ticked-but-hidden row ride along.
+    function visibleTicked() {
+      if (!form) return [];
+      return Array.prototype.filter.call(form.querySelectorAll('input[name=pair]:checked'), function (cb) {
+        return !cb.closest('.al-row').classList.contains('is-hidden');
+      });
+    }
     function refresh() {
-      var n = form.querySelectorAll('input[name=pair]:checked').length;
+      if (!form) return;
+      var n = visibleTicked().length;
       count.textContent = n + ' selected';
       submit.disabled = n === 0;
       submit.textContent = n ? 'Link ' + n + ' agent' + (n === 1 ? '' : 's') : 'Link selected';
     }
-    form.addEventListener('change', refresh);
-    form.addEventListener('submit', function (e) {
-      var n = form.querySelectorAll('input[name=pair]:checked').length;
-      if (!window.confirm('Link ' + n + ' agent' + (n === 1 ? '' : 's') + ' to their agency?\n\nTheir commission will be paid to the agency from now on.')) {
-        e.preventDefault();
-      }
+    function filter() {
+      var term = (q ? q.value : '').trim().toLowerCase();
+      var visible = 0;
+      rows.forEach(function (row) {
+        var hit = !term || row.dataset.search.indexOf(term) !== -1;
+        row.classList.toggle('is-hidden', !hit);
+        if (hit) visible++;
+      });
+      document.querySelectorAll('.al-section').forEach(function (section) {
+        section.classList.toggle('is-empty', !section.querySelector('.al-row[data-search]:not(.is-hidden)'));
+      });
+      if (shown) shown.textContent = term ? visible + ' of ' + rows.length + ' shown' : '';
+      refresh();
+    }
+    if (q) q.addEventListener('input', filter);
+    document.querySelectorAll('[data-tick]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.dataset.tick === '1';
+        rows.forEach(function (row) {
+          var cb = row.querySelector('input[name=pair]');
+          if (cb && !row.classList.contains('is-hidden')) cb.checked = on;
+        });
+        refresh();
+      });
     });
-    refresh();
+    if (form) {
+      form.addEventListener('change', refresh);
+      form.addEventListener('submit', function (e) {
+        var n = visibleTicked().length;
+        var msg = 'Link ' + n + ' agent' + (n === 1 ? '' : 's') + ' to their agency?' +
+                  String.fromCharCode(10, 10) + 'Their commission will be paid to the agency from now on.';
+        if (!n || !window.confirm(msg)) { e.preventDefault(); return; }
+        // Leave rows hidden by the search out of what's sent.
+        form.querySelectorAll('.al-row.is-hidden input[name=pair]').forEach(function (cb) { cb.disabled = true; });
+      });
+    }
+    filter();
   })();
 </script>
 {% endblock %}

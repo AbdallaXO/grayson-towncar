@@ -126,10 +126,40 @@
   .tap-detail-row { padding: .75rem 0; font-size: .95rem; }
   .tap-detail-label { width: 150px; font-size: .75rem; }
   .tap-detail-value { font-size: .95rem; }
+
+  /* ---- In-page profile editor (replaces the trip to Django admin) ---- */
+  [hidden] { display: none !important; }
+  .ap-flash { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+  .ap-flash li { display: flex; gap: 9px; align-items: flex-start; padding: 11px 14px; border-radius: 9px; font-size: .88rem; background: #fff; border: 1px solid var(--gt-border); }
+  .ap-flash li.success { background: #E6F2EB; border-color: transparent; color: #1E5A3F; }
+  .ap-flash li.warning { background: #FBF1DD; border-color: transparent; color: #7A4F0E; }
+  .ap-flash li.error   { background: #FBECEA; border-color: transparent; color: #8A2722; }
+  .ap-edit-link { border: 0; background: none; padding: 0; font-size: .8rem; font-weight: 600; color: var(--gt-gold); cursor: pointer; }
+  .ap-edit-link:hover { color: var(--gt-dark); }
+  .ap-group-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 700; margin: 4px 0 8px; }
+  .ap-group-label:not(:first-of-type) { margin-top: 18px; }
+  .ap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .ap-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .ap-field.wide { grid-column: 1 / -1; }
+  .ap-field label { font-size: .78rem; font-weight: 600; color: var(--gt-text); }
+  .ap-field small, .ap-check small { font-size: .74rem; color: var(--gt-muted); }
+  .ap-field.has-error .form-control, .ap-field.has-error .form-select { border-color: var(--gt-red); }
+  .ap-error { font-size: .78rem; color: var(--gt-red); font-style: normal; display: block; }
+  .ap-checks { display: grid; gap: 10px; margin-top: 16px; }
+  .ap-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; margin: 0; }
+  .ap-check .form-check-input { margin-top: .2rem; flex: none; }
+  .ap-check span { display: flex; flex-direction: column; font-size: .85rem; }
+  .ap-check strong { font-weight: 600; }
+  .ap-actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .ap-actions .tap-action-btn { border: 0; cursor: pointer; }
+  .pay-hero .ph-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media (max-width: 640px) { .ap-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 
 {% block navbar %}{% endblock %}
+{# Shown inline below the header instead, so payout warnings after an edit stay on screen. #}
+{% block messages %}{% endblock %}
 
 {% block content %}
 {% include 'dispatching/dispatcher_navbar.html' %}
@@ -167,14 +197,25 @@
       </div>
     </div>
     <div class="tap-tab-row">
-      <a href="{% url 'admin:users_travelagent_change' agent.pk %}" class="tap-action-btn outline" target="_blank">
-        <i class="bi bi-pencil"></i> Edit in Admin
-      </a>
+      <button type="button" class="tap-action-btn gold" data-open-editor>
+        <i class="bi bi-pencil"></i> Edit profile
+      </button>
       <a href="{% url 'agent_detail' agent.pk %}" class="tap-action-btn outline" target="_blank">
         <i class="bi bi-eye"></i> Agent View
       </a>
     </div>
   </div>
+
+  {% if messages %}
+  <ul class="ap-flash">
+    {% for message in messages %}
+    <li class="{{ message.tags }}">
+      <i class="bi {% if message.tags == 'success' %}bi-check-circle{% elif message.tags == 'error' %}bi-x-circle{% elif message.tags == 'warning' %}bi-exclamation-triangle{% else %}bi-info-circle{% endif %}"></i>
+      <span>{{ message }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
 
   <!-- Payment Hero -->
   <div class="pay-hero">
@@ -229,11 +270,16 @@
           <div class="ph-info empty">No payment info set &mdash; add it before processing payouts.</div>
         {% endif %}
       </div>
-      {% if agent.payment_info %}
-        <button type="button" class="ph-copy-btn" data-copy-target="agent-payment-info">
-          <i class="bi bi-clipboard"></i> Copy
+      <div class="ph-btns">
+        {% if agent.payment_info %}
+          <button type="button" class="ph-copy-btn" data-copy-target="agent-payment-info">
+            <i class="bi bi-clipboard"></i> Copy
+          </button>
+        {% endif %}
+        <button type="button" class="ph-copy-btn" data-open-editor data-focus="id_payment_method">
+          <i class="bi bi-pencil"></i> Change
         </button>
-      {% endif %}
+      </div>
     {% endif %}
   </div>
 
@@ -261,12 +307,40 @@
 
     <!-- LEFT COLUMN -->
     <div>
-      <div class="tap-panel">
+      <div class="tap-panel" id="profile-panel">
         <div class="tap-panel-head">
           <i class="bi bi-person-circle"></i>
           <h6>Profile</h6>
+          <span class="spacer"></span>
+          <button type="button" class="ap-edit-link" data-open-editor{% if edit_open %} hidden{% endif %}><i class="bi bi-pencil"></i> Edit</button>
         </div>
-        <div class="tap-panel-body">
+
+        <form method="post" class="tap-panel-body ap-editor" id="profile-editor" novalidate{% if not edit_open %} hidden{% endif %}>
+          {% csrf_token %}
+          {% if profile_form.non_field_errors %}<div class="ap-error">{{ profile_form.non_field_errors|join:" " }}</div>{% endif %}
+          <div class="ap-group-label">Contact</div>
+          <div class="ap-grid">
+            {% include 'dispatching/_agent_field.html' with field=profile_form.agent_name %}
+            {% include 'dispatching/_agent_field.html' with field=profile_form.phone %}
+            {% include 'dispatching/_agent_field.html' with field=profile_form.email wide=True %}
+          </div>
+          <div class="ap-group-label">How they're paid</div>
+          <div class="ap-grid">
+            {% include 'dispatching/_agent_field.html' with field=profile_form.payment_method %}
+            {% include 'dispatching/_agent_field.html' with field=profile_form.commission_rate %}
+            {% include 'dispatching/_agent_field.html' with field=profile_form.payment_info wide=True %}
+          </div>
+          <div class="ap-checks">
+            {% include 'dispatching/_agent_field.html' with field=profile_form.agency_handles_payment check=True %}
+            {% include 'dispatching/_agent_field.html' with field=profile_form.is_active check=True %}
+          </div>
+          <div class="ap-actions">
+            <button type="submit" class="tap-action-btn gold"><i class="bi bi-check2"></i> Save changes</button>
+            <a href="{% url 'admin_travel_agent_detail' agent.pk %}" class="tap-action-btn outline" data-close-editor>Cancel</a>
+          </div>
+        </form>
+
+        <div class="tap-panel-body" id="profile-view"{% if edit_open %} hidden{% endif %}>
           <div class="tap-detail-row">
             <div class="tap-detail-label">Name</div>
             <div class="tap-detail-value">{{ agent.agent_name|default:"—" }}</div>
@@ -634,6 +708,36 @@
   </div>
 
 </div>
+<script>
+  // Profile editor: open from the header, the Profile panel, or the payment box's Change button.
+  (function () {
+    var editor = document.getElementById('profile-editor');
+    var view = document.getElementById('profile-view');
+    if (!editor || !view) return;
+    var editLink = document.querySelector('.ap-edit-link');
+    function open(focusId) {
+      editor.hidden = false; view.hidden = true;
+      if (editLink) editLink.hidden = true;
+      document.getElementById('profile-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var target = (focusId && document.getElementById(focusId)) || editor.querySelector('input, select, textarea');
+      if (target) setTimeout(function () { target.focus({ preventScroll: true }); }, 250);
+    }
+    document.querySelectorAll('[data-open-editor]').forEach(function (btn) {
+      btn.addEventListener('click', function () { open(btn.dataset.focus); });
+    });
+    var cancel = editor.querySelector('[data-close-editor]');
+    if (cancel && !editor.querySelector('.ap-error')) {
+      // Nothing was rejected: just put the read-only view back. After a rejected
+      // save the link reloads the page instead, discarding what was typed.
+      cancel.addEventListener('click', function (e) {
+        e.preventDefault();
+        editor.reset();
+        editor.hidden = true; view.hidden = false;
+        if (editLink) editLink.hidden = false;
+      });
+    }
+  })();
+</script>
 <script>
   document.addEventListener("click", function (e) {
     const btn = e.target.closest(".ph-copy-btn");
