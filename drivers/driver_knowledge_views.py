@@ -40,7 +40,7 @@ def driver_tag_add(request, driver_id):
     elif not tag.is_active:
         messages.error(request, "That tag is no longer in use.")
     elif len(note) > NOTE_MAX:
-        messages.error(request, f"Keep the note under {NOTE_MAX} characters.")
+        messages.error(request, f"Keep the note to {NOTE_MAX} characters or fewer.")
     else:
         had_it = DriverTagAssignment.objects.filter(driver=driver, tag=tag).exists()
         driver_knowledge.add_tag(driver, tag, note, request.user)

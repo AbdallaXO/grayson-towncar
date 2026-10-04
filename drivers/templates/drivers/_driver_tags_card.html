@@ -33,10 +33,13 @@
   .kb-chip .kb-icon { font-size: .7rem; margin-top: .12rem; }
   .kb-chip .kb-text { display: flex; flex-direction: column; min-width: 0; }
   .kb-chip .kb-note { font-size: .7rem; font-weight: 500; color: var(--gt-muted); overflow-wrap: anywhere; margin-top: .1rem; }
-  .kb-chip form { display: inline; margin: 0; }
+  .kb-chip form { display: flex; margin: 0; }
+  /* A 2rem square to tap, pulled back by negative margins so the chip keeps its size. */
   .kb-chip .kb-x {
-    background: none; border: 0; color: inherit; opacity: .5; cursor: pointer;
-    font-size: 1rem; line-height: 1; padding: .05rem .25rem; margin: -.1rem -.35rem 0 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2rem; min-height: 2rem; padding: 0; margin: -.5rem -.6rem -.5rem -.45rem;
+    background: none; border: 0; border-radius: 6px; color: inherit; opacity: .5; cursor: pointer;
+    font-size: 1rem; line-height: 1;
     transition: opacity .15s ease;
   }
   .kb-chip .kb-x:hover, .kb-chip .kb-x:focus-visible { opacity: 1; }
@@ -68,7 +71,7 @@
           <div class="kb-chips">
             {% for a in rows %}
               <div class="kb-chip kb-{{ a.tag.polarity }}" data-tag="{{ a.tag.name }}" title="Added{% if a.added_by %} by {{ a.added_by.first_name|default:a.added_by.username }}{% endif %} on {{ a.added_at|date:'M j, Y' }}">
-                {% if a.tag.polarity == "caution" %}<i class="bi bi-exclamation-triangle-fill kb-icon" aria-label="Caution"></i>{% endif %}
+                {% if a.tag.polarity == "caution" %}<i class="bi bi-exclamation-triangle-fill kb-icon" role="img" aria-label="Caution"></i>{% endif %}
                 <span class="kb-text">
                   <span>{{ a.tag.name }}</span>
                   {% if a.note %}<span class="kb-note">{{ a.note }}</span>{% endif %}

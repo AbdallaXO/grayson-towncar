@@ -9,6 +9,7 @@ from .models import (
     FleetSyncState, VehicleBooking, VehicleDayReading, VehicleDowntime, VehicleFault, VehicleIssue,
     VehicleServiceRecord, VehicleServiceSchedule,
 )
+from .models import DriverTag
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1344,3 +1345,40 @@ class DriverInviteAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(DriverTag)
+class DriverTagAdmin(admin.ModelAdmin):
+    """The tag list itself, for managers: fix a misspelt name, switch a tag
+    off so it stops being offered (drivers who have it keep it), or put it
+    back. Tags go on drivers from the profile's Strengths & habits card.
+    Managers only, the same rule as removing a tag there (S19)."""
+    list_display = ["name", "category", "polarity", "is_active", "sort_order", "drivers_with_it"]
+    list_editable = ["is_active", "sort_order"]
+    list_filter = ["category", "polarity", "is_active"]
+    search_fields = ["name"]
+    readonly_fields = ["created_by"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(n_drivers=Count("assignments"))
+
+    @admin.display(description="Drivers with it", ordering="n_drivers")
+    def drivers_with_it(self, obj):
+        return obj.n_drivers
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser

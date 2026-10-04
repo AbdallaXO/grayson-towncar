@@ -35,4 +35,8 @@ Auto-assign doesn't read any of it yet.
 - *The tag I want isn't in the list.* A manager can make it from the same card
   (New tag); it is then offered for every driver.
 - *I tagged the wrong thing.* Only a manager can take a tag off, so ask one.
-  Adding the same tag again just updates its note.
+  To change a note, a manager takes the tag off, then anyone adds it back
+  with the new note.
+- *A tag is misspelt, or we don't want it any more.* Fix the name or switch it
+  off in the Django admin, under Driver tags. Drivers who have it keep it; it
+  just stops being offered.

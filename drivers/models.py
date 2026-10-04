@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.contrib.auth.models import User
 from django.utils import timezone
 from reservations.models import Leg
@@ -2888,7 +2889,9 @@ class DriverTag(models.Model):
 
     Caution tags are the habits to plan around. A retired tag (is_active off)
     stays on the drivers who have it but is no longer offered. Names are unique
-    regardless of case (driver_knowledge.create_tag). Seeded by drivers 0067.
+    regardless of case: driver_knowledge.create_tag checks first, and the
+    database index on lower(name) settles two saves at the same moment.
+    Seeded by drivers 0067.
     """
     CATEGORY_CHOICES = [
         ("strength", "Strength"),
@@ -2919,6 +2922,12 @@ class DriverTag(models.Model):
 
     class Meta:
         ordering = ["category", "sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"), name="drivertag_name_ci_unique",
+                violation_error_message="That tag already exists.",
+            ),
+        ]
 
     def __str__(self):
         return self.name

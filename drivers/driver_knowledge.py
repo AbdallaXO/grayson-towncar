@@ -26,6 +26,8 @@ CATEGORIES = {key for key, _ in DriverTag.CATEGORY_CHOICES}
 POLARITIES = {key for key, _ in DriverTag.POLARITY_CHOICES}
 
 TAG_EXISTS = "That tag already exists."
+TAG_SWITCHED_OFF = ("That tag already exists but is switched off. Turn it back on "
+                    "under Driver tags in the Django admin.")
 
 
 def _tag_key(tag):
@@ -77,19 +79,22 @@ def remove_tag(driver, tag):
 
 def create_tag(name, category, polarity, user):
     """A new tag, placed after the others in its category. Names are unique
-    whatever the capitalisation: a clash raises ValueError(TAG_EXISTS). Spaces
-    inside the name are tidied ("  Night   owl " -> "Night owl")."""
+    whatever the capitalisation: a clash raises ValueError(TAG_EXISTS), or
+    ValueError(TAG_SWITCHED_OFF) when the tag it clashes with is switched off.
+    Spaces inside the name are tidied ("  Night   owl " -> "Night owl")."""
     name = " ".join((name or "").split())
     if not name:
         raise ValueError("Give the new tag a name.")
-    if len(name) > DriverTag._meta.get_field("name").max_length:
-        raise ValueError("Keep the tag name under 60 characters.")
+    name_max = DriverTag._meta.get_field("name").max_length
+    if len(name) > name_max:
+        raise ValueError(f"Keep the tag name to {name_max} characters or fewer.")
     if category not in CATEGORIES:
         raise ValueError("Pick what kind of tag it is.")
     if polarity not in POLARITIES:
         raise ValueError("Pick whether it's a plus or a caution.")
-    if DriverTag.objects.filter(name__iexact=name).exists():
-        raise ValueError(TAG_EXISTS)
+    clash = DriverTag.objects.filter(name__iexact=name).first()
+    if clash is not None:
+        raise ValueError(TAG_EXISTS if clash.is_active else TAG_SWITCHED_OFF)
     last = DriverTag.objects.filter(category=category).aggregate(m=Max("sort_order"))["m"]
     try:
         with transaction.atomic():
@@ -97,5 +102,5 @@ def create_tag(name, category, polarity, user):
                 name=name, category=category, polarity=polarity,
                 sort_order=(last or 0) + 1, created_by=user,
             )
-    except IntegrityError:                     # same name saved a moment ago
+    except IntegrityError:          # same name, any case, saved a moment ago
         raise ValueError(TAG_EXISTS) from None

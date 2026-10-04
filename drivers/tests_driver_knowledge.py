@@ -12,6 +12,7 @@ import importlib
 from django.apps import apps as django_apps
 from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -136,9 +137,11 @@ class TagEditingTests(_Base):
         self.assertRedirects(resp, self.back_url(), fetch_redirect_response=False)
         self.assertEqual(self.last_message(resp), "Pick a tag to add.")
         resp = self.client.post(url, {"tag": self.tag("Disney").id, "note": "x" * 201})
-        self.assertEqual(self.last_message(resp), "Keep the note under 200 characters.")
+        self.assertEqual(self.last_message(resp), "Keep the note to 200 characters or fewer.")
         self.assertFalse(DriverTagAssignment.objects.exists())
         self.assertEqual(self.client.get(url).status_code, 405)
+        resp = self.client.post(url, {"tag": self.tag("Disney").id, "note": "x" * 200})
+        self.assertEqual(self.last_message(resp), "Disney added.")       # 200 exactly is fine
 
     def test_dispatcher_cannot_remove(self):
         self.assign("Runs late")
@@ -190,11 +193,31 @@ class TagEditingTests(_Base):
                 ({"name": "Night owl", "category": "habit", "polarity": "meh"},
                  "Pick whether it's a plus or a caution."),
                 ({"name": "N" * 61, "category": "habit", "polarity": "positive"},
-                 "Keep the tag name under 60 characters.")):
+                 "Keep the tag name to 60 characters or fewer.")):
             resp = self.client.post(self.create_url(), data)
             self.assertRedirects(resp, self.back_url(), fetch_redirect_response=False)
             self.assertEqual(self.last_message(resp), refusal)
         self.assertEqual(DriverTag.objects.count(), count)
+        self.assertFalse(DriverTagAssignment.objects.exists())
+        tag = driver_knowledge.create_tag("N" * 60, "habit", "positive", self.manager)
+        self.assertEqual(len(tag.name), 60)                  # 60 exactly is fine
+
+    def test_database_refuses_the_same_name_in_another_case(self):
+        """Two managers saving "Night owl" and "night owl" at the same moment
+        both pass the Python check; the index on lower(name) stops the second."""
+        DriverTag.objects.create(name="Night owl", category="habit")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            DriverTag.objects.create(name="NIGHT OWL", category="habit")
+        self.assertEqual(DriverTag.objects.filter(name__iexact="night owl").count(), 1)
+
+    def test_create_says_when_the_clash_is_switched_off(self):
+        DriverTag.objects.filter(name="Tampa").update(is_active=False)
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.create_url(), {"name": "tampa", "category": "area",
+                                                    "polarity": "positive"})
+        self.assertEqual(self.last_message(resp), driver_knowledge.TAG_SWITCHED_OFF)
+        self.assertIn("switched off", driver_knowledge.TAG_SWITCHED_OFF)
+        self.assertEqual(DriverTag.objects.filter(name__iexact="tampa").count(), 1)
         self.assertFalse(DriverTagAssignment.objects.exists())
 
     def test_dispatcher_cannot_create_tag(self):
@@ -227,6 +250,7 @@ class TagCardTests(_Base):
         self.assertContains(resp, "Strengths &amp; habits")
         self.assertContains(resp, 'class="kb-chip kb-positive" data-tag="Airport pro"')
         self.assertContains(resp, 'class="kb-chip kb-caution" data-tag="Runs late"')
+        self.assertContains(resp, 'role="img" aria-label="Caution"', count=1)
         self.assertContains(resp, "Mondays mostly")
         self.assertContains(resp, "Added by Luis on")
         # a dispatcher adds but never removes or invents tags
@@ -288,3 +312,47 @@ class TagCardTests(_Base):
             for text in ("Zq office-only", "Zq second note", "Slow with luggage",
                          "Strengths &amp; habits", "kb-chip"):
                 self.assertNotContains(resp, text, msg_prefix=name)
+
+
+class TagAdminTests(_Base):
+    """Managers fix, switch off or put back a tag in the Django admin; the
+    profile card has no way to do that. Dispatchers can't reach it there."""
+
+    def test_manager_lists_and_switches_off_a_tag(self):
+        self.assign("Runs late")
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("admin:drivers_drivertag_changelist"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Airport pro")
+        rows = {t.name: t.n_drivers for t in resp.context["cl"].result_list}
+        self.assertEqual((rows["Runs late"], rows["Airport pro"]), (1, 0))
+        tampa = self.tag("Tampa")
+        resp = self.client.post(reverse("admin:drivers_drivertag_change", args=[tampa.id]), {
+            "name": "Tampa", "category": "area", "polarity": "positive", "description": "",
+            "sort_order": tampa.sort_order,                  # is_active left unticked
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.tag("Tampa").is_active)
+
+    def test_admin_refuses_a_name_in_another_case(self):
+        self.client.force_login(self.manager)
+        resp = self.client.post(reverse("admin:drivers_drivertag_add"), {
+            "name": "AIRPORT PRO", "category": "strength", "polarity": "positive",
+            "description": "", "is_active": "on", "sort_order": 0,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("That tag already exists.", str(resp.context["adminform"].form.errors))
+        self.assertEqual(DriverTag.objects.filter(name__iexact="airport pro").count(), 1)
+
+    def test_admin_add_records_who_made_it(self):
+        self.client.force_login(self.manager)
+        self.client.post(reverse("admin:drivers_drivertag_add"), {
+            "name": "Night owl", "category": "habit", "polarity": "caution",
+            "description": "", "is_active": "on", "sort_order": 0,
+        })
+        self.assertEqual(self.tag("Night owl").created_by, self.manager)
+
+    def test_dispatcher_cannot_open_it(self):
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(reverse("admin:drivers_drivertag_changelist"))
+        self.assertEqual(resp.status_code, 403)
