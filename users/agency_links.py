@@ -104,7 +104,9 @@ def link_to_agency(agent_id, agency_id, *, user):
     from users.models import Agency, TravelAgent
 
     with transaction.atomic():
-        agent = TravelAgent.objects.select_for_update().select_related("agency").get(pk=agent_id)
+        # of=("self",): Postgres refuses to lock the empty side of the agency join
+        # (most of these agents have no agency yet).
+        agent = TravelAgent.objects.select_for_update(of=("self",)).select_related("agency").get(pk=agent_id)
         agency = Agency.objects.get(pk=agency_id)
         name = agent.agent_name or agent.user.get_username()
         if agent.payment_method != "agency":
