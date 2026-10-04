@@ -51,35 +51,10 @@ class Command(BaseCommand):
             )
         )
 
-        # Step 2: Recalculate unpaid_commissions for all agents
-        agents = TravelAgent.objects.all()
-        update_count = 0
-
-        for agent in agents:
-            unpaid_total = (
-                Reservation.objects.filter(
-                    travel_agent=agent,
-                    commission_paid=False,
-                    status="completed",
-                ).aggregate(
-                    total=Coalesce(Sum("commission_amount"), Decimal("0"))
-                )["total"]
-            )
-
-            if agent.unpaid_commissions != unpaid_total:
-                if dry_run:
-                    self.stdout.write(
-                        f"  Would update {agent.agent_name}: "
-                        f"${agent.unpaid_commissions} -> ${unpaid_total}"
-                    )
-                else:
-                    agent.unpaid_commissions = unpaid_total
-                    agent.save(update_fields=["unpaid_commissions"])
-
-                update_count += 1
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"{'Would update' if dry_run else 'Updated'} {update_count} agents' unpaid_commissions"
-            )
-        )
+        # Step 2: Recount every agent's saved unpaid/pending numbers with the payout rules
+        if dry_run:
+            self.stdout.write("Would recount agents' unpaid/pending numbers (skipped in dry run)")
+            return
+        from users.eligibility import refresh_saved_totals
+        update_count = refresh_saved_totals()
+        self.stdout.write(self.style.SUCCESS(f"Updated {update_count} agents' unpaid/pending numbers"))

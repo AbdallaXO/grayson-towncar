@@ -146,6 +146,18 @@ def _run_batch_tasks():
         except Exception as e:
             logger.error(f"send_pre_pickup_nudges error: {e}", exc_info=True)
 
+    # 4c. Recount travel agents' saved unpaid/pending numbers (every 2 cycles =
+    #     every hour). A trip becomes payable 24h after its last leg with no save,
+    #     so without this the agency pages lag behind what Pay Now would pay.
+    if _cycle_count % 2 == 0:
+        try:
+            from users.eligibility import refresh_saved_totals
+            changed = refresh_saved_totals()
+            if changed:
+                logger.info(f"Agent commission totals: {changed} agents updated")
+        except Exception as e:
+            logger.error(f"refresh_saved_totals error: {e}", exc_info=True)
+
     # 5. Alert on dead letter syncs (every 12 cycles = every 6 hours)
     if _cycle_count % 12 == 0:
         try:

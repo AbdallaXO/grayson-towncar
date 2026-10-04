@@ -314,6 +314,66 @@ def bulk_ready_totals(agent_ids, *, now=None, grace_hours=DEFAULT_GRACE_HOURS):
     return {aid: totals.get(aid, Decimal("0")).quantize(Decimal("0.01")) for aid in agent_ids}
 
 
+def open_totals(agent_ids, *, now=None, grace_hours=DEFAULT_GRACE_HOURS):
+    """{agent_id: (ready, pending)} for many agents in one pass.
+
+    Same rules as sum_ready / sum_pending, so a saved total built from this
+    always matches what Pay Now and the PayPal batch would pay.
+    """
+    from collections import defaultdict
+    from reservations.models import Reservation
+
+    agent_ids = list(agent_ids)
+    ready, pending = defaultdict(lambda: Decimal("0")), defaultdict(lambda: Decimal("0"))
+    qs = (
+        Reservation.objects.filter(travel_agent_id__in=agent_ids)
+        .exclude(commission_paid=True)
+        .select_related("travel_agent")
+        .prefetch_related("legs")
+    )
+    for res in qs:
+        result = get_commission_eligibility(res, now=now, grace_hours=grace_hours)
+        if result.status == STATUS_READY:
+            ready[res.travel_agent_id] += result.commission
+        elif result.status == STATUS_PENDING:
+            pending[res.travel_agent_id] += result.commission
+    q = Decimal("0.01")
+    return {aid: (ready[aid].quantize(q), pending[aid].quantize(q)) for aid in agent_ids}
+
+
+def refresh_saved_totals(agent_ids=None, *, now=None):
+    """Bring each agent's saved unpaid/pending numbers in line with the payout rules.
+
+    The saved numbers feed agency pages, reports and admin filters. They used to
+    count only trips someone clicked "completed", so trips that went past their
+    date on their own were owed but missing from them. Time passing changes the
+    answer with no save at all, which is why the scheduler also runs this hourly.
+
+    agent_ids=None checks every agent that has an open commission or a non-zero
+    saved number. Only rows whose numbers changed are written. Returns that count.
+    """
+    from django.db.models import Q
+    from reservations.models import Reservation
+    from users.models import TravelAgent
+
+    if agent_ids is None:
+        open_ids = set(Reservation.objects.filter(travel_agent__isnull=False, commission_paid=False)
+                       .values_list("travel_agent_id", flat=True))
+        open_ids |= set(TravelAgent.objects.filter(Q(unpaid_commissions__gt=0) | Q(pending_commissions__gt=0))
+                        .values_list("id", flat=True))
+        agent_ids = open_ids
+    totals = open_totals(agent_ids, now=now)
+    changed = []
+    for agent in TravelAgent.objects.filter(id__in=list(totals)).only("id", "unpaid_commissions", "pending_commissions"):
+        ready, pending = totals[agent.id]
+        if agent.unpaid_commissions != ready or agent.pending_commissions != pending:
+            agent.unpaid_commissions, agent.pending_commissions = ready, pending
+            changed.append(agent)
+    if changed:
+        TravelAgent.objects.bulk_update(changed, ["unpaid_commissions", "pending_commissions"])
+    return len(changed)
+
+
 def sum_pending(agent, *, now=None, grace_hours=DEFAULT_GRACE_HOURS) -> Decimal:
     """Sum of commission amounts in the Pending bucket -- future trips and grace-window holds."""
     total = Decimal("0")

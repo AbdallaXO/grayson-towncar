@@ -54,7 +54,7 @@ def reservation_saved(sender, instance, created, **kwargs):
 
 
 # In reservations/models.py or a new file reservations/signals.py
-from django.db.models.signals import post_save, pre_delete
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from reservations.models import Reservation
 from django.db.models import Sum
@@ -81,7 +81,6 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
     # PERF TEMP END
 
     agent = instance.travel_agent
-    update_fields = []
 
     # Track if status changed — use values already captured by
     # store_reservation_old_values pre_save (stored on instance, thread-safe)
@@ -109,50 +108,11 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
         instance.commission_amount = instance.base_price * commission_rate
         Reservation.objects.filter(pk=instance.pk).update(commission_amount=instance.commission_amount)
 
-    # Calculate pending/unpaid using Coalesce to handle NULL commission_amount
-    from django.db.models import F, ExpressionWrapper
-    from django.db.models.functions import Coalesce
-    from django.db import models as db_models
+    # Same rules as Pay Now: a trip past its date counts as owed even if nobody
+    # clicked "completed". See users.eligibility.refresh_saved_totals.
+    from users.eligibility import refresh_saved_totals
 
-    commission_expr = Coalesce(
-        "commission_amount",
-        ExpressionWrapper(
-            F("base_price") * (agent.commission_rate / Decimal("100")),
-            output_field=db_models.DecimalField(max_digits=10, decimal_places=2),
-        ),
-    )
-
-    # Calculate pending commissions (confirmed but not completed)
-    pending_total = Reservation.objects.filter(
-        travel_agent=agent, status="confirmed"
-    ).annotate(
-        effective_commission=commission_expr
-    ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
-
-    if agent.pending_commissions != pending_total:
-        logger.info(
-            f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${pending_total}"
-        )
-        agent.pending_commissions = pending_total
-        update_fields.append("pending_commissions")
-
-    # Calculate unpaid commissions (completed but not paid)
-    unpaid_total = Reservation.objects.filter(
-        travel_agent=agent, commission_paid=False, status="completed"
-    ).annotate(
-        effective_commission=commission_expr
-    ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
-
-    if agent.unpaid_commissions != unpaid_total:
-        logger.info(
-            f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${unpaid_total}"
-        )
-        agent.unpaid_commissions = unpaid_total
-        update_fields.append("unpaid_commissions")
-
-    if update_fields:
-        agent.save(update_fields=update_fields)
-
+    if refresh_saved_totals([agent.id]):
         # PERF TEMP START
         logger.info(
             "PERF update_agent_commission_data: %.0fms (res #%s, agent %s)",
@@ -161,48 +121,12 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
         # PERF TEMP END
 
 
-@receiver(pre_delete, sender=Reservation)
+@receiver(post_delete, sender=Reservation)
 def update_agent_commission_on_delete(sender, instance, **kwargs):
-    """
-    Update the travel agent's commission data when a reservation is deleted.
-    """
-    if instance.travel_agent:
-        agent = instance.travel_agent
-        update_fields = []
-
-        logger.info(
-            f"Deleting reservation #{instance.id} with status {instance.status} - adjusting commission data"
-        )
-
-        # For confirmed reservations, adjust pending commissions
-        if instance.status == "confirmed":
-            # Either recalculate or subtract directly
-            new_pending = max(
-                Decimal("0"), agent.pending_commissions - instance.commission_amount
-            )
-
-            logger.info(
-                f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${new_pending}"
-            )
-            agent.pending_commissions = new_pending
-            update_fields.append("pending_commissions")
-
-        # For completed & unpaid reservations, adjust unpaid commissions
-        if instance.status == "completed" and not instance.commission_paid:
-            # Either recalculate or subtract directly
-            new_unpaid = max(
-                Decimal("0"), agent.unpaid_commissions - instance.commission_amount
-            )
-
-            logger.info(
-                f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${new_unpaid}"
-            )
-            agent.unpaid_commissions = new_unpaid
-            update_fields.append("unpaid_commissions")
-
-        # Save agent if any fields were updated
-        if update_fields:
-            agent.save(update_fields=update_fields)
+    """Recount the agent's saved unpaid/pending numbers once the reservation is gone."""
+    if instance.travel_agent_id:
+        from users.eligibility import refresh_saved_totals
+        refresh_saved_totals([instance.travel_agent_id])
 
 
 @receiver(post_save, sender=Reservation)
