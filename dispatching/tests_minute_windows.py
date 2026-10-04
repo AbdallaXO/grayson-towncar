@@ -185,7 +185,27 @@ class MinuteWindowTests(SimpleTestCase):
     def test_cross_midnight_without_target_date(self):
         w = W(start=14, end=23, start_min=855, end_min=1575, kind="evening", source="regular")
         self.assertTrue(fg.window_check(w, time(22, 30), dt(0, 45, day=1), 1)[0])
-        self.assertFalse(fg.window_check(w, time(23, 50), dt(2, 16, day=1), 1)[0])
+        self.assertEqual(fg.window_check(w, time(23, 50), dt(2, 16, day=1), 1),
+                         (False, "clears 02:16 after clear-by 02:15 (next day)"))
+
+    def test_lead_before_midnight_says_day_before(self):
+        # An evening lead at Disney is 75 min, so a 00:20 pickup means leaving base the
+        # evening before — the reason says so instead of a bare, wrapped 23:05.
+        w = W(start=0, end=12, start_min=10, end_min=730, kind="evening", source="regular")
+        self.assertEqual(fg.window_check(w, time(0, 20), dt(1, 0), 1, target_date=D,
+                                         pickup_category="Disney Resort",
+                                         dropoff_category="MCO Terminal"),
+                         (False, "pickup 00:20 means leaving base 23:05 (day before), "
+                                 "before start 00:10"))
+
+    def test_half_minute_window_takes_hour_path(self):
+        # start_min without end_min (or end_min None) is not a minute window: it falls back
+        # to the hour path instead of raising inside the scheduler's loop.
+        for extra in ({"start_min": 250}, {"start_min": 250, "end_min": None}):
+            w = W(start=4, end=17, kind="morning", source="regular", **extra)
+            for p, c in ((time(4, 5), dt(5, 0)), (time(3, 59), dt(5, 0)), (time(16, 0), dt(17, 1))):
+                self.assertEqual(fg.window_check(w, p, c, 1, target_date=D),
+                                 _legacy_window_check(W(start=4, end=17), p, c, 1, target_date=D))
 
     def test_minute_last_pickup_mode(self):
         w = W(start=4, end=16, start_min=250, end_min=930, kind="midday", source="regular")
@@ -252,6 +272,35 @@ class RegularWindowTests(SimpleTestCase):
         self.assertEqual(fg.legacy_hours(250, 970), (4, 17))
         self.assertEqual(fg.legacy_hours(855, 1575), (14, 23))
         self.assertEqual(fg.legacy_hours(420, 1140), (7, 19))
+
+
+class ChainOkMinuteWindowTests(SimpleTestCase):
+    """scheduler._chain_ok hands each slot's own pickup / drop zones to window_check."""
+
+    WINDOW = {"start": 4, "end": 17, "start_min": 275, "end_min": 995, "kind": "morning",
+              "source": "regular", "max_hours": None, "flexible": False}  # 04:35-16:35
+
+    def _day(self, pickup_cat, dropoff_cat, trip_type):
+        from dispatching.scheduler import DriverDaySchedule, ScheduleSlot
+        slot = ScheduleSlot(
+            leg_id=1, pickup_time=time(5, 0), pickup_location=pickup_cat,
+            pickup_category=pickup_cat, dropoff_location=dropoff_cat,
+            dropoff_category=dropoff_cat, trip_type=trip_type,
+            estimated_end_time=dt(6, 0), reservation_id=1, customer_name="Test",
+            status="scheduled", has_flight=False)
+        return DriverDaySchedule(driver_id=1, driver_name="Test", driver_type="employee",
+                                 slots=[slot])
+
+    def test_chain_ok_reads_pickup_zone_for_lead(self):
+        from dispatching import scheduler
+        # Disney pickup: 35 drive + 15 buffer = leave base 04:10, before 04:35.
+        self.assertFalse(scheduler._chain_ok(
+            self._day("Disney Resort", "MCO Terminal", "departure"), D,
+            driver_window=self.WINDOW))
+        # MCO pickup: 12 drive + 10 buffer = leave base 04:38.
+        self.assertTrue(scheduler._chain_ok(
+            self._day("MCO Terminal", "Disney Resort", "arrival"), D,
+            driver_window=self.WINDOW))
 
 
 class ShiftLeadTailTests(SimpleTestCase):

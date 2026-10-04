@@ -430,7 +430,8 @@ def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
     # START bound — leaving base for this pickup must not be before the shift starts.
     if not flexible and p - lead < start_min:
         if lead:
-            return False, (f"pickup {p_s} means leaving base {_hhmm(p - lead)}, "
+            leave_s = _hhmm(p - lead) + (" (day before)" if p - lead < 0 else "")
+            return False, (f"pickup {p_s} means leaving base {leave_s}, "
                            f"before start {_hhmm(start_min)}")
         return False, f"pickup {p_s} before start {_hhmm(start_min)}"
 
@@ -476,8 +477,9 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
     """(ok, reason) for whether adding a leg respects the driver's window + max_hours.
 
     window: {"start", "end", "max_hours", "flexible"}; None => skip. A window that also
-        carries start_min / end_min (a regular shift, to the minute, possibly past
-        midnight) takes _minute_window_check instead; hour windows never do.
+        carries BOTH start_min and end_min (a regular shift, to the minute, possibly past
+        midnight) takes _minute_window_check instead; hour windows never do, and a window
+        missing either minute key falls back to the hour path rather than raising.
     pickup_time: datetime.time of the new leg's pickup.
     clear_dt: datetime when the new leg clears (finishes).
     span_hours_after: driver's day span (first pickup -> last clear) IF this leg is added.
@@ -493,7 +495,7 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
     """
     if not window:
         return True, ""
-    if window.get("start_min") is not None:
+    if window.get("start_min") is not None and window.get("end_min") is not None:
         return _minute_window_check(
             window, pickup_time, clear_dt, span_hours_after, target_date,
             END_HOUR_MODE if mode is None else mode,
