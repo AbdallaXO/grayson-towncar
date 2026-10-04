@@ -12,12 +12,14 @@ import copy
 import json
 from datetime import date, time, timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
+from dispatching import day_setup
 from dispatching.models import REGULAR_WINDOWS_CACHE_KEY, SchedulerSettings
 from drivers import regular_shifts as rs
 from drivers.availability import resolve_effective_availability
@@ -30,6 +32,7 @@ from reservations.models import Customer, Leg, Reservation
 TODAY = date(2026, 10, 5)                       # a Monday
 MCO = "MCO Terminal B"                          # categorize_location -> "MCO Terminal"
 DISNEY = "Disney's Contemporary Resort"         # categorize_location -> "Disney Resort"
+PORT = "Port Canaveral Cruise Terminal 3"       # categorize_location -> "Port Canaveral Area"
 _DAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _NO_LIMITS = dict(hard_earliest_start=None, hard_latest_finish=None,
                   hard_latest_finish_next_day=False, max_days_per_week=None)
@@ -158,6 +161,132 @@ class SuggestTests(_Fixture):
         self.assertEqual(friday.weeks_worked, 0)
         self.assertIsNone(friday.template_id)
 
+    def test_suggest_end_uses_each_legs_own_return(self):
+        # The leg that clears last isn't always the last one back at base: the
+        # Port leg clears ~22 min earlier but has a far longer drive home.
+        d = _driver()
+        for day in _lookback(2)[:5]:                       # Wednesdays
+            self.leg(d, day, 15, 0, MCO, DISNEY)
+            self.leg(d, day, 20, 0, MCO, MCO)              # clears 21:15.5, back 22:16.5
+            self.leg(d, day, 20, 0, PORT, PORT)            # clears 20:53.6, back 22:49.6
+        wednesday = rs.suggest_regular_shifts([d], TODAY)[d.id][2]
+        self.assertEqual(wednesday.template_id, self.t["evening"].id)
+        self.assertEqual(wednesday.start, time(14, 10))
+        # 20:00 + 53.6 (P50 other tail) + 116 (Port -> MCO, wash, fuel, base) -> 22:50.
+        self.assertEqual(wednesday.end, time(22, 50))
+
+    def test_suggest_start_uses_each_legs_own_lead(self):
+        # The first pickup isn't always the first to leave base: the 05:30
+        # Port pickup needs 65 min from base, the 05:00 MCO pickup only 22.
+        d = _driver()
+        for day in _lookback(0)[:5]:
+            self.leg(d, day, 5, 0, MCO, DISNEY)
+            self.leg(d, day, 5, 30, PORT, DISNEY)
+        monday = rs.suggest_regular_shifts([d], TODAY)[d.id][0]
+        self.assertEqual(monday.template_id, self.t["morning"].id)
+        self.assertEqual(monday.start, time(4, 25))        # 05:30 - 65, not 05:00 - 22
+        # 05:30 + 53.6 (P50 other tail) + 50 (Disney -> base + fuel) = 07:13.6 -> 07:15.
+        self.assertEqual(monday.end, time(7, 15))
+
+    def test_suggest_night_only_day_stays_on_its_own_date(self):
+        # Every Friday's only work is a 01:30 pickup and Thursday wasn't worked:
+        # that is early Friday work, not a Thursday Evening ~24h too soon.
+        d = _driver()
+        for day in _lookback(3)[:5]:                       # Thursdays, left idle
+            self.leg(d, day + timedelta(days=1), 1, 30, MCO, MCO)
+        days = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        thursday, friday = days[3], days[4]
+        self.assertEqual((thursday.weeks_worked, thursday.template_id), (0, None))
+        self.assertEqual(friday.weeks_worked, 5)
+        self.assertEqual(friday.template_id, self.t["morning"].id)
+        # 01:30 - 22 = 01:08 -> 01:05; 01:30 + 75.5 + 27 = 03:12.5 -> 03:15.
+        self.assertEqual((friday.start, friday.end), (time(1, 5), time(3, 15)))
+        self.assertEqual(DayShift(4, friday.template_id, friday.start, friday.end).minutes(),
+                         (65, 195))
+
+    def test_suggest_start_never_before_midnight(self):
+        # A 00:10 pickup with nothing the evening before would leave base at
+        # 23:48 the day before; the weekday's start is held at 00:00 instead.
+        d = _driver()
+        for day in _lookback(6)[:4]:                       # Sundays; Saturdays idle
+            self.leg(d, day, 0, 10, MCO, MCO)
+        sunday = rs.suggest_regular_shifts([d], TODAY)[d.id][6]
+        self.assertEqual(sunday.template_id, self.t["morning"].id)
+        # 00:10 + 75.5 + 27 = 01:52.5 -> 01:55.
+        self.assertEqual((sunday.start, sunday.end), (time(0, 0), time(1, 55)))
+        self.assertEqual(DayShift(6, sunday.template_id, sunday.start, sunday.end).minutes(),
+                         (0, 115))
+
+    def test_suggest_counts_todays_night_tail_for_yesterday(self):
+        # Yesterday's shift ran past midnight into today: today's 01:00 pickup
+        # is part of it, though today itself is never suggested from.
+        d = _driver()
+        sundays = _lookback(6)[:4]
+        self.assertEqual(sundays[0], TODAY - timedelta(days=1))
+        for day in sundays:
+            self.leg(d, day, 16, 0, MCO, DISNEY)
+        for day in sundays[:2]:                            # yesterday's tail is TODAY 01:00
+            self.leg(d, day + timedelta(days=1), 1, 0, MCO, MCO)
+        days = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        sunday = days[6]
+        self.assertEqual((sunday.weeks_worked, sunday.template_id), (4, self.t["evening"].id))
+        self.assertEqual(sunday.start, time(15, 10))       # 16:00 - 22 - 25 = 15:13 -> 15:10
+        # Ends 16:00 + 75.5 + 91 = 18:46.5 (no tail) and 01:00 + 75.5 + 61 = 03:16.5
+        # (tail); median of two each = 23:01.5 -> 23:05. Without today's tail: 18:50.
+        self.assertEqual(sunday.end, time(23, 5))
+        self.assertEqual(days[0].weeks_worked, 0)          # the 01:00 pickups aren't Mondays
+
+    def test_suggest_majority_shape(self):
+        # 3 Morning Mondays and 2 Midday: Morning, with medians over the Morning
+        # days only (over all five they'd be 04:55 and 07:30).
+        d = _driver()
+        mondays = _lookback(0)
+        for day, mm in zip(mondays[:3], (0, 10, 20)):
+            self.leg(d, day, 5, mm, MCO, DISNEY)           # raw 04:38, 04:48, 04:58
+        for day in mondays[3:5]:
+            self.leg(d, day, 8, 0, MCO, DISNEY)            # raw 07:38: Midday
+        monday = rs.suggest_regular_shifts([d], TODAY)[d.id][0]
+        self.assertEqual((monday.weeks_worked, monday.template_id), (5, self.t["morning"].id))
+        self.assertEqual(monday.start, time(4, 45))        # median 04:48 -> 04:45
+        # Ends 05:10 + 75.5 + 50 = 07:15.5 (the median) -> 07:20.
+        self.assertEqual(monday.end, time(7, 20))
+
+    def test_suggest_tied_shape_goes_to_nearest_median_start(self):
+        d = _driver()
+        tuesdays, wednesdays = _lookback(1), _lookback(2)
+        for day in tuesdays[:2]:
+            self.leg(d, day, 5, 0, MCO, DISNEY)            # raw 04:38: Morning
+        for day in tuesdays[2:4]:
+            self.leg(d, day, 8, 0, MCO, DISNEY)            # raw 07:38: Midday
+        for day in wednesdays[:2]:
+            self.leg(d, day, 3, 42, MCO, DISNEY)           # raw 03:20: Morning
+        for day in wednesdays[2:4]:
+            self.leg(d, day, 6, 32, MCO, DISNEY)           # raw 06:10: Midday
+        days = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        tuesday, wednesday = days[1], days[2]
+        # Tuesday 2-2: median raw 06:08 sits in Midday's band, so Midday (not the
+        # first shape), with Midday-only medians: 07:38 -> 07:35, 08:00 + 75.5 + 91
+        # = 10:46.5 -> 10:50.
+        self.assertEqual((tuesday.weeks_worked, tuesday.template_id), (4, self.t["midday"].id))
+        self.assertEqual((tuesday.start, tuesday.end), (time(7, 35), time(10, 50)))
+        # Wednesday 2-2: median raw 04:45 sits in Morning's band, so Morning:
+        # 03:20; 03:42 + 75.5 + 50 = 05:47.5 -> 05:50.
+        self.assertEqual((wednesday.weeks_worked, wednesday.template_id),
+                         (4, self.t["morning"].id))
+        self.assertEqual((wednesday.start, wednesday.end), (time(3, 20), time(5, 50)))
+
+    def test_suggest_lookback_includes_its_first_day(self):
+        d = _driver()
+        oldest = _lookback(0)[-4:]
+        self.assertEqual(oldest[-1], TODAY - timedelta(days=rs.LOOKBACK_DAYS))
+        for day in oldest:
+            self.leg(d, day, 5, 0, MCO, DISNEY)
+        self.leg(d, oldest[-1] - timedelta(days=7), 5, 0, MCO, DISNEY)    # a week too old
+        self.leg(d, oldest[-1] - timedelta(days=1), 10, 0, MCO, DISNEY)   # the day before
+        days = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        self.assertEqual((days[0].weeks_worked, days[0].template_id), (4, self.t["morning"].id))
+        self.assertEqual(days[6].weeks_worked, 0)
+
     def test_suggest_end_capped_at_template_span(self):
         d = _driver()
         for day in _lookback(5)[:4]:                       # Saturdays
@@ -267,6 +396,17 @@ class ValidateTests(_Fixture):
                          ["Monday to Tuesday: only 7h 0m off between shifts; the minimum is 8h 30m."])
         self.assertEqual(self.validate(days, rest_min=0), [])
         self.assertEqual(self.validate(days, rest_min=420), [])
+        overlap = self.week(mon=("evening", time(14, 0), time(2, 0)),
+                            tue=("morning", time(1, 0), time(10, 0)))  # starts before Monday ends
+        self.assertEqual(self.validate(overlap),
+                         ["Monday to Tuesday: only 0h 0m off between shifts; the minimum is 8h 30m."])
+
+    def test_validate_unknown_shape(self):
+        days = [DayShift(0, 99999, time(4, 10), time(15, 30)), DayShift(1, 99999, None, None)]
+        self.assertEqual(self.validate(days), [
+            "Monday: pick Morning, Midday or Evening, or set the day to Off.",
+            "Tuesday: pick Morning, Midday or Evening, or set the day to Off.",
+        ])
 
     def test_validate_messages_come_in_day_order(self):
         days = self.week(mon=("morning", time(4, 0), time(17, 0)),
@@ -333,13 +473,23 @@ class ValidateTests(_Fixture):
 
 _LEGACY_KEYS = ("is_available", "shift_type", "start_hour", "end_hour", "flexible", "max_hours",
                 "preferred_shift", "preference", "status", "display_label", "tooltip")
+# The keys Task 4 adds to describe the regular shift itself. Everything else the
+# resolver returns is the legacy reading, and confirming may not move any of it.
+_REGULAR_EFF_KEYS = frozenset({
+    "regular_shift", "regular_day_off", "hard_earliest_start", "hard_latest_finish",
+    "hard_latest_finish_next_day", "window_start_min", "window_end_min", "window_kind",
+    "window_max_span_min", "shift_role_label"})
 
 
 class SaveTests(_Fixture):
     def _legacy(self, driver_id):
         driver = Driver.objects.get(pk=driver_id)
-        return [{k: resolve_effective_availability(driver, TODAY + timedelta(days=i))[k]
-                 for k in _LEGACY_KEYS} for i in range(7)]
+        out = []
+        for i in range(7):
+            eff = resolve_effective_availability(driver, TODAY + timedelta(days=i))
+            self.assertLessEqual(set(_LEGACY_KEYS), set(eff))
+            out.append({k: v for k, v in eff.items() if k not in _REGULAR_EFF_KEYS})
+        return out
 
     def test_save_refuses_invalid(self):
         d = _driver()
@@ -357,6 +507,27 @@ class SaveTests(_Fixture):
                                   self.manager)
         self.assertIn("Monday: starts at 4:10 AM", str(cm.exception))
         self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+
+    def test_save_refuses_an_unknown_shape(self):
+        d = _driver()
+        with self.assertRaises(ValueError) as cm:
+            rs.save_regular_shift(d, [DayShift(0, 99999, time(4, 10), time(15, 30))],
+                                  self.manager)
+        self.assertEqual(str(cm.exception),
+                         "Monday: pick Morning, Midday or Evening, or set the day to Off.")
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertIsNone(d.regular_shift_confirmed_at)
+
+    def test_save_refreshes_a_prefetched_driver(self):
+        d = _driver()
+        rs.save_regular_shift(d, self.week(mon=("morning", time(4, 10), time(15, 30))),
+                              self.manager)
+        fetched = Driver.objects.prefetch_related("weekly_schedule").get(pk=d.pk)
+        self.assertEqual(rs.current_days(fetched)[0].template_id, self.t["morning"].id)
+        days = self.week(tue=("midday", time(7), time(19)))
+        rs.save_regular_shift(fetched, days, self.manager)
+        self.assertEqual(rs.current_days(fetched), days)
 
     def test_save_creates_rows_with_legacy_defaults_parity(self):
         d = _driver(default_start_hour=5, default_end_hour=19, default_flexible=False,
@@ -460,17 +631,18 @@ class RosterAndSwitchTests(_Fixture):
         return SchedulerSettings.objects.get(pk=1).regular_shift_windows
 
     def test_roster_excludes_placeholder_and_affiliates(self):
-        # id 6 is the placeholder record (day_setup.DAY_SETUP_EXCLUDE_DRIVER_IDS);
-        # made first so no auto-numbered driver can take that id.
-        Driver.objects.create(pk=6, driver_type="inhouse", profile=User.objects.create_user(
-            "rs_placeholder", first_name="Unassigned", last_name="Pool"))
+        # The placeholder record is left out by id (production's is 6); point
+        # Day Setup's list at this one rather than forcing a primary key.
+        placeholder = _driver("Unassigned", "Pool")
         zed = _driver("Zed", "Zulu")
         amy = _driver("Amy", "Alpha")
         _driver("Aff", "Iliate", driver_type="affiliate")
         _driver("Gone", "Away", is_active=False)
         _driver("Op", "Erator", portal_role="operator")
         _driver("Demo", "Account")
-        self.assertEqual(rs.roster_drivers(), [amy, zed])
+        with mock.patch.object(day_setup, "DAY_SETUP_EXCLUDE_DRIVER_IDS", {placeholder.id}):
+            self.assertEqual(rs.roster_drivers(), [amy, zed])
+        self.assertEqual(rs.roster_drivers(), [amy, placeholder, zed])   # only its id kept it out
 
     def test_drivers_without_regular_shift(self):
         amy, bob = _driver("Amy", "Alpha"), _driver("Bob", "Bravo")

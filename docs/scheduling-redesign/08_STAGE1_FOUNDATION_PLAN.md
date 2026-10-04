@@ -602,7 +602,7 @@ def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = 
   - The window is `regular_shifts.regular_window(day, templates, hard_lo, hard_hi)` (Task 3b), where `hard_lo, hard_hi = driver.hard_window_minutes()`.
   - `(start_hour, end_hour) = fg.legacy_hours(window)`
   - `_classify_status` must return `"fixed_window"` for these days, even when `shift_type == "full_day"`, because `flexible` is False.
-- **Switch on, confirmed driver, Off day:** `is_available=False`.
+- **Switch on, confirmed driver, Off day:** `is_available=False`. `save_regular_shift` makes no weekly row for an Off day, so for a confirmed driver a weekday with no row (`entry is None`) is Off too. It must not fall back to the `default_*` hours.
 - **Exceptions.** The existing exception rules then run unchanged. In addition:
   - `off` clears the window keys.
   - `flexible` clears the window keys.

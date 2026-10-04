@@ -57,7 +57,6 @@ NIGHT_TAIL_END = time(2, 0)     # a pickup before 02:00 belongs to the previous 
 DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 _CACHE_SECONDS = 60
-_SPAN_CEILING_MIN = 720         # 12h — ShiftTemplate.max_span_minutes can never exceed it
 
 
 @dataclass(frozen=True)
@@ -223,11 +222,17 @@ def _nearest_template(raw_start, templates):
 def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion]]:
     """{driver_id: [DaySuggestion Monday..Sunday]} from the 56 days before today.
 
-    ONE Leg query for every driver. Per worked day: a pickup before 02:00 counts
-    for the day before; the raw start is the first pickup minus the drive from
-    base and the pickup buffer, and picks the shape whose start band is nearest;
-    an Evening day starts a further 25 min earlier (report before car-ready);
-    the end is the latest P50 occupancy end plus that leg's return to base.
+    ONE Leg query for every driver. A pickup before 02:00 finishes the day
+    before when that day was worked (it had a pickup at 02:00 or later);
+    otherwise it is early work on its own date, so a night-only day is never
+    moved onto the wrong weekday. Today's pickups before 02:00 count for
+    yesterday. Per worked day, every leg is held to the same base -> base rule
+    the engine checks: the raw start is the earliest of each pickup minus its
+    own drive from base and pickup buffer, and picks the shape whose start band
+    is nearest; an Evening day starts a further 25 min earlier (report before
+    car-ready); the end is the latest of each leg's P50 occupancy end plus its
+    own return to base. A start before midnight is held at 00:00 (the weekday
+    can't begin the day before).
     A weekday worked in at least 4 of the 8 weeks is regular: its shape is the
     one most of those days had (a tie goes to the shape nearest the median raw
     start), and its start and end are medians over the days of that shape —
@@ -239,8 +244,13 @@ def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion
     templates = sorted(templates_by_id().values(), key=lambda t: (t.sort_order, t.id))
     ids = [d.id for d in drivers]
     window_start = today - timedelta(days=LOOKBACK_DAYS)
+    night_end = _time_minutes(NIGHT_TAIL_END)
     legs = (Leg.objects
-            .filter(driver_id__in=ids, pickup_date__gte=window_start, pickup_date__lt=today)
+            # One day either side of [window_start, today): the day before tells
+            # whether window_start's night pickups finish it, and today's night
+            # pickups finish yesterday. Neither outside day is suggested from.
+            .filter(driver_id__in=ids, pickup_date__gte=window_start - timedelta(days=1),
+                    pickup_date__lte=today)
             # Both Reservation cancellation spellings; Leg.status only uses two-L.
             .exclude(status="cancelled")
             .exclude(reservation__status__in=("cancelled", "canceled"))
@@ -254,35 +264,43 @@ def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion
             zones[text] = categorize_location(text)
         return zones[text]
 
+    # {(driver_id, board date): [(pickup minutes, pickup zone, drop zone)]}
+    on_board = defaultdict(list)
+    for driver_id, pickup_date, pickup_time, pickup_loc, drop_loc in legs:
+        on_board[(driver_id, pickup_date)].append(
+            (_time_minutes(pickup_time), zone(pickup_loc), zone(drop_loc)))
+    day_work = {key for key, stops in on_board.items()
+                if any(minutes >= night_end for minutes, _, _ in stops)}
+
     # {(driver_id, worked date): [(pickup minutes on that date, pickup zone, drop zone)]}
     worked = defaultdict(list)
-    for driver_id, pickup_date, pickup_time, pickup_loc, drop_loc in legs:
-        minutes = _time_minutes(pickup_time)
-        if pickup_time < NIGHT_TAIL_END:
-            pickup_date -= timedelta(days=1)
-            minutes += 1440
-        if pickup_date < window_start:
-            continue                    # the tail of a day before the lookback
-        worked[(driver_id, pickup_date)].append((minutes, zone(pickup_loc), zone(drop_loc)))
+    for (driver_id, board_day), stops in on_board.items():
+        prev = board_day - timedelta(days=1)
+        for minutes, pickup_zone, drop_zone in stops:
+            if minutes < night_end and (driver_id, prev) in day_work:
+                worked[(driver_id, prev)].append((minutes + 1440, pickup_zone, drop_zone))
+            else:
+                worked[(driver_id, board_day)].append((minutes, pickup_zone, drop_zone))
 
     # {(driver_id, weekday): [(raw start, template, start, end) per worked day]}
     by_weekday = defaultdict(list)
     for (driver_id, day), stops in worked.items():
+        if not window_start <= day < today:
+            continue                    # the day before the lookback, or today
         if not templates:               # no shapes to suggest; still count the weeks
             by_weekday[(driver_id, day.weekday())].append(None)
             continue
-        first = min(stops)
-        raw_start = first[0] - hc.shift_lead_min("morning", first[1])
+        raw_start = min(minutes - hc.shift_lead_min("morning", pickup_zone)
+                        for minutes, pickup_zone, _ in stops)
         tpl = _nearest_template(raw_start, templates)
         start = raw_start - (hc.EVENING_REPORT_LEAD_MIN if tpl.kind == "evening" else 0)
+        start = max(0, start)
         base = datetime.combine(day, time(0))
-        ends = []
-        for minutes, pickup_zone, drop_zone in stops:
-            occ_end = hc.occupancy_interval(base + timedelta(minutes=minutes),
-                                            hc.occupancy_kind(pickup_zone, drop_zone), "p50")[1]
-            ends.append(((occ_end - base).total_seconds() / 60, drop_zone))
-        last_clear, last_drop = max(ends)
-        end = last_clear + hc.shift_tail_min(tpl.kind, last_drop)
+        end = max(
+            (hc.occupancy_interval(base + timedelta(minutes=minutes),
+                                   hc.occupancy_kind(pickup_zone, drop_zone), "p50")[1]
+             - base).total_seconds() / 60 + hc.shift_tail_min(tpl.kind, drop_zone)
+            for minutes, pickup_zone, drop_zone in stops)
         by_weekday[(driver_id, day.weekday())].append((raw_start, tpl, start, end))
 
     result = {}
@@ -345,12 +363,23 @@ def _hm(minutes) -> str:
     return f"{h}h {m}m"
 
 
+def _shape_choice(templates) -> str:
+    """'Morning, Midday or Evening' — the shapes there are, in order."""
+    names = [t.name for t in sorted(templates.values(), key=lambda t: (t.sort_order, t.id))]
+    if not names:
+        return "a shift"
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} or {names[-1]}"
+
+
 def validate_regular_shift(days, *, templates, hard_earliest_start, hard_latest_finish,
                            hard_latest_finish_next_day, max_days_per_week,
                            rest_min) -> list[str]:
     """Every reason this week can't be saved, in day order; [] when it can.
 
-    Per working day: both times given, no longer than the shape's longest shift,
+    Per working day: a shape that exists in ``templates``, both times given,
+    no longer than the shape's longest shift,
     inside the driver's earliest start / latest finish, and at least ``rest_min``
     off before the next day's shift (Sunday -> Monday included; 0 = no rest
     check). Then the days-a-week limit."""
@@ -362,12 +391,15 @@ def validate_regular_shift(days, *, templates, hard_earliest_start, hard_latest_
         if day.template_id is None:
             continue
         name = DAY_NAMES[i]
+        tpl = templates.get(day.template_id)
+        if tpl is None:                 # a shape that doesn't exist (any more)
+            out.append(f"{name}: pick {_shape_choice(templates)}, or set the day to Off.")
+            continue
         mins = _shift_minutes(day)
         if mins is None:
             out.append(f"{name}: pick a start and an end time, or set the day to Off.")
             continue
-        tpl = templates.get(day.template_id)
-        max_span = tpl.max_span_minutes if tpl is not None else _SPAN_CEILING_MIN
+        max_span = tpl.max_span_minutes
         if mins[1] - mins[0] > max_span:
             out.append(f"{name}: a shift longer than {max_span / 60:g} hours isn't allowed.")
         out += _day_limit_messages(day, mins, hard_earliest_start, hard_latest_finish,
@@ -446,7 +478,9 @@ def save_regular_shift(driver, days, user) -> None:
     the legacy fields the engine reads with the switch off stay exactly as they
     were (S1). A working day with no row gets one copied from the driver's
     default_* values — the same reading the resolver already gave that day. An
-    Off day with no row needs none (no row reads as Off)."""
+    Off day with no row gets none: for a confirmed driver, a weekday with no
+    row (or no shape) IS Off — current_days() reads it that way, and so must
+    anything that applies the regular shift (Task 4's switch-on resolver)."""
     week = _by_day(days)
     errors = validate_regular_shift(
         week, templates=templates_by_id(),
@@ -482,6 +516,9 @@ def save_regular_shift(driver, days, user) -> None:
         driver.regular_shift_confirmed_at = timezone.now()
         driver.regular_shift_confirmed_by = user
         driver.save(update_fields=["regular_shift_confirmed_at", "regular_shift_confirmed_by"])
+    # A driver passed in with weekly_schedule prefetched would still show the
+    # rows from before the save to current_days().
+    getattr(driver, "_prefetched_objects_cache", {}).pop("weekly_schedule", None)
 
 
 # ════════════════════════════════════════════════════════════════════════════
