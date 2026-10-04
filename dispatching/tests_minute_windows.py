@@ -20,6 +20,7 @@ from dispatching import feasibility_guards as fg
 from dispatching import handoff_chain as hc
 from dispatching.feasibility_guards import (END_HOUR_MODE, FLEXIBLE_RESPECTS_CLEAR_BY,
                                             NIGHT_LEG_FLEX_BLOCK, NIGHT_LEG_BOUNDARY_HOUR)
+from drivers.test_support import RegularShiftCacheMixin
 
 
 # ── window_check exactly as it shipped before Stage 1 (verbatim; do not edit) ──
@@ -285,7 +286,7 @@ class RegularWindowTests(SimpleTestCase):
                          fg.regular_window_keys(dict(eff, window_max_span_min=None)))
 
 
-class BaseSpanTests(SimpleTestCase):
+class BaseSpanTests(RegularShiftCacheMixin, SimpleTestCase):
     """The 12-hour base -> base span check (Task 3c): leaving base for the first pickup to
     back at base after the last clear must stay within the window's max_span_min."""
 

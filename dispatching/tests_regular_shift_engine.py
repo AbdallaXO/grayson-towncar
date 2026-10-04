@@ -3,7 +3,8 @@
 Task 3c: check_feasibility holds every regular-shift day to its shape's max_span_min,
 measured base -> base (leaving base for the first pickup to back at base after the last
 clear). That is what keeps Float and "Morning or Evening" days — whose window runs from
-the earliest start to the latest end — at 12 hours.
+the earliest start to the latest end — at 12 hours. A day already over 12h may still
+take a leg that does not make it longer.
 
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_regular_shift_engine
 """
@@ -46,4 +47,32 @@ class BaseSpanFeasibilityTests(RegularShiftCacheMixin, TestCase):
             allowed = check_feasibility(day, late, D, driver_window=no_cap)
         self.assertFalse(refused.feasible)
         self.assertEqual(refused.reason, "Outside driver window: base to base 13h 43m > 12h 0m")
+        self.assertTrue(allowed.feasible, allowed.reason)
+
+    def test_check_feasibility_day_already_over_takes_hole_fill_only(self):
+        # A day already past 12h (a board built by hand): leave base 04:38 for the 05:00 MCO
+        # arrival; the 17:00 departure clears 17:40 at MCO, back at base 18:41 — 14h 3m.
+        # A leg inside that span leaves it unchanged and still fits; one that ends later
+        # grows it and is refused. This only holds if check_feasibility passes the span
+        # WITHOUT the new leg: with none, every leg on an over-12h day reads as growing it.
+        day = _sched(47, [
+            _slot(_leg(1, 5, 0, trip="arrival", pickup_loc="MCO Terminal",
+                       dropoff_loc="Disney Resort"), end_dt=_at(6, 15)),
+            _slot(_leg(2, 17, 0, trip="departure", pickup_loc="Disney Resort",
+                       dropoff_loc="MCO Terminal"), end_dt=_at(17, 40)),
+        ])
+        hole = _leg(3, 10, 0, trip="other", pickup_loc="Disney Resort",
+                    dropoff_loc="Disney Resort")
+        later = _leg(4, 19, 0, trip="departure", pickup_loc="Disney Resort",
+                     dropoff_loc="MCO Terminal")
+        no_cap = {k: v for k, v in self.FLOAT.items() if k != "max_span_min"}
+        with mock.patch.object(sch, "estimate_job_end_time", return_value=_at(10, 40)):
+            filled = check_feasibility(day, hole, D, driver_window=self.FLOAT)
+        with mock.patch.object(sch, "estimate_job_end_time", return_value=_at(19, 40)):
+            refused = check_feasibility(day, later, D, driver_window=self.FLOAT)
+            allowed = check_feasibility(day, later, D, driver_window=no_cap)
+        self.assertTrue(filled.feasible, filled.reason)
+        self.assertFalse(refused.feasible)
+        # Back at base 20:41 after the 19:40 MCO clear: 16h 3m.
+        self.assertEqual(refused.reason, "Outside driver window: base to base 16h 3m > 12h 0m")
         self.assertTrue(allowed.feasible, allowed.reason)

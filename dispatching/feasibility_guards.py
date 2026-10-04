@@ -544,7 +544,8 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
         minute path reads them (the drive from / back to base); hour windows ignore them.
     base_span_min_after / base_span_min_before: the day's base -> base span in minutes
         (base_span_min) with and without the leg. Only the minute path reads them, and
-        only when the window carries max_span_min; None => no base-to-base cap.
+        only when the window carries max_span_min. after None => no base-to-base cap;
+        before None => total gate (no hole-fill exemption), as for span_hours_before.
     """
     if not window:
         return True, ""

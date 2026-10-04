@@ -1163,7 +1163,9 @@ def check_feasibility(
     1. No overlaps with existing jobs.
     2/3. Context-dependent turnaround (Guard B) to the preceding and following jobs.
     3b. Guard B' — minimum turn buffer, when the caller passes `min_buffer`.
-    4. Guard C — per-driver window (start / clear-by end / max-hours span).
+    4. Guard C — per-driver window (start / clear-by end / max-hours span) and, for a
+       regular window with max_span_min, the base -> base day span
+       (feasibility_guards.base_span_min).
 
     Guard B' (`min_buffer`, minutes) is the PLANNING floor: how much spare time the engine
     must leave when it seats a job on its own initiative. It answers the founder's
