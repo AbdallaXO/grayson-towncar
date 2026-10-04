@@ -5,15 +5,25 @@ Tags say what a driver is good at (strengths), how they work (habits — some
 of them cautions to plan around), the languages they speak and the areas they
 know. Each tag on a driver can carry a short note.
 
+The log is a dated record of compliments, complaints, incidents and notes,
+each optionally tied to a trip. A complaint or an incident can be a strike;
+strikes count for the last 12 months (STRIKE_WINDOW_DAYS).
+
 This is for people to read. The engine does not use it yet, and it is
 staff-only: nothing here may reach a driver-facing page or API. Any staff
-user adds tags; only managers (is_superuser) remove one or create a new one —
-the views enforce that, not this module.
+user adds tags and log entries; only managers (is_superuser) remove a tag,
+create one, mark a strike, or edit or delete an entry — the views and the
+log form enforce that, not this module.
 """
+from datetime import timedelta
+
 from django.db import IntegrityError, transaction
 from django.db.models import Max
 
-from drivers.models import DriverTag, DriverTagAssignment
+from business.datefmt import strf
+from drivers.models import STRIKE_WINDOW_DAYS, DriverLogEntry, DriverTag, DriverTagAssignment
+from drivers.operator_jobs import short_place
+from reservations.models import Leg
 
 #: Categories in the order the profile shows them, with the card's headings.
 CATEGORY_LABELS = [
@@ -104,3 +114,58 @@ def create_tag(name, category, polarity, user):
             )
     except IntegrityError:          # same name, any case, saved a moment ago
         raise ValueError(TAG_EXISTS) from None
+
+
+# ── The log ─────────────────────────────────────────────────────────────────
+
+LOG_KINDS = {key for key, _ in DriverLogEntry.KIND_CHOICES}
+#: The log card's filter links, as (?log= value, label); "" is everything.
+LOG_FILTERS = [
+    ("", "All"),
+    ("compliment", "Compliments"),
+    ("complaint", "Complaints"),
+    ("incident", "Incidents"),
+    ("note", "Notes"),
+]
+#: How far back the log form's trip picker reaches.
+RECENT_TRIP_DAYS = 60
+
+
+def log_entries(driver, kind=None):
+    """The driver's log, newest first (by the day it happened, then by when it
+    was logged). `kind` narrows it to one kind; anything else means all.
+    The trip, its reservation and who logged or edited it come with each row."""
+    entries = driver.log_entries.select_related(
+        "leg__reservation", "logged_by", "updated_by",
+    )
+    if kind in LOG_KINDS:
+        entries = entries.filter(kind=kind)
+    return entries
+
+
+def strike_count(driver, today):
+    """Strikes that happened within the last STRIKE_WINDOW_DAYS: on a day after
+    `today` minus 365 days. A strike exactly a year old no longer counts."""
+    since = today - timedelta(days=STRIKE_WINDOW_DAYS)
+    return driver.log_entries.filter(is_strike=True, occurred_on__gt=since).count()
+
+
+def recent_legs_for(driver, today, days=RECENT_TRIP_DAYS):
+    """The driver's trips from the last `days` days up to and including today,
+    newest first, leaving out cancelled legs and cancelled reservations (both
+    spellings). For the log form's trip picker."""
+    return (Leg.objects
+            .filter(driver=driver, pickup_date__gte=today - timedelta(days=days),
+                    pickup_date__lte=today)
+            .exclude(status="cancelled")
+            .exclude(reservation__status__in=("cancelled", "canceled"))
+            .order_by("-pickup_date", "-pickup_time", "-id"))
+
+
+def trip_label(leg):
+    """"Oct 3 · 5:00 AM · MCO → Disney's Polynesian Village Resort"."""
+    return " · ".join([
+        strf(leg.pickup_date, "%b %-d"),
+        strf(leg.pickup_time, "%-I:%M %p"),
+        f"{short_place(leg.pickup_location)} → {short_place(leg.dropoff_location)}",
+    ])

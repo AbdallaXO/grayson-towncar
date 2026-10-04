@@ -252,6 +252,7 @@
                 </span>
               {% endif %}
             {% endwith %}
+            {% if strike_count %}{% include "drivers/_driver_strike_pill.html" %}{% endif %}
           </h1>
           <div class="subtitle">
             {% if driver.profile.username %}@{{ driver.profile.username }} &middot; {% endif %}
@@ -826,6 +827,9 @@
 
           {# Strengths & habits: staff-only, both modes; its forms stand alone, outside the edit form #}
           {% include "drivers/_driver_tags_card.html" %}
+
+          {# The Log: staff-only, both modes; its forms stand alone, outside the edit form #}
+          {% include "drivers/_driver_log_card.html" %}
 
           {# Weekly schedule #}
           <div class="profile-card mb-3">

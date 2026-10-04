@@ -40,3 +40,12 @@ Auto-assign doesn't read any of it yet.
 - *A tag is misspelt, or we don't want it any more.* Fix the name or switch it
   off in the Django admin, under Driver tags. Drivers who have it keep it; it
   just stops being offered.
+- *I logged something wrong.* Only a manager can edit or delete a log entry,
+  so ask one. Editing shows who changed it.
+- *The trip I want isn't in the list.* The log offers that driver's trips from
+  the last 60 days. For an older one, leave the trip out and say which trip in
+  the details.
+- *Where do strikes show?* Next to the driver's name at the top of the profile
+  and on the Log card: amber for one or two in the last 12 months, red from
+  three. A strike older than a year stops counting on its own; it stays in
+  the log.

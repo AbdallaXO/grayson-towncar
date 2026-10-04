@@ -2954,3 +2954,68 @@ class DriverTagAssignment(models.Model):
 
     def __str__(self):
         return f"{self.driver} · {self.tag}"
+
+
+#: Strikes count for this many days: one occurred_on more than a year ago
+#: no longer counts (driver_knowledge.strike_count).
+STRIKE_WINDOW_DAYS = 365
+
+
+class DriverLogEntry(models.Model):
+    """One dated line in a driver's log: a compliment, a complaint, an incident
+    or a plain note, optionally tied to the trip it was about.
+
+    A manager can mark a complaint or an incident as a strike; strikes from the
+    last STRIKE_WINDOW_DAYS show on the profile. Any staff user logs an entry;
+    only managers mark strikes, edit or delete (drivers/driver_knowledge_views.py).
+    """
+    KIND_CHOICES = [
+        ("compliment", "Compliment"),
+        ("complaint", "Complaint"),
+        ("incident", "Incident"),
+        ("note", "Note"),
+    ]
+    #: The kinds a strike (and a severity) belongs to.
+    STRIKE_KINDS = ("complaint", "incident")
+    SEVERITY_CHOICES = [
+        ("", "Not set"),
+        ("minor", "Minor"),
+        ("serious", "Serious"),
+    ]
+
+    driver = models.ForeignKey(
+        Driver, on_delete=models.CASCADE, related_name="log_entries",
+    )
+    occurred_on = models.DateField()
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    is_strike = models.BooleanField(default=False)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES, blank=True, default="")
+    leg = models.ForeignKey(
+        Leg, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    summary = models.CharField(max_length=140)
+    details = models.TextField(blank=True, default="")
+    logged_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    logged_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-occurred_on", "-logged_at"]
+        verbose_name_plural = "driver log entries"
+
+    def __str__(self):
+        return f"{self.driver} · {self.occurred_on} · {self.get_kind_display()}"
+
+    @property
+    def trip_label(self):
+        """The trip as the log shows it, e.g. "Oct 3 · 5:00 AM · MCO → Disney's
+        Polynesian Village Resort"; blank when the entry has no trip."""
+        if not self.leg_id:
+            return ""
+        from drivers.driver_knowledge import trip_label
+        return trip_label(self.leg)

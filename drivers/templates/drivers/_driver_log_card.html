@@ -1,0 +1,162 @@
+{% comment %}
+  The Log: compliments, complaints, incidents and notes about this driver,
+  newest first, with strikes (structured shifts, Stage 1, S19). Staff profile
+  only, never in the driver app.
+
+  Self-contained: it carries its own styles (including .strike-pill, which the
+  profile hero uses too), and its forms post on their own, so it must never be
+  placed inside the profile edit form. Any staff user adds to the log; managers
+  (can_edit) also mark strikes and get Edit and Delete on each entry.
+
+  Context: driver, can_edit, edit_mode, log_entries, log_filter, log_filters,
+  strike_count and log_form (drivers/driver_knowledge.py, drivers/forms.py).
+{% endcomment %}
+<style>
+  .strike-pill {
+    display: inline-flex; align-items: center; gap: .35rem; vertical-align: middle;
+    font-size: .72rem; font-weight: 600; letter-spacing: .01em; line-height: 1.2;
+    padding: 4px 10px; border-radius: 999px; border: 1px solid; text-decoration: none;
+    transition: background-color .18s ease, border-color .18s ease;
+  }
+  .strike-pill.strike-amber { background: rgba(245,158,11,.15); color: #fbbf24; border-color: rgba(245,158,11,.4); }
+  .strike-pill.strike-amber:hover { background: rgba(245,158,11,.24); color: #fbbf24; }
+  .strike-pill.strike-red { background: rgba(248,113,113,.16); color: #f87171; border-color: rgba(248,113,113,.45); }
+  .strike-pill.strike-red:hover { background: rgba(248,113,113,.26); color: #f87171; }
+  .profile-hero .strike-pill { margin-left: .5rem; }
+
+  #driver-log .kb-private {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .68rem; font-weight: 600; letter-spacing: .03em; color: var(--gt-muted);
+  }
+  #driver-log .kb-empty { color: var(--gt-muted); font-size: .85rem; line-height: 1.55; }
+  #driver-log .kb-add { border-top: 1px solid var(--gt-border); margin-top: 1.1rem; padding-top: 1rem; }
+  #driver-log .kb-hint { font-size: .72rem; color: var(--gt-muted); margin-top: .55rem; line-height: 1.5; }
+  .kb-log-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .45rem; }
+  .kb-log-filter { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .85rem; }
+  .kb-log-filter a {
+    font-size: .74rem; font-weight: 500; padding: .3rem .65rem; border-radius: 999px;
+    color: var(--gt-muted); text-decoration: none; border: 1px solid var(--gt-border);
+    transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+  }
+  .kb-log-filter a:hover { color: var(--gt-text); border-color: rgba(201,162,39,.45); }
+  .kb-log-filter a.on { color: #0d1117; background: var(--gt-gold); border-color: var(--gt-gold); font-weight: 600; }
+
+  .kb-log { list-style: none; margin: 0; padding: 0; }
+  .kb-log-entry {
+    display: grid; grid-template-columns: 3.6rem minmax(0, 1fr); gap: .8rem;
+    padding: .8rem 0; border-top: 1px solid var(--gt-border);
+  }
+  .kb-log-entry:first-child { border-top: 0; padding-top: .2rem; }
+  .kb-log-when { font-family: 'JetBrains Mono', ui-monospace, monospace; text-align: right; line-height: 1.15; }
+  .kb-log-when .md { display: block; font-size: .8rem; font-weight: 700; color: var(--gt-text); }
+  .kb-log-when .yr { display: block; font-size: .66rem; color: var(--gt-muted); margin-top: .15rem; }
+  .kb-log-badges { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .3rem; }
+  .kb-kind, .kb-strike-badge, .kb-sev {
+    display: inline-flex; align-items: center; gap: .25rem; font-size: .64rem; font-weight: 700;
+    letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid transparent;
+  }
+  .kb-kind-compliment { background: rgba(34,197,94,.14); color: #4ade80; border-color: rgba(34,197,94,.3); }
+  .kb-kind-complaint { background: rgba(245,158,11,.13); color: #fbbf24; border-color: rgba(245,158,11,.32); }
+  .kb-kind-incident { background: rgba(248,113,113,.14); color: #f87171; border-color: rgba(248,113,113,.32); }
+  .kb-kind-note { background: var(--gt-surface-2); color: var(--gt-muted); border-color: var(--gt-border); }
+  .kb-strike-badge { background: #f87171; color: #0d1117; }
+  .kb-sev { color: var(--gt-muted); border-color: var(--gt-border); }
+  .kb-log-summary { font-size: .88rem; font-weight: 600; color: var(--gt-text); line-height: 1.4; overflow-wrap: anywhere; }
+  .kb-log-details { margin-top: .3rem; }
+  .kb-log-details summary { font-size: .74rem; color: var(--gt-gold); cursor: pointer; width: max-content; }
+  .kb-log-details div { font-size: .82rem; color: var(--gt-text); opacity: .9; line-height: 1.5; margin-top: .35rem; overflow-wrap: anywhere; }
+  .kb-log-trip { font-size: .76rem; margin-top: .35rem; color: var(--gt-muted); overflow-wrap: anywhere; }
+  .kb-log-trip a { color: #60a5fa; text-decoration: none; }
+  .kb-log-trip a:hover { text-decoration: underline; }
+  .kb-log-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; font-size: .7rem; color: var(--gt-muted); margin-top: .4rem; }
+  .kb-log-meta form { display: inline; margin: 0; }
+  .kb-log-meta a, .kb-log-meta button {
+    font-size: .72rem; font-weight: 600; color: var(--gt-gold); text-decoration: none;
+    background: none; border: 0; padding: .3rem .1rem; cursor: pointer;
+  }
+  .kb-log-meta a:hover { text-decoration: underline; }
+  .kb-log-meta button:hover { color: #f87171; text-decoration: underline; }
+  .kb-log-add summary {
+    display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; list-style: none;
+    font-size: .82rem; font-weight: 600; color: var(--gt-gold);
+  }
+  .kb-log-add summary::-webkit-details-marker { display: none; }
+  .kb-log-add[open] summary { margin-bottom: .85rem; }
+</style>
+
+<div class="profile-card kb-card mb-3" id="driver-log">
+  <div class="card-header">
+    <span><i class="bi bi-journal-text me-2"></i>Log</span>
+    <span class="kb-log-head">
+      {% if strike_count %}{% include "drivers/_driver_strike_pill.html" %}{% endif %}
+      <span class="kb-private" title="Drivers never see this card"><i class="bi bi-eye-slash"></i>Office only</span>
+    </span>
+  </div>
+  <div class="card-body">
+    <nav class="kb-log-filter" aria-label="Show in the log">
+      {% for key, label in log_filters %}
+        <a href="{% if key %}?{% if edit_mode %}edit=1&amp;{% endif %}log={{ key }}{% else %}{% url 'driver_profile' driver.id %}{% if edit_mode %}?edit=1{% endif %}{% endif %}#driver-log" class="{% if log_filter == key %}on{% endif %}"{% if log_filter == key %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if log_entries %}
+      <ol class="kb-log">
+        {% for e in log_entries %}
+          <li class="kb-log-entry" data-entry="{{ e.id }}">
+            <time class="kb-log-when" datetime="{{ e.occurred_on|date:'Y-m-d' }}">
+              <span class="md">{{ e.occurred_on|date:"M j" }}</span>
+              <span class="yr">{{ e.occurred_on|date:"Y" }}</span>
+            </time>
+            <div>
+              <div class="kb-log-badges">
+                <span class="kb-kind kb-kind-{{ e.kind }}">{{ e.get_kind_display }}</span>
+                {% if e.is_strike %}<span class="kb-strike-badge"><i class="bi bi-flag-fill" aria-hidden="true"></i>Strike</span>{% endif %}
+                {% if e.severity %}<span class="kb-sev">{{ e.get_severity_display }}</span>{% endif %}
+              </div>
+              <div class="kb-log-summary">{{ e.summary }}</div>
+              {% if e.details %}
+                <details class="kb-log-details">
+                  <summary>Details</summary>
+                  <div>{{ e.details|linebreaksbr }}</div>
+                </details>
+              {% endif %}
+              {% if e.leg %}
+                <div class="kb-log-trip"><i class="bi bi-car-front me-1" aria-hidden="true"></i>Trip: <a href="{% url 'reservation_details' e.leg.reservation.uuid %}">{{ e.trip_label }}</a></div>
+              {% endif %}
+              <div class="kb-log-meta">
+                <span>Logged{% if e.logged_by %} by {{ e.logged_by.first_name|default:e.logged_by.username }}{% endif %} on {{ e.logged_at|date:"M j, Y" }}{% if e.updated_by %} &middot; edited by {{ e.updated_by.first_name|default:e.updated_by.username }}{% endif %}</span>
+                {% if can_edit %}
+                  <a href="{% url 'driver_log_edit' driver.id e.id %}">Edit</a>
+                  <form method="post" action="{% url 'driver_log_delete' driver.id e.id %}" onsubmit="return confirm('Delete this entry from the log? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit">Delete</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+    {% elif log_filter %}
+      <div class="kb-empty">None of these in the log. <a href="{% url 'driver_profile' driver.id %}{% if edit_mode %}?edit=1{% endif %}#driver-log" style="color: var(--gt-gold);">Show everything</a></div>
+    {% else %}
+      <div class="kb-empty">
+        Nothing in the log yet. Write down compliments, complaints, incidents and anything else worth remembering about {{ driver.profile.first_name|default:"this driver" }}, with the date and the trip.
+      </div>
+    {% endif %}
+
+    <div class="kb-add">
+      <details class="kb-log-add">
+        <summary><i class="bi bi-plus-circle"></i>Add to the log</summary>
+        <form method="post" action="{% url 'driver_log_add' driver.id %}">
+          {% csrf_token %}
+          {% include "drivers/_driver_log_fields.html" with form=log_form %}
+          <button type="submit" class="btn btn-sm btn-primary-action"><i class="bi bi-plus-lg me-1"></i>Add to the log</button>
+        </form>
+      </details>
+      {% if edit_mode %}
+        <div class="kb-hint">The log saves on its own. Save your other changes first.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

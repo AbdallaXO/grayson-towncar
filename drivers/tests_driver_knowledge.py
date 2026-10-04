@@ -1,13 +1,17 @@
-"""Driver knowledge (structured shifts, Stage 1, Task 9): strengths, habits,
-languages and the areas a driver knows, as tags on the staff profile.
+"""Driver knowledge (structured shifts, Stage 1, Tasks 9 and 10): strengths,
+habits, languages and the areas a driver knows, as tags on the staff profile;
+and the log of compliments, complaints, incidents and notes, with strikes.
 
 This is knowledge for people (S19): the engine does not read it. Any staff
-user can add a tag with a note; only managers remove a tag or create a new
-one. It is staff-only and must never reach a driver-facing page.
+user can add a tag with a note, or an entry to the log; only managers remove
+a tag, create a new one, mark a strike, or edit or delete a log entry. It is
+staff-only and must never reach a driver-facing page.
 
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_driver_knowledge
 """
 import importlib
+from datetime import time, timedelta
+from decimal import Decimal
 
 from django.apps import apps as django_apps
 from django.contrib.auth.models import User
@@ -15,10 +19,16 @@ from django.contrib.messages import get_messages
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
+from business.datefmt import strf
 from drivers import driver_knowledge
-from drivers.models import Driver, DriverTag, DriverTagAssignment
+from drivers.forms import DriverLogEntryForm
+from drivers.models import (STRIKE_WINDOW_DAYS, Driver, DriverLogEntry, DriverTag,
+                            DriverTagAssignment)
 from drivers.test_support import RegularShiftCacheMixin
+from rates.models import Location, Rate, Route, Vehicle
+from reservations.models import Customer, Leg, Reservation
 
 SEEDED = {
     "strength": ["Airport pro", "Cruise port pro", "VIP & corporate", "Large groups",
@@ -356,3 +366,360 @@ class TagAdminTests(_Base):
         self.client.force_login(self.dispatcher)
         resp = self.client.get(reverse("admin:drivers_drivertag_changelist"))
         self.assertEqual(resp.status_code, 403)
+
+
+# ── The log (Task 10) ───────────────────────────────────────────────────────
+
+MCO = "Orlando International Airport (MCO), 1 Jeff Fuqua Blvd, Orlando, FL, USA"
+POLY = "Disney's Polynesian Village Resort, 1600 Seven Seas Dr, Lake Buena Vista, FL, USA"
+
+
+class _LogBase(_Base):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.route = Route.objects.create(origin=Location.objects.create(name="MCO"),
+                                         destination=Location.objects.create(name="Disney"),
+                                         inhouse_base_pay=Decimal("50.00"))
+        cls.rate = Rate.objects.create(vehicle=cls.suv, route=cls.route,
+                                       oneway_price=Decimal("100.00"),
+                                       round_trip_price=Decimal("180.00"))
+        cls.customer = Customer.objects.create(first_name="John", last_name="Doe",
+                                               email="j@example.com", phone_number="5551234567")
+        other_user = User.objects.create_user("kb_other", first_name="Ana", last_name="Lopez")
+        cls.other_driver = Driver.objects.create(profile=other_user, driver_type="inhouse")
+
+    def setUp(self):
+        super().setUp()
+        self.today = timezone.localdate()
+
+    def days_ago(self, n):
+        return self.today - timedelta(days=n)
+
+    def leg(self, day, hh=5, mm=0, driver=None, status="confirmed", res_status="confirmed",
+            pickup=MCO, dropoff=POLY):
+        res = Reservation.objects.create(
+            trip_type="one-way", customer=self.customer, rate=self.rate, vehicle=self.suv,
+            base_price=Decimal("100.00"), total_price=Decimal("100.00"), status=res_status)
+        return Leg.objects.create(
+            reservation=res, pickup_date=day, pickup_time=time(hh, mm),
+            driver=driver or self.driver, pickup_location=pickup, dropoff_location=dropoff,
+            route=self.route, status=status)
+
+    def entry(self, kind="note", days_ago=1, strike=False, summary=None, driver=None, **kw):
+        return DriverLogEntry.objects.create(
+            driver=driver or self.driver, kind=kind, occurred_on=self.days_ago(days_ago),
+            is_strike=strike, summary=summary or f"A {kind}", **kw)
+
+    def log_back_url(self):
+        return self.profile_url() + "#driver-log"
+
+    def add_url(self):
+        return reverse("driver_log_add", args=[self.driver.id])
+
+    def edit_url(self, entry):
+        return reverse("driver_log_edit", args=[self.driver.id, entry.id])
+
+    def delete_url(self, entry):
+        return reverse("driver_log_delete", args=[self.driver.id, entry.id])
+
+    def post_entry(self, **data):
+        data.setdefault("kind", "note")
+        data.setdefault("occurred_on", self.today.isoformat())
+        data.setdefault("summary", "Something to remember")
+        data.setdefault("severity", "")
+        data.setdefault("details", "")
+        return self.client.post(self.add_url(), data)
+
+
+class LogEntryTests(_LogBase):
+    def test_dispatcher_logs_compliment_with_trip(self):
+        leg = self.leg(self.days_ago(3))
+        self.client.force_login(self.dispatcher)
+        resp = self.post_entry(kind="compliment", occurred_on=self.days_ago(2).isoformat(),
+                               leg=leg.id, summary="Guest wrote in to thank him",
+                               details="Carried every bag to the room.")
+        self.assertRedirects(resp, self.log_back_url(), fetch_redirect_response=False)
+        self.assertEqual(self.last_message(resp), "Added to the log.")
+        e = DriverLogEntry.objects.get()
+        self.assertEqual((e.driver, e.kind, e.occurred_on, e.leg, e.summary, e.details),
+                         (self.driver, "compliment", self.days_ago(2), leg,
+                          "Guest wrote in to thank him", "Carried every bag to the room."))
+        self.assertEqual((e.is_strike, e.severity, e.logged_by, e.updated_by),
+                         (False, "", self.dispatcher, None))
+        self.assertIsNotNone(e.logged_at)
+
+        resp = self.client.get(self.profile_url())
+        self.assertEqual([x.pk for x in resp.context["log_entries"]], [e.pk])
+        self.assertContains(resp, 'id="driver-log"')
+        self.assertContains(resp, "Guest wrote in to thank him")
+        self.assertContains(resp, "Carried every bag to the room.")
+        self.assertContains(resp, "Logged by Luis")
+        self.assertContains(resp, reverse("reservation_details", args=[leg.reservation.uuid]))
+        self.assertContains(resp, 'class="kb-kind kb-kind-compliment"')
+        # a dispatcher adds but never edits or deletes
+        self.assertNotContains(resp, self.edit_url(e))
+        self.assertNotContains(resp, self.delete_url(e))
+
+    def test_occurred_on_defaults_to_today(self):
+        self.client.force_login(self.dispatcher)
+        form = self.client.get(self.profile_url()).context["log_form"]
+        self.assertEqual(form["occurred_on"].value(), self.today)
+        self.assertEqual(list(form.fields)[:4], ["kind", "occurred_on", "severity", "leg"])
+        self.assertEqual(form.fields["leg"].label, "Trip (optional)")
+
+    def test_dispatcher_cannot_mark_strike(self):
+        self.client.force_login(self.dispatcher)
+        form = self.client.get(self.profile_url()).context["log_form"]
+        self.assertNotIn("is_strike", form.fields)
+        resp = self.post_entry(kind="complaint", is_strike="on", summary="Late to MCO")
+        self.assertRedirects(resp, self.log_back_url(), fetch_redirect_response=False)
+        e = DriverLogEntry.objects.get()
+        self.assertEqual((e.kind, e.is_strike), ("complaint", False))
+        self.assertEqual(driver_knowledge.strike_count(self.driver, self.today), 0)
+
+    def test_manager_marks_strike_counted_for_12_months(self):
+        self.assertEqual(STRIKE_WINDOW_DAYS, 365)
+        self.client.force_login(self.manager)
+        self.assertIn("is_strike", self.client.get(self.profile_url()).context["log_form"].fields)
+        resp = self.post_entry(kind="incident", severity="serious", is_strike="on",
+                               summary="Clipped a mirror at the port")
+        self.assertRedirects(resp, self.log_back_url(), fetch_redirect_response=False)
+        e = DriverLogEntry.objects.get()
+        self.assertEqual((e.kind, e.severity, e.is_strike, e.logged_by),
+                         ("incident", "serious", True, self.manager))
+        self.assertEqual(driver_knowledge.strike_count(self.driver, self.today), 1)
+
+        self.entry("complaint", days_ago=400, strike=True)       # too old
+        self.entry("complaint", days_ago=365, strike=True)       # exactly a year: out
+        self.entry("complaint", days_ago=364, strike=True)       # still in
+        self.entry("complaint", days_ago=10)                     # not a strike
+        self.entry("complaint", days_ago=10, strike=True, driver=self.other_driver)
+        self.assertEqual(driver_knowledge.strike_count(self.driver, self.today), 2)
+        resp = self.client.get(self.profile_url())
+        self.assertEqual(resp.context["strike_count"], 2)
+
+    def test_strike_must_be_complaint_or_incident(self):
+        self.client.force_login(self.manager)
+        for kind in ("compliment", "note"):
+            resp = self.post_entry(kind=kind, is_strike="on", summary="Kept")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.context["form"].errors,
+                             {"is_strike": ["A strike must be a complaint or an incident."]})
+        self.assertFalse(DriverLogEntry.objects.exists())
+        self.assertContains(resp, 'value="Kept"')                # what was typed comes back
+        for kind in ("complaint", "incident"):
+            self.assertEqual(self.post_entry(kind=kind, is_strike="on").status_code, 302)
+        self.assertEqual(DriverLogEntry.objects.filter(is_strike=True).count(), 2)
+
+    def test_severity_only_on_complaints_and_incidents(self):
+        self.client.force_login(self.dispatcher)
+        self.post_entry(kind="compliment", severity="serious", summary="Kind words")
+        self.post_entry(kind="complaint", severity="minor", summary="Music too loud")
+        self.assertEqual(dict(DriverLogEntry.objects.values_list("summary", "severity")),
+                         {"Kind words": "", "Music too loud": "minor"})
+
+    def test_future_date_refused(self):
+        self.client.force_login(self.dispatcher)
+        resp = self.post_entry(occurred_on=(self.today + timedelta(days=1)).isoformat())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["form"].errors,
+                         {"occurred_on": ["That date is in the future."]})
+        self.assertFalse(DriverLogEntry.objects.exists())
+        self.assertEqual(self.post_entry(occurred_on=self.today.isoformat()).status_code, 302)
+
+    def test_summary_is_needed(self):
+        self.client.force_login(self.dispatcher)
+        resp = self.post_entry(summary="")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("summary", resp.context["form"].errors)
+        self.assertFalse(DriverLogEntry.objects.exists())
+        self.assertEqual(self.client.get(self.add_url()).status_code, 405)
+
+    def test_trip_picker_only_this_drivers_recent_trips(self):
+        newest = self.leg(self.today, 9, 30)
+        recent = self.leg(self.days_ago(3), 5, 0)
+        edge = self.leg(self.days_ago(60), 14, 15)
+        self.leg(self.days_ago(61))                                   # too old
+        self.leg(self.today + timedelta(days=1))                      # not driven yet
+        self.leg(self.days_ago(2), status="cancelled")                # leg cancelled
+        self.leg(self.days_ago(2), res_status="cancelled")            # trip cancelled
+        theirs = self.leg(self.days_ago(2), driver=self.other_driver)  # someone else's
+        self.assertEqual(list(driver_knowledge.recent_legs_for(self.driver, self.today)),
+                         [newest, recent, edge])
+
+        form = DriverLogEntryForm(self.driver, self.dispatcher)
+        self.assertEqual(list(form.fields["leg"].queryset), [newest, recent, edge])
+        labels = dict((c.value, label) for c, label in list(form.fields["leg"].choices)[1:])
+        self.assertEqual(labels[recent.pk],
+                         f"{strf(recent.pickup_date, '%b %-d')} · 5:00 AM · "
+                         "MCO → Disney's Polynesian Village Resort")
+        self.assertEqual(labels[edge.pk].split(" · ")[1], "2:15 PM")
+
+        self.client.force_login(self.dispatcher)
+        resp = self.post_entry(leg=theirs.id)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("leg", resp.context["form"].errors)
+        self.assertFalse(DriverLogEntry.objects.exists())
+
+        # editing keeps an entry's own trip even once it is older than 60 days
+        old = self.leg(self.days_ago(90))
+        e = self.entry("compliment", days_ago=90, leg=old)
+        form = DriverLogEntryForm(self.driver, self.manager, instance=e)
+        self.assertEqual(list(form.fields["leg"].queryset), [newest, recent, edge, old])
+
+    def test_filter_by_kind(self):
+        for kind in ("compliment", "complaint", "incident", "note"):
+            self.entry(kind, summary=f"Zq {kind} entry")
+        self.entry("complaint", summary="Zq other driver", driver=self.other_driver)
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self.profile_url())
+        self.assertEqual(resp.context["log_filter"], "")
+        self.assertEqual(len(resp.context["log_entries"]), 4)
+        self.assertNotContains(resp, "Zq other driver")
+        for kind in ("compliment", "complaint", "incident", "note"):
+            self.assertContains(resp, f'href="?log={kind}#driver-log"')
+        for kind in ("compliment", "complaint", "incident", "note"):
+            resp = self.client.get(self.profile_url(), {"log": kind})
+            self.assertEqual(resp.context["log_filter"], kind)
+            self.assertEqual([e.kind for e in resp.context["log_entries"]], [kind])
+            self.assertContains(resp, f"Zq {kind} entry")
+        self.assertNotContains(resp, "Zq compliment entry")
+        resp = self.client.get(self.profile_url(), {"log": "bogus"})
+        self.assertEqual((resp.context["log_filter"], len(resp.context["log_entries"])), ("", 4))
+        # in edit mode the filter links keep the page in edit mode
+        self.client.force_login(self.manager)
+        resp = self.client.get(self.profile_url(), {"edit": "1"})
+        self.assertContains(resp, 'href="?edit=1&amp;log=incident#driver-log"')
+
+    def test_timeline_is_newest_first(self):
+        old = self.entry(days_ago=20, summary="Old")
+        new = self.entry(days_ago=2, summary="New")
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self.profile_url())
+        self.assertEqual([e.pk for e in resp.context["log_entries"]], [new.pk, old.pk])
+        self.assertEqual(list(driver_knowledge.log_entries(self.driver, "note")), [new, old])
+
+    def test_manager_edits_and_deletes(self):
+        leg = self.leg(self.days_ago(4))
+        e = self.entry("complaint", days_ago=5, summary="Late to MCO", logged_by=self.dispatcher)
+        self.client.force_login(self.manager)
+        resp = self.client.get(self.profile_url())
+        self.assertContains(resp, self.edit_url(e))
+        self.assertContains(resp, self.delete_url(e))
+
+        resp = self.client.get(self.edit_url(e))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["form"].instance, e)
+        self.assertContains(resp, "Late to MCO")
+        resp = self.client.post(self.edit_url(e), {
+            "kind": "incident", "occurred_on": self.days_ago(4).isoformat(), "severity": "minor",
+            "leg": leg.id, "summary": "Late to MCO, guest missed check-in",
+            "details": "Traffic on 528.", "is_strike": "on"})
+        self.assertRedirects(resp, self.log_back_url(), fetch_redirect_response=False)
+        self.assertEqual(self.last_message(resp), "Log entry updated.")
+        e.refresh_from_db()
+        self.assertEqual((e.kind, e.occurred_on, e.severity, e.leg, e.summary, e.is_strike),
+                         ("incident", self.days_ago(4), "minor", leg,
+                          "Late to MCO, guest missed check-in", True))
+        self.assertEqual((e.logged_by, e.updated_by), (self.dispatcher, self.manager))
+        self.assertContains(self.client.get(self.profile_url()), "edited by Abdalla")
+
+        # an invalid edit comes back with its errors and changes nothing
+        resp = self.client.post(self.edit_url(e), {
+            "kind": "note", "occurred_on": self.today.isoformat(), "severity": "",
+            "summary": "x", "details": "", "is_strike": "on"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("is_strike", resp.context["form"].errors)
+        e.refresh_from_db()
+        self.assertEqual(e.kind, "incident")
+
+        self.assertEqual(self.client.get(self.delete_url(e)).status_code, 405)
+        resp = self.client.post(self.delete_url(e))
+        self.assertRedirects(resp, self.log_back_url(), fetch_redirect_response=False)
+        self.assertEqual(self.last_message(resp), "Log entry deleted.")
+        self.assertFalse(DriverLogEntry.objects.exists())
+
+    def test_entry_must_belong_to_the_driver_in_the_address(self):
+        theirs = self.entry(driver=self.other_driver)
+        self.client.force_login(self.manager)
+        self.assertEqual(self.client.get(self.edit_url(theirs)).status_code, 404)
+        self.assertEqual(self.client.post(self.delete_url(theirs)).status_code, 404)
+        self.assertTrue(DriverLogEntry.objects.filter(pk=theirs.pk).exists())
+
+    def test_dispatcher_cannot_edit_or_delete(self):
+        e = self.entry("complaint", summary="Late to MCO")
+        self.client.force_login(self.dispatcher)
+        self.assertEqual(self.client.get(self.edit_url(e)).status_code, 403)
+        resp = self.client.post(self.edit_url(e), {
+            "kind": "note", "occurred_on": self.today.isoformat(), "summary": "Changed"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self.client.post(self.delete_url(e)).status_code, 403)
+        e.refresh_from_db()
+        self.assertEqual((e.kind, e.summary), ("complaint", "Late to MCO"))
+
+    def test_driver_cannot_post_to_the_log(self):
+        self.client.force_login(self.driver_user)
+        self.assertEqual(self.post_entry().status_code, 403)
+        self.assertFalse(DriverLogEntry.objects.exists())
+
+    def test_log_card_in_both_modes_outside_the_edit_form(self):
+        self.entry("note", summary="Zq in the log")
+        self.client.force_login(self.manager)
+        html = self.client.get(self.profile_url(), {"edit": "1"}).content.decode()
+        self.assertIn('id="driver-log"', html)
+        self.assertIn("Zq in the log", html)
+        edit_form = html[html.index('<form method="post" enctype="multipart/form-data"'):]
+        edit_form = edit_form[:edit_form.index("</form>")]
+        self.assertNotIn("Zq in the log", edit_form)
+        self.assertNotIn(self.add_url(), edit_form)
+
+    def test_empty_log(self):
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self.profile_url())
+        self.assertEqual(list(resp.context["log_entries"]), [])
+        self.assertContains(resp, "Nothing in the log yet.")
+        self.assertContains(resp, "Add to the log")
+        self.assertNotContains(resp, "data-strikes=")
+
+    def test_log_never_on_driver_app(self):
+        leg = self.leg(self.days_ago(1))
+        self.entry("complaint", strike=True, summary="Zq office-only summary",
+                   details="Zq office-only details", leg=leg)
+        self.entry("compliment", summary="Zq kind words")
+        self.client.force_login(self.driver_user)
+        for name in ("drivers_dashboard", "schedule", "completed_trips", "driver_my_details"):
+            resp = self.client.get(reverse(name))
+            self.assertEqual(resp.status_code, 200, name)
+            for text in ("Zq office-only", "Zq kind words", "data-strikes=", 'id="driver-log"',
+                         "in the last 12 months", "kb-kind"):
+                self.assertNotContains(resp, text, msg_prefix=name)
+
+    def test_hero_shows_strike_pill(self):
+        def hero(resp):
+            html = resp.content.decode()
+            start = html.index('class="profile-hero')
+            return html[start:html.index('class="stat-tile', start)]
+
+        self.client.force_login(self.dispatcher)
+        self.entry("complaint", days_ago=400, strike=True)       # too old to count
+        resp = self.client.get(self.profile_url())
+        self.assertNotIn("data-strikes=", hero(resp))
+        self.assertNotContains(resp, "in the last 12 months")
+
+        self.entry("complaint", days_ago=30, strike=True)
+        resp = self.client.get(self.profile_url())
+        self.assertIn('class="strike-pill strike-amber" data-strikes="1"', hero(resp))
+        self.assertContains(resp, "1 strike in the last 12 months", count=2)   # hero + card
+
+        self.entry("incident", days_ago=3, strike=True)
+        resp = self.client.get(self.profile_url())
+        self.assertIn('class="strike-pill strike-amber" data-strikes="2"', hero(resp))
+        self.assertContains(resp, "2 strikes in the last 12 months", count=2)
+
+        self.entry("incident", days_ago=1, strike=True)
+        resp = self.client.get(self.profile_url())
+        self.assertIn('class="strike-pill strike-red" data-strikes="3"', hero(resp))
+        self.assertContains(resp, 'class="strike-pill strike-red" data-strikes="3"', count=2)
+        self.assertContains(resp, 'class="kb-strike-badge"', count=4)  # each strike entry

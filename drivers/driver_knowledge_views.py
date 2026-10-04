@@ -3,20 +3,26 @@
     /drivers/<id>/tags/add/              (POST)  any staff user: add a tag + note
     /drivers/<id>/tags/<tag_id>/remove/  (POST)  managers: take a tag off
     /drivers/<id>/tags/new/              (POST)  managers: make a new tag, then add it
+    /drivers/<id>/log/add/               (POST)  any staff user: add to the log
+    /drivers/<id>/log/<entry_id>/edit/   (GET/POST) managers: change an entry
+    /drivers/<id>/log/<entry_id>/delete/ (POST)  managers: delete an entry
 
 Each one answers with a message and a redirect back to the driver's profile,
-never JSON. Managers are is_superuser, as everywhere on the profile; dispatcher
-logins are is_staff. The logic lives in drivers/driver_knowledge.py.
+never JSON. The one exception is a log entry that doesn't pass its checks:
+it comes back on the log entry page with what was typed and what to fix.
+Managers are is_superuser, as everywhere on the profile; dispatcher logins
+are is_staff. The logic lives in drivers/driver_knowledge.py.
 """
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from drivers import driver_knowledge
-from drivers.models import Driver, DriverTag, DriverTagAssignment
+from drivers.forms import DriverLogEntryForm
+from drivers.models import Driver, DriverLogEntry, DriverTag, DriverTagAssignment
 
 NOTE_MAX = DriverTagAssignment._meta.get_field("note").max_length
 
@@ -81,3 +87,69 @@ def driver_tag_create(request, driver_id):
     driver_knowledge.add_tag(driver, tag, "", request.user)
     messages.success(request, f"{tag.name} created and added.")
     return _back(driver)
+
+
+# ── The log ─────────────────────────────────────────────────────────────────
+
+def _back_to_log(driver):
+    """The profile, scrolled to the Log card."""
+    return redirect(reverse("driver_profile", args=[driver.id]) + "#driver-log")
+
+
+def _entry_page(request, driver, form, entry=None):
+    """The log entry page: editing an entry, or an add that needs fixing."""
+    return render(request, "drivers/driver_log_edit.html", {
+        "driver": driver, "form": form, "entry": entry,
+        "can_edit": request.user.is_superuser,
+    })
+
+
+@login_required(login_url="login")
+@require_POST
+def driver_log_add(request, driver_id):
+    if not request.user.is_staff:
+        return HttpResponseForbidden("Only the office can add to a driver's log.")
+    driver = get_object_or_404(Driver, id=driver_id)
+    form = DriverLogEntryForm(driver, request.user, request.POST)
+    if not form.is_valid():
+        return _entry_page(request, driver, form)
+    entry = form.save(commit=False)
+    entry.driver = driver
+    entry.logged_by = request.user
+    if not request.user.is_superuser:
+        entry.is_strike = False         # the form has no strike box for them; belt and braces
+    entry.save()
+    messages.success(request, "Added to the log.")
+    return _back_to_log(driver)
+
+
+@login_required(login_url="login")
+@require_http_methods(["GET", "POST"])
+def driver_log_edit(request, driver_id, entry_id):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Only a manager can change a log entry.")
+    driver = get_object_or_404(Driver, id=driver_id)
+    entry = get_object_or_404(DriverLogEntry, id=entry_id, driver=driver)
+    if request.method == "POST":
+        form = DriverLogEntryForm(driver, request.user, request.POST, instance=entry)
+        if form.is_valid():
+            entry = form.save(commit=False)
+            entry.updated_by = request.user
+            entry.save()
+            messages.success(request, "Log entry updated.")
+            return _back_to_log(driver)
+    else:
+        form = DriverLogEntryForm(driver, request.user, instance=entry)
+    return _entry_page(request, driver, form, entry)
+
+
+@login_required(login_url="login")
+@require_POST
+def driver_log_delete(request, driver_id, entry_id):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Only a manager can delete a log entry.")
+    driver = get_object_or_404(Driver, id=driver_id)
+    entry = get_object_or_404(DriverLogEntry, id=entry_id, driver=driver)
+    entry.delete()
+    messages.success(request, "Log entry deleted.")
+    return _back_to_log(driver)

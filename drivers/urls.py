@@ -154,4 +154,10 @@ urlpatterns = [
          name="driver_tag_remove"),
     path("<int:driver_id>/tags/new/", driver_knowledge_views.driver_tag_create,
          name="driver_tag_create"),
+    path("<int:driver_id>/log/add/", driver_knowledge_views.driver_log_add,
+         name="driver_log_add"),
+    path("<int:driver_id>/log/<int:entry_id>/edit/", driver_knowledge_views.driver_log_edit,
+         name="driver_log_edit"),
+    path("<int:driver_id>/log/<int:entry_id>/delete/", driver_knowledge_views.driver_log_delete,
+         name="driver_log_delete"),
 ]

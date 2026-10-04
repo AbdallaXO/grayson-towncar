@@ -1,0 +1,46 @@
+{% comment %}
+  The fields of one log entry (DriverLogEntryForm), shared by the profile's
+  Log card and the log entry page. Only the fields: the caller wraps them in
+  its own <form> and button. The strike box is on the form for managers only.
+  Relies on the page's .field-group / .field-label / .gt-field styles.
+{% endcomment %}
+<style>
+  /* Kind, date and severity share a row when there is room (up to three), and stack on a phone. */
+  .kb-log-grid {
+    display: grid; gap: 0 .75rem;
+    grid-template-columns: repeat(auto-fit, minmax(max(10rem, calc((100% - 1.5rem) / 3)), 1fr));
+  }
+  .kb-log-grid .kb-span-all { grid-column: 1 / -1; }
+  .kb-log-grid .field-help { font-size: .72rem; color: var(--gt-muted); margin-top: .3rem; line-height: 1.45; }
+  .kb-log-strike {
+    display: flex; gap: .6rem; align-items: flex-start; padding: .7rem .8rem; margin-bottom: .9rem;
+    border: 1px solid rgba(248,113,113,.3); border-radius: 8px; background: rgba(248,113,113,.06);
+  }
+  .kb-log-strike input { margin-top: .15rem; flex: none; }
+  .kb-log-strike label { font-size: .85rem; font-weight: 600; color: var(--gt-text); margin: 0; cursor: pointer; }
+  .kb-log-strike .field-help { margin-top: .15rem; }
+</style>
+{% if form.non_field_errors %}
+  {% for e in form.non_field_errors %}<div class="field-error mb-2">{{ e }}</div>{% endfor %}
+{% endif %}
+<div class="kb-log-grid">
+  {% for field in form %}{% if field.name != "is_strike" %}
+    <div class="field-group{% if field.name == 'leg' or field.name == 'summary' or field.name == 'details' %} kb-span-all{% endif %}">
+      <label class="field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.name == "severity" %}<div class="field-help">Complaints and incidents only.</div>{% endif %}
+      {% if field.name == "leg" %}<div class="field-help">Their trips from the last 60 days.</div>{% endif %}
+      {% for e in field.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+    </div>
+  {% endif %}{% endfor %}
+</div>
+{% if "is_strike" in form.fields %}
+  <div class="kb-log-strike">
+    {{ form.is_strike }}
+    <div>
+      <label for="{{ form.is_strike.id_for_label }}">{{ form.is_strike.label }}</label>
+      <div class="field-help">A complaint or an incident only. A strike counts on the profile for 12 months.</div>
+      {% for e in form.is_strike.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+{% endif %}

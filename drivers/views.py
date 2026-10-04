@@ -1426,6 +1426,17 @@ def driver_profile(request, driver_id):
 
     context["tag_groups"] = driver_knowledge.tags_by_category(driver)
     context["available_tags"] = driver_knowledge.available_tags(driver)
+
+    # The log: staff-only, filtered on the server by ?log=<kind>.
+    from drivers.forms import DriverLogEntryForm
+
+    log_filter = request.GET.get("log", "")
+    log_filter = log_filter if log_filter in driver_knowledge.LOG_KINDS else ""
+    context["log_filter"] = log_filter
+    context["log_filters"] = driver_knowledge.LOG_FILTERS
+    context["log_entries"] = list(driver_knowledge.log_entries(driver, log_filter or None))
+    context["strike_count"] = driver_knowledge.strike_count(driver, today)
+    context["log_form"] = DriverLogEntryForm(driver, request.user)
     return render(request, "drivers/driver_profile.html", context)
 
 
