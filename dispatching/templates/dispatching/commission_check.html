@@ -1,0 +1,277 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}Commission Check{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Same calm palette as Affiliate Management, Agency links and the PayPal batch. */
+  :root {
+    --gt-bg: #F4F3EF;
+    --gt-surface: #F5F3ED;
+    --gt-gold: #C8A24A;
+    --gt-gold-ink: #7C5E16;
+    --gt-dark: #0F1B3D;
+    --gt-dark-2: #1C2B54;
+    --gt-border: #E7E5DD;
+    --gt-border-soft: #EFEDE6;
+    --gt-red-soft: #FBECEA;   --gt-red-ink: #8A2722;
+    --gt-amber-soft: #FBF1DD; --gt-amber-ink: #7A4F0E;
+    --gt-green-soft: #E6F2EB; --gt-green-ink: #1E5A3F;
+    --gt-text: #1A1A1C;
+    --gt-muted: #5C5B56;
+    --gt-ink-3: #94928A;
+    --gt-radius: 14px;
+    --gt-radius-sm: 9px;
+    --gt-shadow-sm: 0 1px 2px rgba(15,27,61,0.04);
+    --gt-shadow-md: 0 1px 2px rgba(15,27,61,.04), 0 8px 24px -16px rgba(15,27,61,.18);
+  }
+
+  body { background: var(--gt-bg); }
+  .cc {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    color: var(--gt-text); max-width: 1120px; margin: 0 auto;
+    padding: 28px 16px 80px; font-variant-numeric: tabular-nums;
+  }
+  .cc-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .cc-eyebrow { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gt-gold-ink); font-weight: 500; margin: 0 0 5px; }
+  .cc-title { font-size: 2rem; font-weight: 500; letter-spacing: -0.5px; color: var(--gt-dark); margin: 0; line-height: 1.05; }
+  .cc-sub { font-size: .9rem; color: var(--gt-muted); margin: 7px 0 0; max-width: 620px; }
+  .cc-back {
+    display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 500;
+    color: var(--gt-text); text-decoration: none; background: #fff; border: 1px solid var(--gt-border);
+    border-radius: var(--gt-radius-sm); padding: .5rem .95rem; transition: border-color .15s ease, color .15s ease;
+  }
+  .cc-back:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
+
+  .cc-flash { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+  .cc-flash li { border-radius: var(--gt-radius-sm); padding: 11px 14px; font-size: .88rem; display: flex; gap: 9px; background: #fff; border: 1px solid var(--gt-border); }
+  .cc-flash li.success { background: var(--gt-green-soft); border-color: transparent; color: var(--gt-green-ink); }
+  .cc-flash li.warning { background: var(--gt-amber-soft); border-color: transparent; color: var(--gt-amber-ink); }
+  .cc-flash li.error   { background: var(--gt-red-soft);   border-color: transparent; color: var(--gt-red-ink); }
+
+  /* Two tabs as large cards: what's flagged, and how much of it would be paid today. */
+  .cc-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px; }
+  .cc-tab {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); padding: 15px 17px;
+    box-shadow: var(--gt-shadow-sm); text-decoration: none; color: inherit; transition: box-shadow .15s ease, border-color .15s ease;
+    animation: cc-rise .35s ease both;
+  }
+  .cc-tab:nth-child(2) { animation-delay: .05s; }
+  .cc-tab:hover { box-shadow: var(--gt-shadow-md); color: inherit; }
+  .cc-tab.is-on { background: var(--gt-dark); border-color: var(--gt-dark); color: #fff; }
+  .cc-tab-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--gt-muted); font-weight: 500; }
+  .cc-tab.is-on .cc-tab-label { color: #A7B0C8; }
+  .cc-tab-value { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.5px; margin-top: 6px; line-height: 1.1; }
+  .cc-tab-meta { font-size: .78rem; color: var(--gt-ink-3); margin-top: 4px; }
+  .cc-tab.is-on .cc-tab-meta { color: #8C96B4; }
+  .cc-rule { font-size: .82rem; color: var(--gt-muted); margin: 0 0 22px; }
+  .cc-rule i { color: var(--gt-gold-ink); }
+
+  .cc-list { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; animation: cc-rise .4s ease both; animation-delay: .1s; }
+  .cc-row {
+    display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1.5fr) 104px 236px;
+    gap: 16px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem;
+  }
+  .cc-row:first-child { border-top: 0; }
+  .cc-row-head { background: var(--gt-surface); font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 500; padding-top: 9px; padding-bottom: 9px; }
+  .cc-link { color: var(--gt-text); font-weight: 500; text-decoration: none; border-bottom: 1px solid transparent; transition: color .15s ease, border-color .15s ease; }
+  .cc-link:hover { color: var(--gt-dark); border-bottom-color: var(--gt-gold); }
+  .cc-small { display: block; font-size: .76rem; color: var(--gt-ink-3); margin-top: 2px; overflow-wrap: anywhere; }
+  .cc-reasons { display: flex; flex-wrap: wrap; gap: 5px; }
+  .cc-reason { font-size: .74rem; padding: 3px 9px; border-radius: 999px; background: var(--gt-amber-soft); color: var(--gt-amber-ink); line-height: 1.35; }
+  .cc-reason.strong { background: var(--gt-red-soft); color: var(--gt-red-ink); font-weight: 500; }
+  .cc-amount { text-align: right; font-weight: 500; color: var(--gt-dark); }
+  .cc-status { display: block; font-size: .7rem; font-weight: 500; margin-top: 3px; color: var(--gt-ink-3); }
+  .cc-status.now { color: var(--gt-red-ink); }
+  .cc-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .cc-actions form { margin: 0; }
+  .cc-btn {
+    font: 500 .8rem 'Roboto', sans-serif; border-radius: var(--gt-radius-sm); padding: .45rem .8rem; cursor: pointer; white-space: nowrap;
+    background: #fff; color: var(--gt-dark); border: 1px solid var(--gt-border); transition: border-color .15s ease, background .15s ease;
+  }
+  .cc-btn:hover { border-color: var(--gt-dark); }
+  .cc-btn-dark { background: var(--gt-dark); color: #fff; border-color: var(--gt-dark); }
+  .cc-btn-dark:hover { background: var(--gt-dark-2); }
+
+  /* Duplicates: one card per agent + rider + day. */
+  .cc-groups { display: grid; gap: 14px; animation: cc-rise .4s ease both; animation-delay: .1s; }
+  .cc-group { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; }
+  .cc-group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 13px 18px; background: var(--gt-surface); border-bottom: 1px solid var(--gt-border-soft); }
+  .cc-group-title { font-weight: 500; color: var(--gt-dark); font-size: .98rem; }
+  .cc-group-meta { font-size: .8rem; color: var(--gt-muted); }
+  .cc-dup { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 104px 190px; gap: 16px; align-items: center; padding: 13px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem; }
+  .cc-dup:first-of-type { border-top: 0; }
+  .cc-legs { margin: 0; padding: 0; list-style: none; font-size: .82rem; color: var(--gt-text); }
+  .cc-legs li + li { margin-top: 2px; }
+  .cc-legs .cc-small { display: inline; margin: 0 0 0 4px; }
+  .cc-group-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 18px 14px; border-top: 1px solid var(--gt-border-soft); }
+  .cc-group-foot p { margin: 0; font-size: .8rem; color: var(--gt-muted); }
+  .cc-group-foot form { margin: 0; }
+
+  .cc-empty { background: #fff; border: 1px dashed var(--gt-border); border-radius: var(--gt-radius); padding: 34px 20px; text-align: center; color: var(--gt-muted); font-size: .92rem; }
+  .cc-empty i { display: block; font-size: 1.4rem; color: var(--gt-green-ink); margin-bottom: 6px; }
+
+  @keyframes cc-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .cc-tab, .cc-list, .cc-groups { animation: none; } }
+
+  @media (max-width: 860px) {
+    .cc-title { font-size: 1.6rem; }
+    .cc-row-head { display: none; }
+    .cc-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .cc-row > .cc-who { grid-column: 1; }
+    .cc-row > .cc-reasons { grid-column: 1 / -1; }
+    .cc-row > .cc-amount { grid-column: 2; grid-row: 1; }
+    .cc-row > .cc-actions { grid-column: 1 / -1; justify-content: stretch; }
+    .cc-actions form, .cc-actions .cc-btn { flex: 1; width: 100%; }
+    .cc-dup { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .cc-dup > .cc-legs { grid-column: 1 / -1; }
+    .cc-dup > .cc-actions { grid-column: 1 / -1; }
+  }
+  @media (max-width: 520px) { .cc-tabs { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="cc">
+  <div class="cc-head">
+    <div>
+      <p class="cc-eyebrow">Payables</p>
+      <h1 class="cc-title">Commission check</h1>
+      <p class="cc-sub">Unpaid commissions worth a look before you pay. Nothing changes until you click, and once you decide, a booking doesn't come back here.</p>
+    </div>
+    <a class="cc-back" href="{% url 'affiliate_payments' %}"><i class="bi bi-arrow-left"></i>Affiliate Management</a>
+  </div>
+
+  {% if messages %}
+  <ul class="cc-flash">
+    {% for message in messages %}
+    <li class="{{ message.tags }}"><i class="bi {% if message.tags == 'success' %}bi-check-circle{% elif message.tags == 'error' %}bi-x-circle{% else %}bi-exclamation-circle{% endif %}"></i><span>{{ message }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div class="cc-tabs">
+    <a class="cc-tab{% if tab == 'personal' %} is-on{% endif %}" href="?tab=personal">
+      <div class="cc-tab-label">Possible personal trips</div>
+      <div class="cc-tab-value">{{ personal|length }}</div>
+      <div class="cc-tab-meta">${{ personal_total|floatformat:2|intcomma }} in commission · ${{ personal_now|floatformat:2|intcomma }} payable now</div>
+    </a>
+    <a class="cc-tab{% if tab == 'duplicates' %} is-on{% endif %}" href="?tab=duplicates">
+      <div class="cc-tab-label">Possible duplicates</div>
+      <div class="cc-tab-value">{{ duplicates|length }}</div>
+      <div class="cc-tab-meta">${{ dup_total|floatformat:2|intcomma }} in commission · {{ dup_now }} booking{{ dup_now|pluralize }} payable now</div>
+    </a>
+  </div>
+
+  {% if tab == 'personal' %}
+  <p class="cc-rule"><i class="bi bi-info-circle me-1"></i>Flagged when the rider looks like the agent, the notes mention a discount, or the price is well under the normal rate. An agent's own email or phone on a booking isn't flagged, because agents often put their contact on clients' trips.</p>
+  {% if personal %}
+  <div class="cc-list">
+    <div class="cc-row cc-row-head"><span>Booking · rider</span><span>Agent</span><span>Why it's flagged</span><span class="cc-amount">Commission</span><span></span></div>
+    {% for f in personal %}{% with r=f.reservation %}
+    <div class="cc-row" id="r{{ r.id }}">
+      <span class="cc-who">
+        <a class="cc-link" href="{% url 'reservation_details' r.uuid %}">#{{ r.display_number }}</a> · {{ r.customer.first_name }} {{ r.customer.last_name }}
+        <span class="cc-small">{% with leg=r.legs.all.0 %}{% if leg %}{{ leg.pickup_date|date:"M j, Y" }}{% endif %}{% endwith %} · ${{ r.base_price|floatformat:2|intcomma }} fare</span>
+      </span>
+      <span>
+        <a class="cc-link" href="{% url 'admin_travel_agent_detail' r.travel_agent.id %}">{{ r.travel_agent.agent_name|default:r.travel_agent.user.username }}</a>
+        {% if r.travel_agent.agency %}<span class="cc-small">{{ r.travel_agent.agency.name }}</span>{% endif %}
+      </span>
+      <span class="cc-reasons">
+        {% for reason in f.reasons %}<span class="cc-reason{% if forloop.first and f.strong %} strong{% endif %}">{{ reason }}</span>{% endfor %}
+      </span>
+      <span class="cc-amount">${{ f.commission|floatformat:2|intcomma }}
+        <span class="cc-status{% if f.status == 'ready' %} now{% endif %}">{{ f.status_label }}</span>
+      </span>
+      <span class="cc-actions">
+        <form method="post" data-confirm="Mark #{{ r.display_number }} not commissionable? {{ r.travel_agent.agent_name|default:'The agent' }} won't be paid ${{ f.commission|floatformat:2 }} for it.">
+          {% csrf_token %}<input type="hidden" name="tab" value="personal"><input type="hidden" name="reservation" value="{{ r.id }}">
+          <button class="cc-btn cc-btn-dark" name="action" value="personal_exclude">Not commissionable</button>
+        </form>
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="tab" value="personal"><input type="hidden" name="reservation" value="{{ r.id }}">
+          <button class="cc-btn" name="action" value="personal_fine">It's fine</button>
+        </form>
+      </span>
+    </div>
+    {% endwith %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="cc-empty"><i class="bi bi-check2-circle"></i>No possible personal trips left to check.</div>
+  {% endif %}
+
+  {% else %}
+  <p class="cc-rule"><i class="bi bi-info-circle me-1"></i>Same agent, same rider, same day, booked more than once. If it's one trip entered twice, pick the copy not to pay. If they really are separate rides (say, two groups), mark them all real.</p>
+  {% if duplicates %}
+  <div class="cc-groups">
+    {% for g in duplicates %}
+    <section class="cc-group" id="g{{ g.key }}">
+      <div class="cc-group-head">
+        <span class="cc-group-title">{{ g.rider }} · {{ g.day|date:"D, M j, Y" }}</span>
+        <span class="cc-group-meta">
+          <a class="cc-link" href="{% url 'admin_travel_agent_detail' g.agent.id %}">{{ g.agent.agent_name|default:g.agent.user.username }}</a>
+          · {{ g.members|length }} bookings · ${{ g.commission|floatformat:2|intcomma }} in commission
+        </span>
+      </div>
+      {% for f in g.members %}{% with r=f.reservation %}
+      <div class="cc-dup">
+        <span>
+          <a class="cc-link" href="{% url 'reservation_details' r.uuid %}">#{{ r.display_number }}</a>
+          <span class="cc-small">Booked {{ r.created_at|date:"M j, g:i A" }} · {{ r.get_status_display }}</span>
+        </span>
+        <ul class="cc-legs">
+          {% for leg in r.legs.all %}
+          <li>{{ leg.pickup_time|time:"g:i A" }} {{ leg.pickup_location|default:"—"|truncatechars:38 }} → {{ leg.dropoff_location|default:"—"|truncatechars:38 }}{% if leg.status == 'cancelled' %}<span class="cc-small">cancelled</span>{% endif %}<span class="cc-small">{{ leg.pickup_date|date:"M j" }}</span></li>
+          {% endfor %}
+          <li><span class="cc-small" style="margin:0">${{ r.base_price|floatformat:2|intcomma }} fare</span></li>
+        </ul>
+        <span class="cc-amount">${{ f.commission|floatformat:2|intcomma }}
+          <span class="cc-status{% if f.status == 'ready' %} now{% endif %}">{{ f.status_label }}</span>
+        </span>
+        <span class="cc-actions">
+          <form method="post" data-confirm="Don't pay commission on #{{ r.display_number }}? The other booking{{ g.members|length|add:'-1'|pluralize }} will still be paid.">
+            {% csrf_token %}<input type="hidden" name="tab" value="duplicates"><input type="hidden" name="reservation" value="{{ r.id }}">
+            {% for m in g.members %}<input type="hidden" name="group" value="{{ m.reservation.id }}">{% endfor %}
+            <button class="cc-btn" name="action" value="dup_exclude">Don't pay this one</button>
+          </form>
+        </span>
+      </div>
+      {% endwith %}{% endfor %}
+      <div class="cc-group-foot">
+        <p>Separate rides? Then each one is paid.</p>
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="tab" value="duplicates"><input type="hidden" name="reservation" value="{{ g.members.0.reservation.id }}">
+          {% for m in g.members %}<input type="hidden" name="group" value="{{ m.reservation.id }}">{% endfor %}
+          <button class="cc-btn cc-btn-dark" name="action" value="dup_fine">All real, pay each</button>
+        </form>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="cc-empty"><i class="bi bi-check2-circle"></i>No possible duplicates left to check.</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Ask before anything that stops a payment. "It's fine" needs no confirmation.
+  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+    });
+  });
+</script>
+{% endblock %}

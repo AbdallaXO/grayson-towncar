@@ -885,3 +885,36 @@ class Agency(models.Model):
                 return agency_payout, total_amount
 
             return None, 0
+
+
+class CommissionCheck(models.Model):
+    """A person's decision on a booking the Commission check screen flagged.
+
+    Saved so a booking someone already looked at ("it's fine", "both real")
+    never comes back to the list. "Not commissionable" itself lives on the
+    reservation (commission_excluded); this row records that it was decided here.
+    """
+
+    PERSONAL = "personal"
+    DUPLICATE = "duplicate"
+    KIND_CHOICES = [(PERSONAL, "Possible personal trip"), (DUPLICATE, "Possible duplicate")]
+
+    FINE = "fine"
+    EXCLUDED = "excluded"
+    DECISION_CHOICES = [(FINE, "Pay as normal"), (EXCLUDED, "Not commissionable")]
+
+    reservation = models.ForeignKey(
+        "reservations.Reservation", on_delete=models.CASCADE, related_name="commission_checks"
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    decision = models.CharField(max_length=20, choices=DECISION_CHOICES)
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    decided_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["reservation", "kind"], name="one_commission_check_per_kind"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} #{self.reservation_id}: {self.get_decision_display()}"
