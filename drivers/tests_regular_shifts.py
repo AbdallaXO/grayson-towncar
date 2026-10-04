@@ -953,6 +953,47 @@ class DayOptionTests(_Fixture):
                                          {"day_earliest": time(17)}))),
             ["Wednesday: starts at 4:10 AM — before that day's earliest start (5 PM)."])
 
+    def test_limits_clip_blank_and_open_days_with_a_warning(self):
+        # Blank times and open days were never checked against the limits: the
+        # limits clip them (S18), the week still saves, and a warning says what
+        # is left — so "Evening, done by 3 PM" can't slip through unnoticed.
+        W = rs.RegularWindow
+        tpl = rs.templates_by_id()
+        days = self.week(mon=("morning", None, None, {"day_earliest": time(15)}),
+                         tue=("float", None, None),
+                         wed=("morning", None, None, {"day_latest": time(15)}),
+                         thu=("evening", None, None, {"day_latest": time(15)}),
+                         fri=("morning", None, None, {"alt": "evening", "day_earliest": time(5)}),
+                         sat=("evening", None, None,
+                              {"day_latest": time(1), "day_latest_next_day": True}))
+        self.assertEqual(self.validate(days), [])
+        self.assertEqual(rs.regular_window(days[3], tpl, **_NO_HARD), W(855, 900, "evening", 720))
+        self.assertEqual(rs.band_warnings(days, tpl), [
+            "Monday: not before 3 PM limits Morning to 3 PM–6 PM.",
+            "Wednesday: done by 3 PM limits Morning to 6 AM–3 PM.",
+            "Thursday: done by 3 PM limits Evening to 2:15 PM–3 PM.",
+            "Friday: not before 5 AM limits Morning or Evening to 5 AM–2:15 AM.",
+            "Saturday: done by 1 AM (next day) limits Evening to 2:15 PM–1 AM.",
+        ])
+        # The driver's own limits too, when the caller passes them.
+        float_day = self.week(tue=("float", None, None))
+        self.assertEqual(self.validate(float_day, hard_earliest_start=time(23)), [])
+        self.assertEqual(rs.band_warnings(float_day, tpl, hard_earliest_start=time(23)),
+                         ["Tuesday: never starts before 11 PM limits Float to 11 PM–2:15 AM."])
+        two = self.week(fri=("morning", time(9), time(17),
+                             {"alt": "evening", "day_earliest": time(5)}))
+        self.assertEqual(rs.band_warnings(two, tpl, hard_latest_finish=time(1),
+                                          hard_latest_finish_next_day=True),
+                         ["Friday: not before 5 AM and never finishes after 1 AM (next day) "
+                          "limit Morning or Evening to 5 AM–1 AM."])
+        # No warning when no limit bites, for typed times (validation checked
+        # them), or when nothing is left (validation refuses that instead).
+        quiet = self.week(mon=("morning", None, None, {"day_latest": time(19)}),
+                          sun=("morning", time(4, 10), time(15, 30), {"day_latest": time(16)}))
+        self.assertEqual(rs.band_warnings(quiet, tpl), [])
+        self.assertEqual(rs.band_warnings(self.week(mon=("float", None, None,
+                                                         {"day_latest": time(2)})), tpl), [])
+
     def test_open_days_typed_times_are_labels_only(self):
         # Float and two-shape days skip the typed-time span and limit checks;
         # the window and the base-to-base 12h check (Task 3c) hold them.
@@ -1031,6 +1072,14 @@ class DayOptionTests(_Fixture):
                              (None, None, None, None, None, None, False))
         self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), self.week())
 
+    def test_save_drops_next_day_without_a_finish_by(self):
+        # "Next day" alone means nothing; an editor must not read it back ticked.
+        d = _driver()
+        rs.save_regular_shift(d, self.week(mon=("evening", None, None,
+                                                {"day_latest_next_day": True})), self.manager)
+        row = DriverWeeklySchedule.objects.get(driver=d, day_of_week=0)
+        self.assertEqual((row.day_latest_finish, row.day_latest_finish_next_day), (None, False))
+
 
 class RegularWindowTests(_Fixture):
     def window(self, day, **hard):
@@ -1082,9 +1131,30 @@ class RegularWindowTests(_Fixture):
         self.assertEqual(self.window(days[1], hard_lo=420), W(420, 1575, "float", 720))
         self.assertIsNone(self.window(days[0], hard_hi=120))               # nothing left
 
+    def test_regular_window_end_band_after_midnight(self):
+        # A shape edited (Task 8) to end wholly after midnight still lines its
+        # latest end up after its start, so open days compare ends on one day.
+        W = rs.RegularWindow
+        late_evening = copy.copy(self.t["evening"])
+        late_evening.end_earliest, late_evening.end_latest = time(0, 30), time(2, 15)
+        self.assertEqual(late_evening.end_band_minutes(), (30, 135))
+        templates = {**rs.templates_by_id(), late_evening.id: late_evening}
+        either = self.week(mon=("morning", None, None, {"alt": "evening"}))[0]
+        self.assertEqual(rs.regular_window(either, templates, **_NO_HARD),
+                         W(180, 1575, "float", 720))
+        late_float = copy.copy(self.t["float"])
+        late_float.end_earliest, late_float.end_latest = time(0, 30), time(2, 15)
+        templates = {**rs.templates_by_id(), late_float.id: late_float}
+        self.assertEqual(rs.regular_window(self.week(mon=("float", None, None))[0], templates,
+                                           **_NO_HARD),
+                         W(180, 1575, "float", 720))
+
     def test_regular_window_needs_a_known_shape_and_both_times(self):
         self.assertIsNone(self.window(DayShift(0, 99999, None, None)))
         self.assertIsNone(self.window(self.week(mon=("morning", time(4, 10), None))[0]))
+        tpl = rs.templates_by_id()
+        self.assertIsNone(rs.effective_minutes(DayShift(0, 99999, time(4, 10), time(15, 30)), tpl))
+        self.assertIsNone(rs.effective_minutes(DayShift(0, 99999, None, None), tpl))
 
 
 class DayOptionLabelTests(_Fixture):

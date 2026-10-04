@@ -26,7 +26,9 @@ What lives here:
     the usual shift they point to (suggest_role);
   * regular_window — the ONE place a day's switch-on window is built (S4, S18);
   * validation (hard and per-day limits, the 12-hour ceiling, rest between
-    days) and the softer band warnings (U11: the bands are targets, not limits);
+    days) and the softer warnings: typed times outside the bands (U11: the
+    bands are targets, not limits), and what the limits leave of a day with
+    blank times or an open day, which they clip rather than refuse (S18);
   * save_regular_shift, which writes ONLY the new fields on an existing row so
     the legacy hour reading cannot move while the switch is off (S1);
   * the labels dispatcher pages show.
@@ -40,7 +42,7 @@ import logging
 import math
 import statistics
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
@@ -413,14 +415,24 @@ def effective_minutes(day, templates) -> Optional[tuple[int, int]]:
     """(start, end) minutes of a working day: its typed times or, when both are
     blank, its shape's usual times (band_fill). None when the day is Off, the
     shape doesn't exist, or only one time is given."""
-    if day.template_id is None:
+    tpl = templates.get(day.template_id)
+    if tpl is None:
         return None
     if day.start is not None and day.end is not None:
         return _span(day.start, day.end)
-    tpl = templates.get(day.template_id)
-    if tpl is None or day.start is not None or day.end is not None:
+    if day.start is not None or day.end is not None:
         return None
     return _span(*band_fill(tpl))
+
+
+def _latest_end(template) -> int:
+    """A shape's latest usual end in minutes, lined up after its earliest start
+    (+1440 for an end band that sits wholly after midnight, e.g. 00:30–02:15),
+    so the latest ends of different shapes compare on the same day."""
+    end = template.end_band_minutes()[1]
+    if end <= _time_minutes(template.start_earliest):
+        end += 1440
+    return end
 
 
 def regular_window(day, templates, *, hard_lo: Optional[int],
@@ -449,7 +461,7 @@ def regular_window(day, templates, *, hard_lo: Optional[int],
     if _open_day(day, templates):
         kind = FLOAT_KIND
         start = min(_time_minutes(t.start_earliest) for t in shapes)
-        end = max(t.end_band_minutes()[1] for t in shapes)
+        end = max(_latest_end(t) for t in shapes)
     else:
         mins = effective_minutes(day, templates)
         if mins is None:
@@ -486,7 +498,8 @@ def _day_limit_messages(day, templates, earliest, latest, hard_lo, hard_hi) -> l
     neither time: typed times against the driver's hard limits, then against
     the day's own; then, when no typed time was refused, that the limits still
     leave time for a shift at all. A day with blank times, or an open day
-    (typed times are labels), is clipped by the limits, not refused by them."""
+    (typed times are labels), is clipped by the limits, not refused by them
+    (S18); band_warnings says what the clipping leaves."""
     name = DAY_NAMES[day.day]
     day_lo, day_hi = _hard_minutes(day.day_earliest, day.day_latest, day.day_latest_next_day)
     mins = None if _open_day(day, templates) else _shift_minutes(day)
@@ -636,15 +649,63 @@ def _end_in_band(end, band) -> bool:
     return any(lo <= end + shift <= hi for shift in (-1440, 0, 1440))
 
 
-def band_warnings(days, templates) -> list[str]:
-    """A warning, not an error, for each day whose typed times sit outside its
-    shape's usual bands. Blank times are the usual times; a Float or two-shape
-    day's times are labels, so neither is warned about."""
+def _limits_cut(day, templates, hard_earliest, hard_latest, hard_latest_next_day,
+                hard_lo, hard_hi) -> Optional[str]:
+    """What the driver's limits and the day's own leave of a day whose hours
+    were never checked against them — blank times, or an open day — e.g.
+    'Thursday: done by 3 PM limits Evening to 2:15 PM–3 PM.' None when no
+    limit narrows the day, or when nothing is left (validation refuses that)."""
+    held = regular_window(day, templates, hard_lo=hard_lo, hard_hi=hard_hi)
+    free = regular_window(replace(day, day_earliest=None, day_latest=None,
+                                  day_latest_next_day=False),
+                          templates, hard_lo=None, hard_hi=None)
+    if held is None or free is None:
+        return None
+    day_lo, day_hi = _hard_minutes(day.day_earliest, day.day_latest, day.day_latest_next_day)
+    limits = []
+    if held.start_min > free.start_min:
+        limits.append(f"not before {fmt_time_long(day.day_earliest)}" if held.start_min == day_lo
+                      else f"never starts before {fmt_time_long(hard_earliest)}")
+    if held.end_min < free.end_min:
+        if held.end_min == day_hi:
+            limit, next_day = f"done by {fmt_time_long(day.day_latest)}", day.day_latest_next_day
+        else:
+            limit, next_day = (f"never finishes after {fmt_time_long(hard_latest)}",
+                               hard_latest_next_day)
+        limits.append(limit + (" (next day)" if next_day else ""))
+    if not limits:
+        return None
+    shape = " or ".join(t.name for t in _shapes(day, templates))
+    return (f"{DAY_NAMES[day.day]}: {' and '.join(limits)} "
+            f"{'limit' if len(limits) > 1 else 'limits'} {shape} to "
+            f"{fmt_time_long(_to_time(held.start_min))}–{fmt_time_long(_to_time(held.end_min))}.")
+
+
+def band_warnings(days, templates, *, hard_earliest_start=None, hard_latest_finish=None,
+                  hard_latest_finish_next_day=False) -> list[str]:
+    """Warnings, not errors, in day order (DayShifts only):
+
+      * a day whose typed times sit outside its shape's usual bands;
+      * a day with blank times, or a Float or two-shape day, that the
+        driver's limits (pass them, as validate_regular_shift takes them) or
+        the day's own cut short. Its times were never checked against those
+        limits — the limits clip it (S18) — so this says what is left.
+
+    Blank times are the usual times and a Float or two-shape day's typed
+    times are labels, so neither is band-warned."""
+    hard_lo, hard_hi = _hard_minutes(hard_earliest_start, hard_latest_finish,
+                                     hard_latest_finish_next_day)
     out = []
     for day in _by_day(days):
+        tpl = templates.get(day.template_id)
+        if tpl is None or _one_time_blank(day):
+            continue
         mins = _shift_minutes(day)
-        tpl = templates.get(day.template_id) if mins is not None else None
-        if tpl is None or _open_day(day, templates):
+        if mins is None or _open_day(day, templates):
+            cut = _limits_cut(day, templates, hard_earliest_start, hard_latest_finish,
+                              hard_latest_finish_next_day, hard_lo, hard_hi)
+            if cut:
+                out.append(cut)
             continue
         s_lo, s_hi = tpl.start_band_minutes()
         if not (s_lo <= mins[0] <= s_hi) or not _end_in_band(mins[1], tpl.end_band_minutes()):
@@ -681,6 +742,9 @@ def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = 
     (role_template_id; None = not set). Raises ValueError (with every message)
     and writes nothing when the usual shift doesn't exist or
     validate_regular_shift objects.
+
+    The usual shift is always written: leaving role_template_id out clears it.
+    A caller that only re-saves the days must pass driver.shift_role_id.
 
     Writes ONLY the regular-shift fields (the shape, times, second shape and
     the day's own limits) on an existing row, so the legacy fields the engine
@@ -722,12 +786,14 @@ def save_regular_shift(driver, days, user, *, role_template_id: Optional[int] = 
                 DriverWeeklySchedule.objects.filter(driver=driver, day_of_week=day.day).update(
                     **_OFF_DAY)
                 continue
+            # "Next day" means nothing without a finish-by; it is not stored alone.
             shift = {"shift_template_id": day.template_id,
                      "shift_start": day.start, "shift_end": day.end,
                      "alt_template_id": day.alt_template_id,
                      "day_earliest_start": day.day_earliest,
                      "day_latest_finish": day.day_latest,
-                     "day_latest_finish_next_day": bool(day.day_latest_next_day)}
+                     "day_latest_finish_next_day": bool(day.day_latest_next_day
+                                                        and day.day_latest is not None)}
             DriverWeeklySchedule.objects.update_or_create(
                 driver=driver, day_of_week=day.day,
                 defaults=shift, create_defaults={**legacy_defaults, **shift})
