@@ -85,6 +85,34 @@ def read_recipient(method, info):
     return "", "Couldn't find a Venmo @handle, email, or phone number."
 
 
+def _us_phone(raw):
+    """10-digit US number from whatever was typed, or ''."""
+    digits = re.sub(r"\D", "", raw or "")
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    return digits if len(digits) == 10 else ""
+
+
+def uploadable_recipient(method, info, phone):
+    """(recipient, problem, handle) for PayPal's bulk upload file.
+
+    PayPal's upload pays Venmo by phone or email only -- it rejects @handles
+    ("Receiver is invalid"), though its API takes them. So a Venmo payee who
+    gave only a @handle is paid at the phone on their profile: their own
+    number, which Venmo verifies, so the money lands in their account or they
+    get a text to claim it. `handle` is that @handle, kept so the page can show
+    it next to the phone being used.
+    """
+    recipient, problem = read_recipient(method, info)
+    if problem or method != "venmo" or not recipient.startswith("@"):
+        return recipient, problem, ""
+    number = _us_phone(phone)
+    if not number:
+        return "", ("PayPal's upload can't pay a Venmo @handle, and there's no 10-digit phone on "
+                    "their profile. Add the phone number on their Venmo."), recipient
+    return number, "", recipient
+
+
 @dataclass
 class Payee:
     kind: str          # "agent" | "agency"
@@ -98,6 +126,13 @@ class Payee:
     # An agent paid directly can still belong to an agency; the page links both.
     agency_id: int | None = None
     agency_name: str = ""
+    phone: str = ""   # profile phone, used for Venmo when only a @handle was given
+    handle: str = ""  # that @handle, when the phone stands in for it
+
+    @property
+    def recipient_display(self):
+        r = self.recipient
+        return f"{r[:3]}-{r[3:6]}-{r[6:]}" if r.isdigit() and len(r) == 10 else r
 
     @property
     def wallet(self):
@@ -149,7 +184,8 @@ def build_batch(*, now=None):
     """Everyone owed money who is paid by PayPal or Venmo.
 
     Returns (rows, skipped): rows go in the file; skipped are owed money but
-    their handle couldn't be read, each with a `problem` to fix.
+    can't be put in it (handle unreadable, or a Venmo @handle with no phone),
+    each with a `problem` to fix.
     """
     from users.models import Agency, TravelAgent
 
@@ -166,10 +202,11 @@ def build_batch(*, now=None):
     payees = [
         Payee("agent", a.id, a.agent_name or a.user.get_username(), a.payment_method,
               a.payment_info or "", agent_amounts[a.id],
-              agency_id=a.agency_id, agency_name=a.agency.name if a.agency else "")
+              agency_id=a.agency_id, agency_name=a.agency.name if a.agency else "", phone=a.phone or "")
         for a in agents
     ] + [
-        Payee("agency", a.id, a.name, a.payment_method, a.payment_info or "", agency_amounts[a.id])
+        Payee("agency", a.id, a.name, a.payment_method, a.payment_info or "", agency_amounts[a.id],
+              phone=a.phone or "")
         for a in agencies
     ]
 
@@ -177,6 +214,7 @@ def build_batch(*, now=None):
     for payee in sorted(payees, key=lambda p: p.name.lower()):
         if payee.amount <= 0:
             continue
-        payee.recipient, payee.problem = read_recipient(payee.method, payee.payment_info)
+        payee.recipient, payee.problem, payee.handle = uploadable_recipient(
+            payee.method, payee.payment_info, payee.phone)
         (skipped if payee.problem else rows).append(payee)
     return rows, skipped

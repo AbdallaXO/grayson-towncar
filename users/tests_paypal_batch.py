@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from reservations.models import Reservation
 from users.models import Agency, CommissionPayout, TravelAgent
-from users.paypal_batch import build_batch, csv_line, read_recipient
+from users.paypal_batch import build_batch, csv_line, read_recipient, uploadable_recipient
 from users.services import process_bulk_payouts
 from users.tests_eligibility import _add_leg, _bootstrap, _make_reservation
 
@@ -101,11 +101,33 @@ class ReadVenmoRecipientTests(SimpleTestCase):
         self.assertTrue(problem)
 
 
+class UploadableRecipientTests(SimpleTestCase):
+    """PayPal's upload pays Venmo by phone or email only; it rejects @handles."""
+
+    def test_venmo_handle_uses_profile_phone(self):
+        self.assertEqual(uploadable_recipient("venmo", "@Jane-Doe", "+1 (407) 555-0123"),
+                         ("4075550123", "", "@Jane-Doe"))
+
+    def test_venmo_handle_without_a_phone_is_left_out(self):
+        recipient, problem, handle = uploadable_recipient("venmo", "@Jane-Doe", "555-0123")
+        self.assertEqual((recipient, handle), ("", "@Jane-Doe"))
+        self.assertIn("phone", problem)
+
+    def test_venmo_email_and_phone_go_as_saved(self):
+        self.assertEqual(uploadable_recipient("venmo", "jane@gmail.com", "4075550123"), ("jane@gmail.com", "", ""))
+        self.assertEqual(uploadable_recipient("venmo", "407-555-9999", "4075550123"), ("4075559999", "", ""))
+
+    def test_paypal_is_untouched(self):
+        self.assertEqual(uploadable_recipient("paypal", "jane@gmail.com", "4075550123"), ("jane@gmail.com", "", ""))
+
+
 class _ReadyAgentMixin:
-    """One Venmo agent owed $10.00 (a $100 completed trip at 10%)."""
+    """One Venmo agent (@agent, phone 407-555-0100) owed $10.00 (a $100 completed trip at 10%)."""
 
     def setUp(self):
         self.vehicle, self.rate, self.customer, self.agent = _bootstrap()
+        TravelAgent.objects.filter(pk=self.agent.pk).update(phone="(407) 555-0100")
+        self.agent.refresh_from_db()
         past = timezone.localtime(timezone.now()).date() - timedelta(days=5)
         self.past = past
         res = _make_reservation(self.rate, self.customer, self.agent, status="completed")
@@ -133,7 +155,9 @@ class BuildBatchTests(_ReadyAgentMixin, TestCase):
         row = rows[0]
         self.assertEqual((row.kind, row.id, row.amount), ("agent", self.agent.id, Decimal("10.00")))
         line = csv_line(row)
-        self.assertEqual(line[:4], ["@agent", "10.00", "USD", f"AGT{self.agent.id}"])
+        # PayPal's upload rejects Venmo @handles, so the profile phone stands in.
+        self.assertEqual(line[:4], ["4075550100", "10.00", "USD", f"AGT{self.agent.id}"])
+        self.assertEqual(row.handle, "@agent")
         self.assertTrue(line[4])  # Venmo requires a note
         self.assertEqual(line[5:], ["VENMO", "PRIVATE"])
 
@@ -215,13 +239,15 @@ class BatchPageTests(_ReadyAgentMixin, TestCase):
     def test_page_lists_the_agent(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "@agent")
+        self.assertContains(response, "407-555-0100")
+        self.assertContains(response, "Venmo @agent")
 
     def test_download_returns_the_file(self):
         response = self.client.post(self.url, {"token": self._token(), "action": "download"})
         self.assertEqual(response["Content-Type"], "text/csv")
         body = response.content.decode()
-        self.assertTrue(body.startswith(f"@agent,10.00,USD,AGT{self.agent.id},"))
+        self.assertTrue(body.startswith(f"4075550100,10.00,USD,AGT{self.agent.id},"))
+        self.assertNotIn("@agent", body)
         self.assertTrue(body.rstrip().endswith("VENMO,PRIVATE"))
 
     def test_download_refuses_when_amounts_moved(self):

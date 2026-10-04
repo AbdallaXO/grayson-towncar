@@ -147,6 +147,7 @@
   .pb-wallet { display: inline-block; font-size: .72rem; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--gt-surface); color: var(--gt-dark); }
   .pb-wallet.venmo { background: #E8F1FB; color: #1D4F86; }
   .pb-recipient { font-family: 'Roboto Mono', ui-monospace, monospace; font-size: .8rem; color: var(--gt-muted); min-width: 0; overflow-wrap: anywhere; }
+  .pb-via { display: block; font-family: 'Roboto', sans-serif; font-size: .72rem; color: var(--gt-ink-3); margin-top: 2px; }
   .pb-amount { text-align: right; font-weight: 500; color: var(--gt-dark); }
 
   .pb-skip .pb-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) 90px; }
@@ -253,7 +254,7 @@
   <section class="pb-section">
     <div class="pb-section-head">
       <h2>In the file</h2>
-      <span class="pb-section-note">Venmo payments are sent private.</span>
+      <span class="pb-section-note">PayPal pays Venmo by phone or email, so @handles use the phone on their profile. Venmo payments are sent private.</span>
     </div>
     <div class="pb-list">
       <div class="pb-row pb-row-head"><span>Payee</span><span>Wallet</span><span>Sends to</span><span class="pb-amount">Amount</span></div>
@@ -261,7 +262,10 @@
       <div class="pb-row">
         {% include 'dispatching/_paypal_batch_name.html' with r=r show_wallet=False %}
         <span class="pb-wallet-cell"><span class="pb-wallet {{ r.method }}">{% if r.method == 'venmo' %}Venmo{% else %}PayPal{% endif %}</span></span>
-        <span class="pb-recipient">{{ r.recipient }}</span>
+        <span class="pb-recipient">
+          {{ r.recipient_display }}
+          {% if r.handle %}<span class="pb-via">Venmo {{ r.handle }} &middot; phone on their profile</span>{% endif %}
+        </span>
         <span class="pb-amount">${{ r.amount|floatformat:2|intcomma }}</span>
       </div>
       {% endfor %}
