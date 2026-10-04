@@ -30,7 +30,7 @@ def _window_display(override):
     if et == "available_after" and override.start_time:
         return f"(unavailable before {time12(override.start_time)})"
     if et == "unavailable_window" and override.start_time and override.end_time:
-        return f"({time12(override.start_time)} - {time12(override.end_time)})"
+        return f"(off {time12(override.start_time)} - {time12(override.end_time)})"
     if et == "available_window" and override.start_time and override.end_time:
         return f"(only available {time12(override.start_time)} - {time12(override.end_time)})"
     return ""

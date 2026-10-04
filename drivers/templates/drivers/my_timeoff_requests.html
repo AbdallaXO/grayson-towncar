@@ -19,20 +19,20 @@
       </div>
 
       <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 10px;">
-        Everything you've sent in — pending, confirmed, or in the past. Need a new day or some
-        hours off? Hit <strong>New request</strong> and it goes straight to dispatch.
+        Everything you've sent — waiting, approved, or past. Need a day or a few hours off?
+        Tap <strong>New request</strong> and it goes straight to dispatch.
       </p>
 
       {% if pending_count or approved_upcoming %}
         <div class="d-flex gap-2 flex-wrap mb-3">
           {% if pending_count %}
             <span class="gt-card" style="padding:6px 12px;font-size:0.8125rem;font-weight:600;border-left:3px solid #f59e0b;background:#fffbeb;color:#92400e;">
-              <i class="bi bi-hourglass-split me-1"></i>{{ pending_count }} pending dispatch review
+              <i class="bi bi-hourglass-split me-1"></i>{{ pending_count }} waiting for approval
             </span>
           {% endif %}
           {% if approved_upcoming %}
             <span class="gt-card" style="padding:6px 12px;font-size:0.8125rem;font-weight:600;border-left:3px solid var(--gt-green);background:#ecfdf5;color:#065f46;">
-              <i class="bi bi-check-circle-fill me-1"></i>{{ approved_upcoming }} upcoming approved
+              <i class="bi bi-check-circle-fill me-1"></i>{{ approved_upcoming }} approved, coming up
             </span>
           {% endif %}
         </div>
@@ -50,20 +50,20 @@
         <div class="d-flex flex-column gap-2">
           {% for o in overrides %}
             {% if o.status == 'approved' %}
-              {% with color='var(--gt-green)' bg='#ecfdf5' label='Approved' icon='check-circle-fill' %}
-              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% with color='var(--gt-green)' label='Approved' icon='check-circle-fill' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color label=label icon=icon %}
               {% endwith %}
             {% elif o.status == 'pending' %}
-              {% with color='var(--gt-yellow)' bg='#fffbeb' label='Pending review' icon='hourglass-split' %}
-              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% with color='var(--gt-yellow)' label='Waiting for approval' icon='hourglass-split' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color label=label icon=icon %}
               {% endwith %}
             {% elif o.status == 'denied' %}
-              {% with color='var(--gt-red)' bg='#fef2f2' label='Denied' icon='x-circle-fill' %}
-              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% with color='var(--gt-red)' label='Denied' icon='x-circle-fill' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color label=label icon=icon %}
               {% endwith %}
             {% elif o.status == 'cancelled' %}
-              {% with color='var(--gt-text-secondary)' bg='#f9fafb' label='Cancelled' icon='dash-circle' %}
-              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% with color='var(--gt-text-secondary)' label='Cancelled' icon='dash-circle' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color label=label icon=icon %}
               {% endwith %}
             {% endif %}
           {% endfor %}

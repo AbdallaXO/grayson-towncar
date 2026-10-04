@@ -701,6 +701,32 @@ class DriverDateOverride(models.Model):
             return f"{self.date.strftime('%b %d')} – {self.end_date.strftime('%b %d, %Y')}"
         return f"{self.date.strftime('%b %d, %Y')} – {self.end_date.strftime('%b %d, %Y')}"
 
+    @property
+    def dates_label(self):
+        """The driver screens' wording: 'Tue, Oct 6' or 'Tue, Oct 6 – Fri, Oct 9'.
+        The year shows only when it isn't this year."""
+        this_year = timezone.localdate().year
+
+        def one(d):
+            label = strf(d, "%a, %b %-d")
+            return label if d.year == this_year else f"{label}, {d.year}"
+
+        if self.end_date is None or self.end_date == self.date:
+            return one(self.date)
+        return f"{one(self.date)} – {one(self.end_date)}"
+
+    @property
+    def off_hours(self):
+        """What the driver is OFF for, to follow the word "off": 'all day' or
+        '9 AM – 1 PM'. Empty for exception kinds drivers can't request."""
+        from drivers.availability import fmt_time_long
+
+        if self.exception_type == "off":
+            return "all day"
+        if self.exception_type == "unavailable_window" and self.start_time and self.end_time:
+            return f"{fmt_time_long(self.start_time)} – {fmt_time_long(self.end_time)}"
+        return ""
+
     def __str__(self):
         type_label = dict(self.EXCEPTION_TYPE_CHOICES).get(self.exception_type, self.exception_type)
         return f"{self.driver} — {self.date_range_display}: {type_label}"
