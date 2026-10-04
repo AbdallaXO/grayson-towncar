@@ -6,6 +6,9 @@ are checked base -> base through handoff_chain.shift_lead_min / shift_tail_min. 
 windows carry none of these keys and must behave byte-for-byte as before — the grid test
 pins that against a verbatim copy of the pre-Stage-1 window_check.
 
+Task 3c: a regular window may also carry max_span_min, and the caller's base -> base spans
+(fg.base_span_min, before and after the leg) are held to it — the 12-hour day.
+
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_minute_windows
 """
 from datetime import date, datetime, time, timedelta
@@ -273,6 +276,56 @@ class RegularWindowTests(SimpleTestCase):
         self.assertEqual(fg.legacy_hours(855, 1575), (14, 23))
         self.assertEqual(fg.legacy_hours(420, 1140), (7, 19))
 
+    def test_regular_window_keys_includes_max_span(self):
+        eff = {"window_start_min": 180, "window_end_min": 1575, "window_kind": "float"}
+        self.assertEqual(fg.regular_window_keys(dict(eff, window_max_span_min=720)),
+                         {"start_min": 180, "end_min": 1575, "kind": "float",
+                          "source": "regular", "max_span_min": 720})
+        self.assertNotIn("max_span_min",
+                         fg.regular_window_keys(dict(eff, window_max_span_min=None)))
+
+
+class BaseSpanTests(SimpleTestCase):
+    """The 12-hour base -> base span check (Task 3c): leaving base for the first pickup to
+    back at base after the last clear must stay within the window's max_span_min."""
+
+    FLOAT = W(start=3, end=23, start_min=180, end_min=1575, kind="float", source="regular",
+              max_span_min=720)
+
+    def _check(self, window, after, before):
+        return fg.window_check(window, time(16, 30), dt(17, 20), 5.0, target_date=D,
+                               pickup_category="Disney Resort", dropoff_category="MCO Terminal",
+                               base_span_min_after=after, base_span_min_before=before)
+
+    def test_base_span_helper(self):
+        legs = [(dt(5, 0), "MCO Terminal", dt(6, 15), "Disney Resort"),
+                (dt(16, 0), "Disney Resort", dt(16, 40), "MCO Terminal")]
+        self.assertEqual(fg.base_span_min(legs, "morning"), 749)   # 04:38 -> 17:07
+        self.assertIsNone(fg.base_span_min([], "morning"))
+
+    def test_base_span_cap_rejects_over_12h(self):
+        self.assertEqual(self._check(self.FLOAT, 725, 683), (False, "base to base 12h 5m > 12h 0m"))
+        self.assertEqual(self._check(self.FLOAT, 725, None), (False, "base to base 12h 5m > 12h 0m"))
+        self.assertEqual(self._check(self.FLOAT, 720, 683), (True, ""))   # exactly 12h is fine
+
+    def test_base_span_allows_hole_fill_when_already_over(self):
+        # Same delta rule as max-hours: a day already over may take a leg that does not
+        # make it longer, but never one that grows it.
+        self.assertEqual(self._check(self.FLOAT, 760, 760), (True, ""))
+        self.assertEqual(self._check(self.FLOAT, 770, 760), (False, "base to base 12h 50m > 12h 0m"))
+
+    def test_no_cap_without_max_span_min(self):
+        no_cap = {k: v for k, v in self.FLOAT.items() if k != "max_span_min"}
+        self.assertEqual(self._check(no_cap, 900, 683), (True, ""))
+        self.assertEqual(self._check(dict(self.FLOAT, max_span_min=None), 900, 683), (True, ""))
+        self.assertEqual(self._check(self.FLOAT, None, None), (True, ""))   # caller gave no span
+        # An hour window never reads the base spans, even if it carries max_span_min.
+        hour = W(start=4, end=17, max_span_min=720)
+        self.assertEqual(
+            fg.window_check(hour, time(6, 0), dt(7, 0), 1, target_date=D,
+                            base_span_min_after=900, base_span_min_before=100),
+            _legacy_window_check(W(start=4, end=17), time(6, 0), dt(7, 0), 1, target_date=D))
+
 
 class ChainOkMinuteWindowTests(SimpleTestCase):
     """scheduler._chain_ok hands each slot's own pickup / drop zones to window_check."""
@@ -280,16 +333,20 @@ class ChainOkMinuteWindowTests(SimpleTestCase):
     WINDOW = {"start": 4, "end": 17, "start_min": 275, "end_min": 995, "kind": "morning",
               "source": "regular", "max_hours": None, "flexible": False}  # 04:35-16:35
 
-    def _day(self, pickup_cat, dropoff_cat, trip_type):
-        from dispatching.scheduler import DriverDaySchedule, ScheduleSlot
-        slot = ScheduleSlot(
-            leg_id=1, pickup_time=time(5, 0), pickup_location=pickup_cat,
+    def _slot(self, leg_id, pickup, pickup_cat, dropoff_cat, trip_type, clear):
+        from dispatching.scheduler import ScheduleSlot
+        return ScheduleSlot(
+            leg_id=leg_id, pickup_time=pickup, pickup_location=pickup_cat,
             pickup_category=pickup_cat, dropoff_location=dropoff_cat,
             dropoff_category=dropoff_cat, trip_type=trip_type,
-            estimated_end_time=dt(6, 0), reservation_id=1, customer_name="Test",
+            estimated_end_time=clear, reservation_id=1, customer_name="Test",
             status="scheduled", has_flight=False)
+
+    def _day(self, pickup_cat, dropoff_cat, trip_type, *extra_slots):
+        from dispatching.scheduler import DriverDaySchedule
+        slot = self._slot(1, time(5, 0), pickup_cat, dropoff_cat, trip_type, dt(6, 0))
         return DriverDaySchedule(driver_id=1, driver_name="Test", driver_type="employee",
-                                 slots=[slot])
+                                 slots=[slot, *extra_slots])
 
     def test_chain_ok_reads_pickup_zone_for_lead(self):
         from dispatching import scheduler
@@ -301,6 +358,20 @@ class ChainOkMinuteWindowTests(SimpleTestCase):
         self.assertTrue(scheduler._chain_ok(
             self._day("MCO Terminal", "Disney Resort", "arrival"), D,
             driver_window=self.WINDOW))
+
+    def test_chain_ok_holds_base_span(self):
+        from dispatching import scheduler
+        # Float 03:00-02:15: leave base 04:38 for the 05:00 MCO arrival; the 16:30 Disney
+        # departure clears 17:20 at MCO and the night return makes it 18:21 back at base.
+        float_w = {"start": 3, "end": 23, "start_min": 180, "end_min": 1575, "kind": "float",
+                   "source": "regular", "max_hours": None, "flexible": False,
+                   "max_span_min": 720}
+        late = self._slot(2, time(16, 30), "Disney Resort", "MCO Terminal", "departure",
+                          dt(17, 20))
+        day = self._day("MCO Terminal", "Disney Resort", "arrival", late)
+        self.assertFalse(scheduler._chain_ok(day, D, driver_window=float_w))   # 13h 43m
+        self.assertTrue(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=None)))
+        self.assertTrue(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=825)))
 
 
 class ShiftLeadTailTests(SimpleTestCase):

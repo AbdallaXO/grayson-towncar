@@ -1137,6 +1137,14 @@ def _slot_chain_end(slot, target_date: date, take_later: bool = False) -> dateti
     return end
 
 
+def _base_span_legs(slots, target_date: date) -> list:
+    """The day's slots as feasibility_guards.base_span_min input: (pickup_dt,
+    pickup_category, clear_dt, dropoff_category). The clear is the board's estimate, the
+    same one the hour span (first pickup -> last clear) is measured on."""
+    return [(datetime.combine(target_date, s.pickup_time), s.pickup_category,
+             s.estimated_end_time, s.dropoff_category) for s in slots]
+
+
 def check_feasibility(
     driver_schedule: DriverDaySchedule,
     new_leg,
@@ -1235,10 +1243,23 @@ def check_feasibility(
         else:
             span_after = (new_end_dt - new_pickup_dt).total_seconds() / 3600
             span_before = 0.0
+        # A regular window with a ceiling (max_span_min) is also held base -> base: the
+        # day's span with and without the new leg. Hour windows never carry it, so the
+        # hour path computes nothing new.
+        base_after = base_before = None
+        if (driver_window.get("start_min") is not None
+                and driver_window.get("max_span_min") is not None):
+            day_legs = _base_span_legs(driver_schedule.slots, target_date)
+            kind = driver_window.get("kind")
+            base_before = fg.base_span_min(day_legs, kind)
+            base_after = fg.base_span_min(
+                day_legs + [(new_pickup_dt, new_pickup_cat, new_end_dt, new_dropoff_cat)], kind)
         ok, reason = fg.window_check(driver_window, new_leg.pickup_time, new_end_dt, span_after,
                                      target_date=target_date, span_hours_before=span_before,
                                      pickup_category=new_pickup_cat,
-                                     dropoff_category=new_dropoff_cat)
+                                     dropoff_category=new_dropoff_cat,
+                                     base_span_min_after=base_after,
+                                     base_span_min_before=base_before)
         if not ok:
             return FeasibilityResult(feasible=False, buffer_minutes=-999,
                                      reason=f"Outside driver window: {reason}")
@@ -2577,11 +2598,20 @@ def _chain_ok(driver_schedule, target_date, driver_window=None):
         first_pickup = datetime.combine(target_date, slots[0].pickup_time)
         last_end = max(s.estimated_end_time for s in slots)
         span = (last_end - first_pickup).total_seconds() / 3600
+        # The whole day's base -> base span, for a regular window with a ceiling. Like the
+        # hour span above it is the replayed day's total (no "before"): a day over the
+        # ceiling fails outright, exactly as max_hours does here.
+        base_span = None
+        if (driver_window.get("start_min") is not None
+                and driver_window.get("max_span_min") is not None):
+            base_span = fg.base_span_min(_base_span_legs(slots, target_date),
+                                         driver_window.get("kind"))
         for s in slots:
             ok, _ = fg.window_check(driver_window, s.pickup_time, s.estimated_end_time,
                                     span, target_date=target_date,
                                     pickup_category=s.pickup_category,
-                                    dropoff_category=s.dropoff_category)
+                                    dropoff_category=s.dropoff_category,
+                                    base_span_min_after=base_span)
             if not ok:
                 return False
     return True
