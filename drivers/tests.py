@@ -509,7 +509,7 @@ class DriverProfileEditTests(TestCase):
         })
         self.assertRedirects(resp, self._url())
         self.driver.refresh_from_db()
-        self.assertEqual(self.driver.phone_number, "4075551234")
+        self.assertEqual(self.driver.phone_number, "+14075551234")  # stored as E.164
         self.assertEqual(self.driver.notes, "Great driver.")
         self.assertEqual(self.driver.license_number, "D123-456-78-901-0")
         self.assertEqual(self.driver.license_status, "expired")
@@ -638,7 +638,7 @@ class DriverProfileEditTests(TestCase):
             "certified_vehicle_types": [str(self.sprinter.id)],
         })
         self.driver.refresh_from_db()
-        self.assertEqual(self.driver.phone_number, "4075559999")
+        self.assertEqual(self.driver.phone_number, "+14075559999")  # stored as E.164
         self.assertIn(self.sprinter, self.driver.certified_vehicle_types.all())
 
     def test_invalid_post_does_not_mutate_the_displayed_driver(self):

@@ -375,7 +375,7 @@ def unreviewed_flight_alerts(target_date):
         day_moved = leg.pickup_date_was is not None
         was = _fmt(leg.pickup_time_was) if leg.pickup_time_was else ""
         if day_moved:
-            was = f"{leg.pickup_date_was:%a %-d %b} {was}".strip()
+            was = f"{strf(leg.pickup_date_was, '%a %-d %b')} {was}".strip()
         aside_items.append({
             "when": _fmt(leg.pickup_time),
             "was": was,

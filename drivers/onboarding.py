@@ -6,6 +6,7 @@ for us, and whether it is there yet. Read-only: it never decides what a driver
 vehicle that needs one) — it just says what is still blank so the person doing
 the onboarding does not have to hunt through the page.
 """
+from business.datefmt import strf
 from drivers import paperwork, phones
 
 
@@ -25,7 +26,7 @@ def checklist(driver, today=None):
     if driver.has_login():
         if user.last_login:
             items.append(_item("login", "Driver app login", "done",
-                               f"last signed in {user.last_login:%b %-d}"))
+                               f"last signed in {strf(user.last_login, '%b %-d')}"))
         else:
             items.append(_item("login", "Driver app login", "partial",
                                "password set, has not signed in yet"))
@@ -35,7 +36,7 @@ def checklist(driver, today=None):
             when = invite.last_sent_at or invite.created_at
             how = {"sms": "texted", "email": "emailed", "link": "link copied"}.get(invite.sent_via, "sent")
             items.append(_item("login", "Driver app login", "partial",
-                               f"welcome link {how} {when:%b %-d}, not opened yet"))
+                               f"welcome link {how} {strf(when, '%b %-d')}, not opened yet"))
         else:
             items.append(_item("login", "Driver app login", "missing",
                                "no login yet — send a welcome link"))
@@ -67,7 +68,7 @@ def checklist(driver, today=None):
     items.append(_item("address", "Home address", "done" if driver.home_address else "missing",
                        driver.home_address))
     items.append(_item("hired_on", "Start date", "done" if driver.hired_on else "missing",
-                       f"{driver.hired_on:%b %-d, %Y}" if driver.hired_on else ""))
+                       strf(driver.hired_on, "%b %-d, %Y")))
 
     # 5. How we work with them.
     if driver.driver_type == "inhouse":
