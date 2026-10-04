@@ -57,7 +57,7 @@
   }
   .am-title { font-size: 2rem; font-weight: 500; letter-spacing: -0.5px; color: var(--gt-dark); margin: 0; line-height: 1.04; }
   .am-subtitle { font-size: .9rem; color: var(--gt-muted); margin: 7px 0 0; }
-  .am-head-actions { display: flex; gap: .5rem; }
+  .am-head-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
   .am-head-actions .btn {
     border-radius: var(--gt-radius-sm); font-weight: 500; font-size: .82rem;
     padding: .5rem .95rem;
@@ -889,6 +889,9 @@
     <div class="am-head-actions">
       <a href="{% url 'paypal_batch' %}" class="btn btn-outline-dark" title="One PayPal upload file for everyone paid by PayPal or Venmo">
         <i class="bi bi-paypal me-1"></i>PayPal &amp; Venmo batch
+      </a>
+      <a href="{% url 'agency_links' %}" class="btn btn-outline-dark" title="Agents who chose to be paid through their agency but aren't linked to it">
+        <i class="bi bi-diagram-2 me-1"></i>Agency links
       </a>
       <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-dark" title="Analytics: overview, agencies, agents">
         <i class="bi bi-graph-up me-1"></i>Analytics

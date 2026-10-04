@@ -1,0 +1,278 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}Agency Links{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* Same calm palette as Affiliate Management and the PayPal batch. */
+  :root {
+    --gt-bg: #F4F3EF;
+    --gt-surface: #F5F3ED;
+    --gt-gold: #C8A24A;
+    --gt-gold-ink: #7C5E16;
+    --gt-dark: #0F1B3D;
+    --gt-dark-2: #1C2B54;
+    --gt-border: #E7E5DD;
+    --gt-border-soft: #EFEDE6;
+    --gt-red-soft: #FBECEA;   --gt-red-ink: #8A2722;
+    --gt-amber: #B5791A; --gt-amber-soft: #FBF1DD; --gt-amber-ink: #7A4F0E;
+    --gt-green-soft: #E6F2EB; --gt-green-ink: #1E5A3F;
+    --gt-text: #1A1A1C;
+    --gt-muted: #5C5B56;
+    --gt-ink-3: #94928A;
+    --gt-radius: 14px;
+    --gt-radius-sm: 9px;
+    --gt-shadow-sm: 0 1px 2px rgba(15,27,61,0.04);
+    --gt-shadow-md: 0 1px 2px rgba(15,27,61,.04), 0 8px 24px -16px rgba(15,27,61,.18);
+  }
+
+  body { background: var(--gt-bg); }
+  .al {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    color: var(--gt-text); max-width: 1080px; margin: 0 auto;
+    padding: 28px 16px 110px; font-variant-numeric: tabular-nums;
+  }
+
+  .al-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .al-eyebrow { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gt-gold-ink); font-weight: 500; margin: 0 0 5px; }
+  .al-title { font-size: 2rem; font-weight: 500; letter-spacing: -0.5px; color: var(--gt-dark); margin: 0; line-height: 1.05; }
+  .al-sub { font-size: .9rem; color: var(--gt-muted); margin: 7px 0 0; max-width: 600px; }
+  .al-back {
+    display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; font-weight: 500;
+    color: var(--gt-text); text-decoration: none; background: #fff; border: 1px solid var(--gt-border);
+    border-radius: var(--gt-radius-sm); padding: .5rem .95rem; transition: border-color .15s ease, color .15s ease;
+  }
+  .al-back:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
+
+  .al-flash { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+  .al-flash li { border-radius: var(--gt-radius-sm); padding: 11px 14px; font-size: .88rem; display: flex; gap: 9px; background: #fff; border: 1px solid var(--gt-border); }
+  .al-flash li.success { background: var(--gt-green-soft); border-color: transparent; color: var(--gt-green-ink); }
+  .al-flash li.warning { background: var(--gt-amber-soft); border-color: transparent; color: var(--gt-amber-ink); }
+  .al-flash li.error   { background: var(--gt-red-soft);   border-color: transparent; color: var(--gt-red-ink); }
+
+  .al-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 10px; }
+  .al-stat {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); padding: 15px 17px;
+    box-shadow: var(--gt-shadow-sm); text-decoration: none; color: inherit; transition: box-shadow .15s ease;
+    animation: al-rise .35s ease both;
+  }
+  .al-stat:hover { box-shadow: var(--gt-shadow-md); }
+  .al-stat:nth-child(2) { animation-delay: .05s; }
+  .al-stat:nth-child(3) { animation-delay: .1s; }
+  .al-stat.primary { background: var(--gt-dark); border-color: var(--gt-dark); color: #fff; }
+  .al-stat-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--gt-muted); font-weight: 500; }
+  .al-stat.primary .al-stat-label { color: #A7B0C8; }
+  .al-stat-value { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.5px; margin-top: 6px; line-height: 1.1; }
+  .al-stat-meta { font-size: .78rem; color: var(--gt-ink-3); margin-top: 4px; }
+  .al-stat.primary .al-stat-meta { color: #8C96B4; }
+  .al-rule { font-size: .82rem; color: var(--gt-muted); margin: 0 0 26px; }
+  .al-rule i { color: var(--gt-gold-ink); }
+
+  .al-section { margin-top: 26px; animation: al-rise .4s ease both; animation-delay: .1s; }
+  .al-section-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+  .al-section h2 { font-size: 1.05rem; font-weight: 500; color: var(--gt-dark); margin: 0; }
+  .al-section-note { font-size: .8rem; color: var(--gt-ink-3); }
+  .al-list { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; }
+  .al-row {
+    display: grid; grid-template-columns: 28px minmax(0, 1.3fr) minmax(0, 1.5fr) 100px;
+    gap: 14px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--gt-border-soft); font-size: .88rem;
+  }
+  .al-row:first-child { border-top: 0; }
+  .al-row-head { background: var(--gt-surface); font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 500; padding-top: 9px; padding-bottom: 9px; }
+  .al-missing .al-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.3fr) 100px 170px; }
+  label.al-row { cursor: pointer; margin: 0; transition: background .12s ease; }
+  label.al-row:hover { background: #FCFBF8; }
+  .al-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--gt-dark); cursor: pointer; }
+  .al-link { color: var(--gt-text); font-weight: 500; text-decoration: none; border-bottom: 1px solid transparent; transition: color .15s ease, border-color .15s ease; }
+  .al-link:hover { color: var(--gt-dark); border-bottom-color: var(--gt-gold); }
+  .al-typed { display: block; font-size: .76rem; color: var(--gt-ink-3); margin-top: 2px; overflow-wrap: anywhere; }
+  .al-arrow { color: var(--gt-ink-3); margin-right: 6px; }
+  .al-warn { display: block; font-size: .76rem; color: var(--gt-amber-ink); margin-top: 2px; }
+  .al-amount { text-align: right; font-weight: 500; color: var(--gt-dark); }
+  .al-amount.zero { color: var(--gt-ink-3); font-weight: 400; }
+  .al-create { text-align: right; }
+  .al-create form { margin: 0; }
+  .al-btn-sm {
+    font: 500 .8rem 'Roboto', sans-serif; border-radius: var(--gt-radius-sm); padding: .4rem .75rem; cursor: pointer;
+    background: #fff; color: var(--gt-dark); border: 1px solid var(--gt-border); transition: border-color .15s ease;
+  }
+  .al-btn-sm:hover { border-color: var(--gt-dark); }
+
+  .al-bar {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+    display: flex; align-items: center; gap: 16px; padding: 10px 12px 10px 20px;
+    background: var(--gt-dark); color: #fff; border-radius: 14px; box-shadow: 0 14px 34px -14px rgba(15,27,61,.6);
+    font-size: .88rem; max-width: calc(100% - 32px);
+  }
+  .al-bar-btn {
+    font: 500 .88rem 'Roboto', sans-serif; border: 0; border-radius: var(--gt-radius-sm); padding: .6rem 1.1rem; cursor: pointer;
+    background: var(--gt-gold); color: var(--gt-dark); transition: background .15s ease;
+  }
+  .al-bar-btn:hover { background: #d6ae52; }
+  .al-bar-btn:disabled { background: #6b7590; color: #c9cede; cursor: not-allowed; }
+
+  .al-empty { background: #fff; border: 1px dashed var(--gt-border); border-radius: var(--gt-radius); padding: 30px 20px; text-align: center; color: var(--gt-muted); font-size: .92rem; }
+
+  @keyframes al-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .al-stat, .al-section { animation: none; } }
+
+  @media (max-width: 720px) {
+    .al-title { font-size: 1.6rem; }
+    .al-stats { grid-template-columns: 1fr; }
+    .al-row-head { display: none; }
+    .al-row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 4px 10px; }
+    .al-row > .al-target { grid-column: 2 / -1; grid-row: 2; }
+    .al-missing .al-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .al-missing .al-row > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .al-missing .al-row > .al-create { grid-column: 1 / -1; text-align: left; }
+    .al-bar { left: 16px; right: 16px; transform: none; justify-content: space-between; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="al">
+  <div class="al-head">
+    <div>
+      <p class="al-eyebrow">Payables</p>
+      <h1 class="al-title">Agency links</h1>
+      <p class="al-sub">Agents who chose to be paid through their agency, but aren't linked to it. Until they are, nobody can pay them. Linking moves their commission into the agency's payout.</p>
+    </div>
+    <a class="al-back" href="{% url 'affiliate_payments' %}"><i class="bi bi-arrow-left"></i>Affiliate Management</a>
+  </div>
+
+  {% if messages %}
+  <ul class="al-flash">
+    {% for message in messages %}
+    <li class="{{ message.tags }}"><i class="bi {% if message.tags == 'success' %}bi-check-circle{% elif message.tags == 'error' %}bi-x-circle{% else %}bi-exclamation-circle{% endif %}"></i><span>{{ message }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div class="al-stats">
+    <a class="al-stat primary" href="#ready">
+      <div class="al-stat-label">Ready to link</div>
+      <div class="al-stat-value">{{ ready|length }}</div>
+      <div class="al-stat-meta">${{ ready_total|floatformat:2|intcomma }} owed now</div>
+    </a>
+    <a class="al-stat" href="#check">
+      <div class="al-stat-label">Check first</div>
+      <div class="al-stat-value">{{ check|length }}</div>
+      <div class="al-stat-meta">${{ check_total|floatformat:2|intcomma }} owed now</div>
+    </a>
+    <a class="al-stat" href="#missing">
+      <div class="al-stat-label">Agency not in the system</div>
+      <div class="al-stat-value">{{ missing|length }}</div>
+      <div class="al-stat-meta">${{ missing_total|floatformat:2|intcomma }} owed now</div>
+    </a>
+  </div>
+  <p class="al-rule"><i class="bi bi-shield-check me-1"></i>Only agents who picked "Agency" as how they get paid. Anyone who picked Venmo, PayPal, or another method is paid directly and never shows here.</p>
+
+  {% if ready or check %}
+  <form method="post" id="al-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="link">
+
+    {% if ready %}
+    <section class="al-section" id="ready">
+      <div class="al-section-head">
+        <h2>Ready to link</h2>
+        <span class="al-section-note">Their agency is in the system under the name they gave. Ticked for you.</span>
+      </div>
+      <div class="al-list">
+        <div class="al-row al-row-head"><span></span><span>Agent</span><span>Link to</span><span class="al-amount">Owed now</span></div>
+        {% for p in ready %}{% include 'dispatching/_agency_link_row.html' with p=p checked=True %}{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if check %}
+    <section class="al-section" id="check">
+      <div class="al-section-head">
+        <h2>Check first</h2>
+        <span class="al-section-note">Close, but not an exact match. Tick the ones that are the same agency.</span>
+      </div>
+      <div class="al-list">
+        <div class="al-row al-row-head"><span></span><span>Agent</span><span>Probably</span><span class="al-amount">Owed now</span></div>
+        {% for p in check %}{% include 'dispatching/_agency_link_row.html' with p=p checked=False %}{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="al-bar">
+      <span id="al-count">0 selected</span>
+      <button type="submit" class="al-bar-btn" id="al-submit">Link selected</button>
+    </div>
+  </form>
+  {% endif %}
+
+  {% if missing %}
+  <section class="al-section al-missing" id="missing">
+    <div class="al-section-head">
+      <h2>Agency not in the system</h2>
+      <span class="al-section-note">Add the agency they typed and link them in one click. Then add how the agency gets paid.</span>
+    </div>
+    <div class="al-list">
+      <div class="al-row al-row-head"><span>Agent</span><span>Agency they typed</span><span class="al-amount">Owed now</span><span></span></div>
+      {% for p in missing %}
+      <div class="al-row">
+        <span><a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}">{{ p.agent.agent_name|default:p.agent.user.username }}</a></span>
+        <span>{{ p.typed|default:"(left blank)" }}</span>
+        <span class="al-amount{% if not p.owed %} zero{% endif %}">${{ p.owed|floatformat:2|intcomma }}</span>
+        <span class="al-create">
+          {% if p.typed %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <input type="hidden" name="agent" value="{{ p.agent.id }}">
+            <button type="submit" class="al-btn-sm"><i class="bi bi-plus-lg me-1"></i>Add agency &amp; link</button>
+          </form>
+          {% else %}
+          <a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}">Open profile</a>
+          {% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if not ready and not check and not missing %}
+  <div class="al-empty">Every agent who chose "Agency" is linked to their agency. Nothing to fix.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById('al-form');
+    if (!form) return;
+    var count = document.getElementById('al-count');
+    var submit = document.getElementById('al-submit');
+    function refresh() {
+      var n = form.querySelectorAll('input[name=pair]:checked').length;
+      count.textContent = n + ' selected';
+      submit.disabled = n === 0;
+      submit.textContent = n ? 'Link ' + n + ' agent' + (n === 1 ? '' : 's') : 'Link selected';
+    }
+    form.addEventListener('change', refresh);
+    form.addEventListener('submit', function (e) {
+      var n = form.querySelectorAll('input[name=pair]:checked').length;
+      if (!window.confirm('Link ' + n + ' agent' + (n === 1 ? '' : 's') + ' to their agency?\n\nTheir commission will be paid to the agency from now on.')) {
+        e.preventDefault();
+      }
+    });
+    refresh();
+  })();
+</script>
+{% endblock %}
