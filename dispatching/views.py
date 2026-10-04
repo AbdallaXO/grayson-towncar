@@ -6,6 +6,7 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
@@ -17267,10 +17268,75 @@ def get_driver_weekly_schedules(request):
     return JsonResponse({"success": True, "drivers": result})
 
 
+class _ScheduleInputError(ValueError):
+    """A bad value in a weekly-schedule save. Raised inside the save's
+    transaction so nothing from the request is kept."""
+
+
+# Weekly-schedule columns the save endpoint may write, each paired with the
+# Driver default a brand-new day row starts from. Anything not listed here —
+# including the structured-shift columns — is never written by the endpoint.
+_WEEKLY_SCHEDULE_FIELDS = {
+    "is_available":     None,
+    "shift_type":       "default_shift_type",
+    "start_hour":       "default_start_hour",
+    "end_hour":         "default_end_hour",
+    "flexible":         "default_flexible",
+    "max_hours":        "default_max_hours",
+    "preferred_shift":  "default_preferred_shift",
+    "preference":       "default_preference",
+    "scheduling_notes": None,
+}
+_DRIVER_DEFAULT_FIELDS = tuple(f for f in _WEEKLY_SCHEDULE_FIELDS.values() if f)
+
+
+def _clean_schedule_value(model, field, value, where):
+    """Validate one incoming schedule value. Hours are whole numbers 0–23, max
+    hours is blank or above 0 up to 24, flags are true/false, and text columns
+    go through the model field (choices, length)."""
+    if field.endswith(("start_hour", "end_hour")):
+        try:
+            if isinstance(value, (bool, float)):
+                raise ValueError
+            hour = int(value)
+        except (TypeError, ValueError):
+            raise _ScheduleInputError(f"{where}: {value!r} is not an hour.")
+        if not 0 <= hour <= 23:
+            raise _ScheduleInputError(f"{where}: hours must be 0 to 23, not {hour}.")
+        return hour
+    if field.endswith("max_hours"):
+        if value in (None, "", 0):
+            return None
+        try:
+            if isinstance(value, bool):
+                raise ValueError
+            hours = Decimal(str(value)).quantize(Decimal("0.1"))
+        except (ArithmeticError, ValueError):
+            raise _ScheduleInputError(f"{where}: {value!r} is not a number of hours.")
+        if not hours.is_finite() or not 0 < hours <= 24:
+            raise _ScheduleInputError(f"{where}: max hours must be above 0 and at most 24.")
+        return hours
+    if field in ("is_available", "flexible", "default_flexible"):
+        if not isinstance(value, bool):
+            raise _ScheduleInputError(f"{where}: {field.replace('_', ' ')} must be true or false.")
+        return value
+    try:
+        return model._meta.get_field(field).clean("" if value is None else value, None)
+    except ValidationError as exc:
+        raise _ScheduleInputError(f"{where}: {' '.join(exc.messages)}")
+
+
 @login_required
 @require_POST
 def save_driver_weekly_schedules(request):
-    """Save weekly schedule data for all inhouse drivers."""
+    """Save weekly schedule data for in-house drivers.
+
+    Partial update: only keys present in the payload are written — on the
+    driver's defaults and on each day row. The planner modal and the schedule
+    drawer each show a subset of the columns, and a key one of them doesn't
+    send must not be reset. The whole request is one transaction: any bad
+    value is a 400 and nothing is saved.
+    """
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
@@ -17279,56 +17345,77 @@ def save_driver_weekly_schedules(request):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
-    drivers_data = data.get("drivers", [])
+    day_names = dict(DriverWeeklySchedule.DAY_CHOICES)
     updated_count = 0
+    try:
+        with transaction.atomic():
+            for d_data in data.get("drivers") or []:
+                if not isinstance(d_data, dict):
+                    raise _ScheduleInputError("Each driver must be an object.")
+                driver_id = d_data.get("id")
+                if not driver_id:
+                    continue
+                try:
+                    driver = Driver.objects.get(id=int(driver_id), driver_type="inhouse")
+                except (TypeError, ValueError):
+                    raise _ScheduleInputError(f"{driver_id!r} is not a driver id.")
+                except Driver.DoesNotExist:
+                    continue
 
-    for d_data in drivers_data:
-        driver_id = d_data.get("id")
-        if not driver_id:
-            continue
+                driver_fields = []
+                for field in _DRIVER_DEFAULT_FIELDS:
+                    if field in d_data:
+                        setattr(driver, field, _clean_schedule_value(
+                            Driver, field, d_data[field], f"{driver}, defaults"))
+                        driver_fields.append(field)
+                if "notes" in d_data:
+                    driver.notes = (d_data["notes"] or "").strip() or None
+                    driver_fields.append("notes")
+                if driver_fields:
+                    driver.save(update_fields=driver_fields)
 
-        try:
-            driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
-        except Driver.DoesNotExist:
-            continue
+                for day_str, entry in (d_data.get("weekly") or {}).items():
+                    try:
+                        day = int(day_str)
+                    except (TypeError, ValueError):
+                        day = None
+                    if day not in day_names:
+                        raise _ScheduleInputError(f"{driver}: {day_str!r} is not a day of the week.")
+                    where = f"{driver}, {day_names[day]}"
+                    if not isinstance(entry, dict):
+                        raise _ScheduleInputError(f"{where}: the day's schedule must be an object.")
+                    changes = {
+                        field: _clean_schedule_value(DriverWeeklySchedule, field, entry[field], where)
+                        for field in _WEEKLY_SCHEDULE_FIELDS if field in entry
+                    }
 
-        # Update driver defaults + notes
-        driver.default_start_hour = int(d_data.get("default_start_hour", 6))
-        driver.default_end_hour = int(d_data.get("default_end_hour", 23))
-        driver.default_flexible = d_data.get("default_flexible", True)
-        driver.default_shift_type = d_data.get("default_shift_type", "full_day")
-        driver.default_max_hours = d_data.get("default_max_hours") or None
-        driver.default_preferred_shift = d_data.get("default_preferred_shift", "")
-        driver.default_preference = d_data.get("default_preference", "")
-        if "notes" in d_data:
-            driver.notes = d_data["notes"].strip() or None
-        driver.save(update_fields=[
-            "default_start_hour", "default_end_hour", "default_flexible",
-            "default_shift_type", "default_max_hours", "default_preferred_shift",
-            "default_preference", "notes",
-        ])
+                    row = DriverWeeklySchedule.objects.filter(driver=driver, day_of_week=day).first()
+                    if row is None:
+                        # The day has been running on the driver's defaults, so
+                        # start the row from them — an unsent key keeps meaning
+                        # what the board already showed.
+                        row = DriverWeeklySchedule(driver=driver, day_of_week=day, **{
+                            field: getattr(driver, default)
+                            for field, default in _WEEKLY_SCHEDULE_FIELDS.items() if default
+                        })
+                        row.shift_type = row.shift_type or "full_day"
 
-        # Update weekly entries
-        weekly = d_data.get("weekly", {})
-        for day_str, entry in weekly.items():
-            day = int(day_str)
-            mh = entry.get("max_hours")
-            DriverWeeklySchedule.objects.update_or_create(
-                driver=driver,
-                day_of_week=day,
-                defaults={
-                    "is_available": entry.get("is_available", True),
-                    "shift_type": entry.get("shift_type", "full_day"),
-                    "start_hour": int(entry.get("start_hour", 6)),
-                    "end_hour": int(entry.get("end_hour", 23)),
-                    "flexible": entry.get("flexible", True),
-                    "max_hours": float(mh) if mh else None,
-                    "preferred_shift": entry.get("preferred_shift", ""),
-                    "preference": entry.get("preference", ""),
-                    "scheduling_notes": entry.get("scheduling_notes", ""),
-                },
-            )
-        updated_count += 1
+                    # The board only reads a day as open/flexible when it is
+                    # full_day too (drivers/availability.py). The planner modal
+                    # has a Flex box but no shift type, so switching Flex on
+                    # without naming a type opens the day up.
+                    if changes.get("flexible") and not row.flexible and "shift_type" not in changes:
+                        changes["shift_type"] = "full_day"
+
+                    for field, value in changes.items():
+                        setattr(row, field, value)
+                    if row.pk is None:
+                        row.save()
+                    elif changes:
+                        row.save(update_fields=list(changes))
+                updated_count += 1
+    except _ScheduleInputError as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=400)
 
     return JsonResponse({"success": True, "message": f"Updated schedules for {updated_count} drivers"})
 

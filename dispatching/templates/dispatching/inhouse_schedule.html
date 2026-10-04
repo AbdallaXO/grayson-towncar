@@ -1836,34 +1836,28 @@
   // ── save (schedule + notes) ──────────────────────────────────────
   drawerSave.addEventListener('click', function() {
     if (!currentDriver) return;
+    // Only what this drawer edits is sent — the save endpoint leaves every key
+    // it doesn't receive alone (the driver's defaults, trip-type preference,
+    // scheduling notes).
     var weeklyPayload = {};
     draftWeek.forEach(function(d, i) {
       weeklyPayload[i] = {
         is_available:     d.is_available,
-        // Flexible drivers are full_day; everyone else is a fixed (custom)
-        // window. shift_type is derived from the flexible flag, never the
-        // reverse — see drivers/availability.py.
-        shift_type:       d.flexible ? 'full_day' : 'custom',
-        start_hour:       d.start_hour != null ? d.start_hour : 6,
-        end_hour:         d.end_hour   != null ? d.end_hour   : 23,
+        // Sent as the day already is. The on/off toggle and the Flexible box
+        // above keep it in step (flexible → full_day, fixed → custom), so a
+        // named shift nobody touched is never flattened by a save.
+        shift_type:       d.shift_type,
         flexible:         !!d.flexible,
         max_hours:        d.max_hours || null,
         preferred_shift:  d.preferred_shift || '',
-        preference:       d.preference || '',
-        scheduling_notes: d.scheduling_notes || '',
       };
+      if (d.start_hour != null) weeklyPayload[i].start_hour = d.start_hour;
+      if (d.end_hour   != null) weeklyPayload[i].end_hour   = d.end_hour;
     });
     var notesEl = document.getElementById('smAboutNotes');
     var payload = {
       drivers: [{
         id: currentDriver.id,
-        default_start_hour: 6,
-        default_end_hour: 23,
-        default_flexible: true,
-        default_shift_type: 'full_day',
-        default_max_hours: null,
-        default_preferred_shift: '',
-        default_preference: '',
         notes: notesEl ? notesEl.value : (currentDriver.notes || ''),
         weekly: weeklyPayload,
       }],
