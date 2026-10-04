@@ -28,16 +28,27 @@ PAYMENT_LABELS = {
     "agency": "Agency",
     "agency_handles_payment": "Agency pays",
 }
-_LONG_DIGITS = re.compile(r"\d{5,}")
+# Any number of 5+ digits, even typed with dashes or spaces inside ("2670-9059-
+# 12"), is shown only by its last four.
+_NUMBERISH = re.compile(r"\d(?:[\d\- ]*\d)?")
 
 
-def _for_audit(name, value):
-    """Audit text for a value, with account-number-length digit runs masked."""
+def _mask_numbers(text):
+    def one(m):
+        digits = re.sub(r"\D", "", m.group(0))
+        return f"••••{digits[-4:]}" if len(digits) >= 5 else m.group(0)
+    return _NUMBERISH.sub(one, text or "")
+
+
+def _for_audit(name, value, *, bank=False):
+    """Audit text for a value. Account numbers are masked; so are long numbers in
+    the payment notes of a bank agent. A PayPal email or Venmo phone stays readable,
+    since a changed handle is exactly what the log is for."""
     if value is None:
         return ""
     if name == "bank_account_number":
         return mask(str(value))
-    return _LONG_DIGITS.sub(lambda m: mask(m.group(0)), str(value)) if name == "payment_info" else str(value)
+    return _mask_numbers(str(value)) if name == "payment_info" and bank else str(value)
 
 
 class AgentProfileForm(forms.ModelForm):
@@ -123,12 +134,13 @@ class AgentProfileForm(forms.ModelForm):
             if "email" in changed:
                 agent.user.email = self.cleaned_data["email"]
                 agent.user.save(update_fields=["email"])
+            bank = "bank" in (before.payment_method, agent.payment_method)
             for name in changed:
                 old = before.user.email if name == "email" else getattr(before, name)
                 new = agent.user.email if name == "email" else getattr(agent, name)
                 AuditLog.objects.create(
                     model_name="TravelAgent", object_id=agent.pk, action="updated", field_name=name,
-                    old_value=_for_audit(name, old), new_value=_for_audit(name, new),
+                    old_value=_for_audit(name, old, bank=bank), new_value=_for_audit(name, new, bank=bank),
                     user=user, username=user.get_username() if user else "system",
                 )
         return [str(self.fields[n].label) if n in self.fields else PAYMENT_LABELS.get(n, n) for n in changed]
