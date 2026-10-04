@@ -1,0 +1,12 @@
+{# One payee's name on the PayPal batch page: links to their profile, and to their agency when they have one. #}
+<span class="pb-name">
+  {% if r.kind == 'agency' %}
+    <a class="pb-link" href="{% url 'admin_travel_agency_detail' r.id %}">{{ r.name }}</a><span class="pb-tag">Agency</span>
+  {% else %}
+    <a class="pb-link" href="{% url 'admin_travel_agent_detail' r.id %}">{{ r.name }}</a>
+    {% if r.agency_id %}
+    <a class="pb-agency-link" href="{% url 'admin_travel_agency_detail' r.agency_id %}"><i class="bi bi-building"></i>{{ r.agency_name }}</a>
+    {% endif %}
+  {% endif %}
+  {% if show_wallet %}<span class="pb-wallet {{ r.method }}">{% if r.method == 'venmo' %}Venmo{% else %}PayPal{% endif %}</span>{% endif %}
+</span>

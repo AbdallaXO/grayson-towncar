@@ -1,0 +1,5 @@
+{# "They chose": the payment method the agent picked, and anything they wrote in their payment details. #}
+<span class="al-chose">
+  <span class="al-method">{{ agent.get_payment_method_display|default:"Not set" }}</span>
+  {% if agent.payment_info %}<span class="al-typed" title="{{ agent.payment_info }}">{{ agent.payment_info|truncatechars:70 }}</span>{% endif %}
+</span>

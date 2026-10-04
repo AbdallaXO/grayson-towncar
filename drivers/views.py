@@ -7,6 +7,7 @@ from .models import (
     LegPayment,
     DriverPayoutAdjustment,
     DriverDateOverride,
+    DriverWeeklySchedule,
 )
 from .forms import DriverProfileForm, DriverLicenseDetailsForm, DriverPermitDetailsForm
 from .license_ocr import scan_license, is_expiration_plausible, is_date_of_birth_plausible
@@ -32,7 +33,7 @@ from django.contrib import messages
 from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, IntegerField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from drivers.utils import get_drive_time as google_drive_time
-from drivers.availability import format_shift_preference
+from drivers.availability import format_shift_preference, format_override_label, fmt_hour_long
 from drivers import paperwork
 from dispatching.scheduler import (
     estimate_job_end_time,
@@ -1347,14 +1348,30 @@ def driver_profile(request, driver_id):
         if hasattr(driver, "weekly_schedule") else []
     )
 
-    # Date overrides (day off / vacation / sick / etc.) within the next 30 days.
+    # Date overrides (day off / vacation / sick / etc.) touching the next 30
+    # days — including a range that started before today and is still running.
+    # Approved rows are live; pending ones are shown flagged so dispatch can see
+    # a request is waiting. Denied/cancelled never affect availability.
     upcoming_overrides = []
     if hasattr(driver, "date_overrides"):
         upcoming_overrides = list(
             driver.date_overrides
-            .filter(date__gte=today, date__lte=today + timedelta(days=30))
+            .filter(status__in=("approved", "pending"), date__lte=today + timedelta(days=30))
+            .filter(Q(date__gte=today) | Q(end_date__gte=today))
             .order_by("date")
         )
+        for override in upcoming_overrides:
+            override.label = format_override_label(override)
+
+    # Shown when no weekly schedule is set: "Full Day, 6 AM – 11 PM".
+    shift_type = driver.default_shift_type or "full_day"
+    schedule_defaults = "{}, {} – {}".format(
+        dict(DriverWeeklySchedule.SHIFT_TYPE_CHOICES).get(
+            shift_type, shift_type.replace("_", " ").title()
+        ),
+        fmt_hour_long(driver.default_start_hour),
+        fmt_hour_long(driver.default_end_hour),
+    )
 
     # Availability today (uses model helper if present).
     is_available_today = (
@@ -1404,6 +1421,7 @@ def driver_profile(request, driver_id):
         "last_payment": last_payment,
         "weekly_schedule": weekly_schedule,
         "upcoming_overrides": upcoming_overrides,
+        "schedule_defaults": schedule_defaults,
         "is_available_today": is_available_today,
         "comms_tiles": comms_tiles,
         "comms_window": comms_window,
@@ -2024,6 +2042,15 @@ def _parse_time(s):
         return None
 
 
+def _already_sent_message(existing):
+    """Flash text when a driver re-sends a request that's already in."""
+    where = "It's waiting for approval" if existing.status == "pending" else "It's already approved"
+    return (
+        f"You already sent a request for {existing.dates_label} (off {existing.off_hours}). "
+        f"{where}, so no need to send it again."
+    )
+
+
 @login_required(login_url="login")
 def request_timeoff(request):
     """GET: render the request form. POST: create a pending DriverDateOverride."""
@@ -2039,10 +2066,10 @@ def request_timeoff(request):
         notes = request.POST.get("notes", "").strip()[:200]
 
         if not start_date:
-            messages.error(request, "Please pick a start date.")
+            messages.error(request, "Pick the day you need off.")
             return redirect("driver_request_timeoff")
         if start_date < today:
-            messages.error(request, "Time-off requests must start today or later.")
+            messages.error(request, "That day has already passed. Pick today or later.")
             return redirect("driver_request_timeoff")
 
         if kind == "partial_day":
@@ -2050,10 +2077,10 @@ def request_timeoff(request):
             start_time = _parse_time(request.POST.get("start_time"))
             end_time = _parse_time(request.POST.get("end_time"))
             if not start_time or not end_time:
-                messages.error(request, "Please provide both a start and end time for a partial-day request.")
+                messages.error(request, "Pick both times: when you stop working and when you're back.")
                 return redirect("driver_request_timeoff")
             if end_time <= start_time:
-                messages.error(request, "End time must be after start time.")
+                messages.error(request, "Check the times: the second one has to be later than the first.")
                 return redirect("driver_request_timeoff")
             existing = DriverDateOverride.find_duplicate(
                 driver=driver, date=start_date, end_date=None,
@@ -2061,11 +2088,7 @@ def request_timeoff(request):
                 start_time=start_time, end_time=end_time,
             )
             if existing:
-                messages.info(
-                    request,
-                    f"You already have a request for {start_date.strftime('%b %d')} "
-                    f"({existing.get_status_display().lower()}). We didn't create another one.",
-                )
+                messages.info(request, _already_sent_message(existing))
                 return redirect("driver_my_timeoff_requests")
             override = DriverDateOverride.objects.create(
                 driver=driver,
@@ -2083,7 +2106,7 @@ def request_timeoff(request):
         else:
             # Full-day off, single day or range
             if end_date and end_date < start_date:
-                messages.error(request, "End date must be on or after start date.")
+                messages.error(request, "The last day off can't be before the first day off.")
                 return redirect("driver_request_timeoff")
             effective_end = end_date if (end_date and end_date != start_date) else None
             existing = DriverDateOverride.find_duplicate(
@@ -2091,12 +2114,7 @@ def request_timeoff(request):
                 exception_type="off",
             )
             if existing:
-                when = existing.date_range_display
-                messages.info(
-                    request,
-                    f"You already have a {existing.get_status_display().lower()} "
-                    f"request for {when}. We didn't create another one.",
-                )
+                messages.info(request, _already_sent_message(existing))
                 return redirect("driver_my_timeoff_requests")
             override = DriverDateOverride.objects.create(
                 driver=driver,
@@ -2122,7 +2140,7 @@ def request_timeoff(request):
         from drivers.context_processors import invalidate_pending_timeoff_count
         invalidate_pending_timeoff_count()
 
-        messages.success(request, "Time-off request submitted. You'll be notified once it's reviewed.")
+        messages.success(request, "Request sent. Dispatch will review it, and the answer will show here.")
         return redirect("driver_my_timeoff_requests")
 
     # GET — render the form. Surface any active (pending or approved)
@@ -2424,7 +2442,7 @@ def cancel_timeoff(request, override_id):
     driver = get_object_or_404(Driver, profile=request.user)
     override = get_object_or_404(DriverDateOverride, id=override_id, driver=driver)
     if override.status != "pending":
-        messages.error(request, "Only pending requests can be cancelled.")
+        messages.error(request, "Only requests still waiting for approval can be cancelled.")
     else:
         override.status = "cancelled"
         override.save(update_fields=["status", "updated_at"])

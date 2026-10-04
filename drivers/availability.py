@@ -357,6 +357,19 @@ def format_exception_badge(eff):
     return ""
 
 
+def format_override_label(override):
+    """Plain label for one DriverDateOverride row. Timed exceptions use the
+    board's badge wording ('Until 4 PM', 'Window 8 AM – 2:30 PM'); everything
+    else falls back to the type's display name ('Off (full day)')."""
+    badge = format_exception_badge({
+        "is_available": override.exception_type != "off",
+        "exception_type": override.exception_type,
+        "exception_start_time": override.start_time,
+        "exception_end_time": override.end_time,
+    })
+    return badge or override.get_exception_type_display()
+
+
 def availability_block_bands(eff, display_start, total_display_minutes):
     """UNAVAILABLE regions to shade on a driver timeline for a partial-day exception.
 

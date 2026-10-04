@@ -1,0 +1,16 @@
+{# One proposed agent → agency link on the Agency links page. #}
+{% load humanize %}
+<label class="al-row" data-search="{{ p.agent.agent_name|default:p.agent.user.username|lower }} {{ p.typed|lower }} {{ p.agency.name|lower }} {{ p.agent.payment_info|default:''|lower }}">
+  <input type="checkbox" name="pair" value="{{ p.agent.id }}:{{ p.agency.id }}"{% if checked %} checked{% endif %}>
+  <span>
+    <a class="al-link" href="{% url 'admin_travel_agent_detail' p.agent.id %}" onclick="event.stopPropagation();">{{ p.agent.agent_name|default:p.agent.user.username }}</a>
+    {% if p.typed %}<span class="al-typed">Typed: {{ p.typed }}</span>{% endif %}
+  </span>
+  {% include 'dispatching/_agency_link_chose.html' with agent=p.agent %}
+  <span class="al-target">
+    <i class="bi bi-arrow-right al-arrow"></i><a class="al-link" href="{% url 'admin_travel_agency_detail' p.agency.id %}" onclick="event.stopPropagation();">{{ p.agency.name }}</a>
+    {% if p.note %}<span class="al-typed">{{ p.note }}</span>{% endif %}
+    {% if p.agency_problem %}<span class="al-warn"><i class="bi bi-exclamation-triangle me-1"></i>{{ p.agency_problem }}</span>{% endif %}
+  </span>
+  <span class="al-amount{% if not p.owed %} zero{% endif %}">${{ p.owed|floatformat:2|intcomma }}</span>
+</label>

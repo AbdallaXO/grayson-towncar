@@ -4,6 +4,20 @@
   <head>
     {% include "drivers/_driver_head.html" %}
     <title>Request Time Off — Grayson Towncar</title>
+    <style>
+      /* Live read-back of what the driver is asking for, so the two times can't
+         be mistaken for working hours. Blue = all good, red = fix something. */
+      .timeoff-summary {
+        padding: 10px 12px; border-radius: var(--gt-radius-sm);
+        border-left: 3px solid var(--gt-blue);
+        background: color-mix(in srgb, var(--gt-blue) 8%, transparent);
+        color: var(--gt-text); font-size: 0.875rem; line-height: 1.45;
+      }
+      .timeoff-summary.is-warning {
+        border-left-color: var(--gt-red); color: var(--gt-red);
+        background: color-mix(in srgb, var(--gt-red) 8%, transparent);
+      }
+    </style>
   </head>
 
   <body>
@@ -12,15 +26,15 @@
     <div class="container-fluid" style="max-width:720px; padding:16px 12px;">
 
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">Time you can't work</h1>
+        <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">Request time off</h1>
         <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-btn gt-btn-ghost gt-btn-sm">
           <i class="bi bi-clock-history me-1"></i> My Requests
         </a>
       </div>
 
       <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 14px;">
-       If you need to request anytime off or any hours for a day you cant work please use this here instead of texting Ab or Ray. Texts get buried; this lands in the system, we'll
-        confirm it, and it shows on the schedule so you don't get scheduled over.
+        Need a day off or a few hours off? Send it here instead of texting. Once dispatch
+        approves it, you won't be booked during that time.
       </p>
 
       {% if messages %}
@@ -35,21 +49,17 @@
         <div class="gt-card mb-3" style="padding:12px 14px;border-left:3px solid #f59e0b;background:#fffbeb;">
           <div style="font-weight:700;font-size:0.875rem;color:#92400e;margin-bottom:6px;">
             <i class="bi bi-info-circle-fill me-1"></i>
-            You already have {{ active_overrides|length }} active request{{ active_overrides|length|pluralize }}
+            You already have {{ active_overrides|length }} request{{ active_overrides|length|pluralize }} in
           </div>
           <div style="font-size:0.8125rem;color:#78350f;line-height:1.5;">
-            Submitting again for the same dates won't create a duplicate — we'll just keep the existing one.
+            Sending the same day again won't make a copy.
           </div>
           <ul style="margin:8px 0 0;padding:0 0 0 18px;font-size:0.8125rem;color:#78350f;">
             {% for o in active_overrides %}
               <li style="margin-bottom:2px;">
-                <strong>{{ o.date_range_display }}</strong>
-                {% if o.exception_type == 'unavailable_window' %}
-                  ({{ o.start_time|time:"g:i A" }} – {{ o.end_time|time:"g:i A" }})
-                {% elif o.exception_type == 'off' %}
-                  all day
-                {% endif %}
-                — {{ o.get_status_display|lower }}
+                <strong>{{ o.dates_label }}</strong>
+                {% if o.off_hours %}— off {{ o.off_hours }}{% endif %}
+                — {% if o.status == 'pending' %}waiting for approval{% else %}approved{% endif %}
                 <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">view</a>
               </li>
             {% endfor %}
@@ -62,15 +72,15 @@
 
         <!-- Kind toggle -->
         <div class="mb-3">
-          <div class="gt-label">What kind of time off?</div>
+          <div class="gt-label">What do you need?</div>
           <div class="d-flex gap-2" role="group" id="kindGroup">
             <label class="gt-btn gt-btn-outline flex-fill" style="cursor:pointer;" data-kind-label="full_day">
               <input type="radio" name="kind" value="full_day" checked style="display:none;">
-              <i class="bi bi-calendar-x me-1"></i> Whole day(s)
+              <i class="bi bi-calendar-x me-1"></i> Whole day(s) off
             </label>
             <label class="gt-btn gt-btn-outline flex-fill" style="cursor:pointer;" data-kind-label="partial_day">
               <input type="radio" name="kind" value="partial_day" style="display:none;">
-              <i class="bi bi-clock me-1"></i> Part of a day
+              <i class="bi bi-clock me-1"></i> A few hours off
             </label>
           </div>
         </div>
@@ -78,35 +88,33 @@
         <!-- Dates -->
         <div class="row g-2 mb-3">
           <div class="col-12 col-md-6">
-            <div class="gt-label" for="start_date">Start date</div>
+            <label class="gt-label d-block" for="start_date" id="startDateLabel">First day off</label>
             <input type="date" name="start_date" id="start_date" class="gt-input" required
                    min="{{ today|date:'Y-m-d' }}">
           </div>
           <div class="col-12 col-md-6" id="endDateWrap">
-            <div class="gt-label" for="end_date">End date <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></div>
+            <label class="gt-label d-block" for="end_date">Last day off <span style="font-weight:400;color:var(--gt-text-secondary);">(leave blank if it's just one day)</span></label>
             <input type="date" name="end_date" id="end_date" class="gt-input"
                    min="{{ today|date:'Y-m-d' }}">
           </div>
         </div>
 
-        <!-- Partial-day time window (hidden by default) -->
-        <div class="row g-2 mb-3" id="partialWrap" style="display:none;">
-          <div class="col-6">
-            <div class="gt-label" for="start_time">From</div>
-            <input type="time" name="start_time" id="start_time" class="gt-input">
-          </div>
-          <div class="col-6">
-            <div class="gt-label" for="end_time">To</div>
-            <input type="time" name="end_time" id="end_time" class="gt-input">
-          </div>
-          <div class="col-12" style="font-size:0.75rem;color:var(--gt-text-secondary);margin-top:-2px;">
-            Partial-day requests are single-day only.
+        <!-- A few hours off: the hours they CAN'T work (hidden by default) -->
+        <div class="mb-3" id="partialWrap" style="display:none;">
+          <div class="gt-label" id="hoursLabel">I can't work from</div>
+          <div class="d-flex align-items-center gap-2" role="group" aria-labelledby="hoursLabel">
+            <input type="time" name="start_time" id="start_time" class="gt-input" aria-label="Can't work from">
+            <span style="color:var(--gt-text-secondary);font-size:0.875rem;">to</span>
+            <input type="time" name="end_time" id="end_time" class="gt-input" aria-label="Can't work until">
           </div>
         </div>
 
+        <!-- Read-back of the request, filled in by the script below -->
+        <div class="timeoff-summary mb-3" id="timeoffSummary" aria-live="polite" style="display:none;"></div>
+
         <!-- Reason -->
         <div class="mb-3">
-          <div class="gt-label" for="reason">Reason</div>
+          <label class="gt-label d-block" for="reason">Reason</label>
           <select name="reason" id="reason" class="gt-select">
             <option value="day_off">Day off</option>
             <option value="vacation">Vacation</option>
@@ -118,18 +126,18 @@
 
         <!-- Notes -->
         <div class="mb-3">
-          <div class="gt-label" for="notes">Notes <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></div>
+          <label class="gt-label d-block" for="notes">Notes <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></label>
           <textarea name="notes" id="notes" class="gt-input" rows="2" maxlength="200"
-                    placeholder="Anything we should know"></textarea>
+                    placeholder="Anything dispatch should know"></textarea>
         </div>
 
         <div style="font-size:0.75rem;color:var(--gt-text-secondary);margin-bottom:12px;">
           <i class="bi bi-info-circle me-1"></i>
-          Once you send it, check back on <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">My Requests</a> to see when it's been confirmed.
+          Dispatch will review it. You'll see the answer under <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">My Requests</a>.
         </div>
 
         <button type="submit" class="gt-btn gt-btn-primary gt-btn-block" id="timeoffSubmit">
-          <i class="bi bi-send me-1"></i> Send it
+          <i class="bi bi-send me-1"></i> Send request
         </button>
       </form>
     </div>
@@ -152,30 +160,80 @@
     </script>
 
     <script>
-      // Visual selection state for the kind radio + show/hide partial-day fields
+      // Kind toggle (whole days vs a few hours) + the live read-back sentence.
       (function() {
         const labels = document.querySelectorAll('#kindGroup label[data-kind-label]');
         const endDateWrap = document.getElementById('endDateWrap');
         const partialWrap = document.getElementById('partialWrap');
+        const startDateLabel = document.getElementById('startDateLabel');
+        const startDate = document.getElementById('start_date');
+        const endDate = document.getElementById('end_date');
         const startTime = document.getElementById('start_time');
         const endTime = document.getElementById('end_time');
+        const summary = document.getElementById('timeoffSummary');
+        let kind = 'full_day';
 
-        function applyKind(kind) {
+        // "2026-10-06" -> local-midnight Date (new Date("2026-10-06") would be UTC).
+        function parseDate(v) {
+          if (!v) return null;
+          const p = v.split('-');
+          return new Date(+p[0], +p[1] - 1, +p[2]);
+        }
+        function fmtDate(d) {
+          return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+        // "13:30" -> "1:30 PM", "09:00" -> "9 AM" — same as the rest of the app.
+        function fmtTime(v) {
+          const p = v.split(':'), h = +p[0], m = +p[1];
+          const h12 = h % 12 || 12, ampm = h < 12 ? 'AM' : 'PM';
+          return m ? h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm : h12 + ' ' + ampm;
+        }
+        function show(text, warning) {
+          summary.textContent = text || '';
+          summary.style.display = text ? '' : 'none';
+          summary.classList.toggle('is-warning', !!warning);
+        }
+
+        function update() {
+          const first = parseDate(startDate.value);
+          if (!first) return show('');
+          if (kind === 'partial_day') {
+            if (!startTime.value || !endTime.value) return show('');
+            // "HH:MM" strings compare correctly as text.
+            if (endTime.value <= startTime.value) {
+              return show('Check the times: the second one has to be later than the first.', true);
+            }
+            const from = fmtTime(startTime.value), to = fmtTime(endTime.value);
+            return show("You're off " + fmtDate(first) + ' from ' + from + ' to ' + to +
+                        '. You can still get trips before ' + from + ' and after ' + to + '.');
+          }
+          const last = parseDate(endDate.value);
+          if (last && last < first) return show("The last day off can't be before the first day off.", true);
+          if (!last || +last === +first) return show("You're off all day " + fmtDate(first) + '.');
+          const days = Math.round((last - first) / 86400000) + 1;
+          show("You're off all day " + fmtDate(first) + ' through ' + fmtDate(last) + ' (' + days + ' days).');
+        }
+
+        function applyKind(k) {
+          kind = k;
           labels.forEach(l => {
-            const active = l.dataset.kindLabel === kind;
+            const active = l.dataset.kindLabel === k;
             l.classList.toggle('gt-btn-dark', active);
             l.classList.toggle('gt-btn-outline', !active);
           });
-          if (kind === 'partial_day') {
+          if (k === 'partial_day') {
             partialWrap.style.display = '';
             endDateWrap.style.display = 'none';
-            document.getElementById('end_date').value = '';
+            endDate.value = '';
+            startDateLabel.textContent = 'Which day?';
             startTime.required = true; endTime.required = true;
           } else {
             partialWrap.style.display = 'none';
             endDateWrap.style.display = '';
+            startDateLabel.textContent = 'First day off';
             startTime.required = false; endTime.required = false;
           }
+          update();
         }
 
         labels.forEach(l => {
@@ -184,6 +242,10 @@
             input.checked = true;
             applyKind(input.value);
           });
+        });
+        [startDate, endDate, startTime, endTime].forEach(el => {
+          el.addEventListener('input', update);
+          el.addEventListener('change', update);
         });
         applyKind('full_day');
       })();

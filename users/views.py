@@ -1163,7 +1163,14 @@ class AgentDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     context_object_name = "agent"
 
     def test_func(self):
-        """Allow access to agency heads or the agent themselves."""
+        """Allow access to staff, agency heads, or the agent themselves.
+
+        Staff open this from the "Agent View" button on the dispatch-side
+        agent profile; the page is read-only, so seeing it as the agent does
+        is safe.
+        """
+        if self.request.user.is_staff:
+            return True
         agent = self.get_object()
         if self.request.user == agent.user:
             return True

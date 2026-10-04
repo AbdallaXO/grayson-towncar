@@ -1,0 +1,326 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}PayPal &amp; Venmo Batch{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Same calm palette as Affiliate Management, so the two read as one desk. */
+  :root {
+    --gt-bg: #F4F3EF;
+    --gt-surface: #F5F3ED;
+    --gt-gold: #C8A24A;
+    --gt-gold-ink: #7C5E16;
+    --gt-dark: #0F1B3D;
+    --gt-dark-2: #1C2B54;
+    --gt-border: #E7E5DD;
+    --gt-border-soft: #EFEDE6;
+    --gt-red: #B23A33;   --gt-red-soft: #FBECEA;   --gt-red-ink: #8A2722;
+    --gt-amber: #B5791A; --gt-amber-soft: #FBF1DD; --gt-amber-ink: #7A4F0E;
+    --gt-green: #2F7D5B; --gt-green-soft: #E6F2EB; --gt-green-ink: #1E5A3F;
+    --gt-text: #1A1A1C;
+    --gt-muted: #5C5B56;
+    --gt-ink-3: #94928A;
+    --gt-radius: 14px;
+    --gt-radius-sm: 9px;
+    --gt-shadow-sm: 0 1px 2px rgba(15,27,61,0.04);
+    --gt-shadow-md: 0 1px 2px rgba(15,27,61,.04), 0 8px 24px -16px rgba(15,27,61,.18);
+  }
+
+  body { background: var(--gt-bg); }
+  .pb {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    color: var(--gt-text); max-width: 1080px; margin: 0 auto;
+    padding: 28px 16px 64px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Header */
+  .pb-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+  .pb-eyebrow { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gt-gold-ink); font-weight: 500; margin: 0 0 5px; }
+  .pb-title { font-size: 2rem; font-weight: 500; letter-spacing: -0.5px; color: var(--gt-dark); margin: 0; line-height: 1.05; }
+  .pb-sub { font-size: .9rem; color: var(--gt-muted); margin: 7px 0 0; max-width: 560px; }
+  .pb-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .82rem; font-weight: 500; color: var(--gt-text); text-decoration: none;
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: .5rem .95rem; transition: border-color .15s ease, color .15s ease;
+  }
+  .pb-back:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
+
+  /* Flash messages, inline so the mark-paid outcome stays on screen */
+  .pb-flash { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+  .pb-flash li {
+    border-radius: var(--gt-radius-sm); padding: 11px 14px; font-size: .88rem;
+    border: 1px solid var(--gt-border); background: #fff;
+    display: flex; gap: 9px; align-items: flex-start;
+  }
+  .pb-flash li.success { background: var(--gt-green-soft); border-color: transparent; color: var(--gt-green-ink); }
+  .pb-flash li.warning { background: var(--gt-amber-soft); border-color: transparent; color: var(--gt-amber-ink); }
+  .pb-flash li.error   { background: var(--gt-red-soft);   border-color: transparent; color: var(--gt-red-ink); }
+
+  /* Who to pay: segmented switch */
+  .pb-groups {
+    display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 14px;
+    background: #fff; border: 1px solid var(--gt-border); border-radius: 12px; box-shadow: var(--gt-shadow-sm);
+  }
+  .pb-group {
+    display: flex; flex-direction: column; gap: 2px; min-width: 128px;
+    padding: 8px 14px; border-radius: 9px; text-decoration: none; color: var(--gt-text);
+    transition: background .15s ease, color .15s ease;
+  }
+  .pb-group:hover { background: var(--gt-surface); color: var(--gt-dark); }
+  .pb-group-label { font-size: .86rem; font-weight: 500; }
+  .pb-group-meta { font-size: .74rem; color: var(--gt-ink-3); }
+  .pb-group.is-active { background: var(--gt-dark); color: #fff; }
+  .pb-group.is-active .pb-group-meta { color: #A7B0C8; }
+
+  /* Summary + actions */
+  .pb-hero {
+    background: var(--gt-dark); color: #fff; border-radius: var(--gt-radius);
+    padding: 22px 24px; box-shadow: var(--gt-shadow-md);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 18px;
+    animation: pb-rise .35s ease both;
+  }
+  .pb-hero-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1px; color: #A7B0C8; font-weight: 500; }
+  .pb-hero-value { font-size: 2.1rem; font-weight: 500; letter-spacing: -0.8px; line-height: 1.1; margin-top: 6px; }
+  .pb-hero-meta { font-size: .8rem; color: #8C96B4; margin-top: 6px; }
+  .pb-hero-rule { height: 2px; width: 34px; background: var(--gt-gold); border-radius: 2px; margin-top: 12px; }
+  .pb-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pb-actions form { margin: 0; }
+  .pb-btn {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font: 500 .88rem 'Roboto', sans-serif; border-radius: var(--gt-radius-sm);
+    padding: .7rem 1.15rem; border: 1px solid transparent;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  }
+  .pb-btn:active { transform: translateY(1px); }
+  .pb-btn-gold { background: var(--gt-gold); color: var(--gt-dark); box-shadow: 0 6px 16px -10px rgba(200,162,74,.9); }
+  .pb-btn-gold:hover { background: #d6ae52; }
+  .pb-btn-ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.28); }
+  .pb-btn-ghost:hover { border-color: #fff; background: rgba(255,255,255,.06); }
+  .pb-btn-ghost.is-next { border-color: var(--gt-gold); box-shadow: 0 0 0 3px rgba(200,162,74,.25); }
+
+  /* Steps */
+  .pb-steps { list-style: none; padding: 0; margin: 16px 0 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .pb-steps li {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: 13px 14px; font-size: .84rem; color: var(--gt-muted); display: flex; gap: 10px;
+    animation: pb-rise .35s ease both;
+  }
+  .pb-steps li:nth-child(2) { animation-delay: .05s; }
+  .pb-steps li:nth-child(3) { animation-delay: .1s; }
+  .pb-steps strong { color: var(--gt-text); font-weight: 500; }
+  .pb-step-n {
+    flex: none; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--gt-surface); color: var(--gt-dark); font-size: .75rem; font-weight: 500;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Payee lists */
+  .pb-section { margin-top: 8px; animation: pb-rise .4s ease both; animation-delay: .1s; }
+  .pb-section + .pb-section { margin-top: 30px; }
+  .pb-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  .pb-section h2 { font-size: 1.05rem; font-weight: 500; color: var(--gt-dark); margin: 0; }
+  .pb-section-note { font-size: .8rem; color: var(--gt-ink-3); }
+  .pb-list { background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: var(--gt-shadow-sm); overflow: hidden; }
+  .pb-row {
+    display: grid; grid-template-columns: minmax(0, 1.4fr) 92px minmax(0, 1.5fr) 110px;
+    gap: 14px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--gt-border-soft);
+    font-size: .88rem;
+  }
+  .pb-row:first-child { border-top: 0; }
+  .pb-row.pb-row-head { background: var(--gt-surface); font-size: .68rem; text-transform: uppercase; letter-spacing: .9px; color: var(--gt-muted); font-weight: 500; padding-top: 9px; padding-bottom: 9px; }
+  .pb-name { font-weight: 500; color: var(--gt-text); min-width: 0; overflow-wrap: anywhere; }
+  .pb-link { color: var(--gt-text); text-decoration: none; border-bottom: 1px solid transparent; transition: color .15s ease, border-color .15s ease; }
+  .pb-link:hover { color: var(--gt-dark); border-bottom-color: var(--gt-gold); }
+  .pb-agency-link {
+    display: flex; align-items: center; gap: 5px; width: fit-content; margin-top: 2px;
+    font-size: .76rem; font-weight: 400; color: var(--gt-muted); text-decoration: none;
+    transition: color .15s ease;
+  }
+  .pb-agency-link:hover { color: var(--gt-gold-ink); }
+  .pb-tag { display: inline-block; margin-left: 6px; font-size: .66rem; letter-spacing: .6px; text-transform: uppercase; color: var(--gt-gold-ink); font-weight: 500; }
+  .pb-wallet { display: inline-block; font-size: .72rem; font-weight: 500; padding: 3px 9px; border-radius: 999px; background: var(--gt-surface); color: var(--gt-dark); }
+  .pb-wallet.venmo { background: #E8F1FB; color: #1D4F86; }
+  .pb-recipient { font-family: 'Roboto Mono', ui-monospace, monospace; font-size: .8rem; color: var(--gt-muted); min-width: 0; overflow-wrap: anywhere; }
+  .pb-via { display: block; font-family: 'Roboto', sans-serif; font-size: .72rem; color: var(--gt-ink-3); margin-top: 2px; }
+  .pb-amount { text-align: right; font-weight: 500; color: var(--gt-dark); }
+
+  .pb-skip .pb-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.6fr) 90px; }
+  .pb-said { font-size: .8rem; color: var(--gt-muted); white-space: pre-line; overflow-wrap: anywhere; max-height: 4.2em; overflow: hidden; }
+  .pb-problem { font-size: .82rem; color: var(--gt-amber-ink); }
+  .pb-fix { text-align: right; }
+  .pb-fix a { font-size: .82rem; font-weight: 500; color: var(--gt-dark); text-decoration: none; border-bottom: 1px solid var(--gt-gold); }
+  .pb-fix a:hover { color: var(--gt-gold-ink); }
+
+  .pb-empty { background: #fff; border: 1px dashed var(--gt-border); border-radius: var(--gt-radius); padding: 34px 20px; text-align: center; color: var(--gt-muted); font-size: .92rem; }
+
+  @keyframes pb-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .pb-hero, .pb-steps li, .pb-section { animation: none; } }
+
+  @media (max-width: 720px) {
+    .pb-title { font-size: 1.6rem; }
+    .pb-steps { grid-template-columns: 1fr; }
+    .pb-groups { display: flex; }
+    .pb-group { flex: 1; min-width: 0; padding: 8px 10px; }
+    .pb-actions, .pb-actions form, .pb-btn { width: 100%; }
+    .pb-btn { justify-content: center; }
+    .pb-row.pb-row-head { display: none; }
+    .pb-row, .pb-skip .pb-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+    .pb-row .pb-amount { grid-column: 2; grid-row: 1; }
+    .pb-row .pb-wallet-cell { grid-column: 2; grid-row: 2; text-align: right; }
+    .pb-row .pb-recipient { grid-column: 1; grid-row: 2; }
+    .pb-skip .pb-row > * { grid-column: 1 / -1; grid-row: auto; text-align: left; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="pb">
+  <div class="pb-head">
+    <div>
+      <p class="pb-eyebrow">Payables</p>
+      <h1 class="pb-title">PayPal &amp; Venmo batch</h1>
+      <p class="pb-sub">One file pays every agent and agency owed money by PayPal or Venmo. You upload it once in PayPal.</p>
+    </div>
+    <a class="pb-back" href="{% url 'affiliate_payments' %}"><i class="bi bi-arrow-left"></i>Affiliate Management</a>
+  </div>
+
+  {% if messages %}
+  <ul class="pb-flash">
+    {% for message in messages %}
+    <li class="{{ message.tags }}">
+      <i class="bi {% if message.tags == 'success' %}bi-check-circle{% elif message.tags == 'error' %}bi-x-circle{% else %}bi-exclamation-circle{% endif %}"></i>
+      <span>{{ message }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <nav class="pb-groups" aria-label="Who to pay">
+    {% for g in groups %}
+    <a href="{% url 'paypal_batch' %}{% if g.key != 'all' %}?who={{ g.key }}{% endif %}"
+       class="pb-group{% if g.active %} is-active{% endif %}"{% if g.active %} aria-current="page"{% endif %}>
+      <span class="pb-group-label">{{ g.label }}</span>
+      <span class="pb-group-meta">{{ g.count }} &middot; ${{ g.total|floatformat:2|intcomma }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  {% if rows %}
+  <div class="pb-hero">
+    <div>
+      <div class="pb-hero-label">Ready to send{% if who != 'all' %} &middot; {{ who_label }} only{% endif %}</div>
+      <div class="pb-hero-value">${{ total|floatformat:2|intcomma }}</div>
+      <div class="pb-hero-meta">
+        {{ rows|length }} payee{{ rows|length|pluralize }} &middot; {{ paypal_count }} PayPal &middot; {{ venmo_count }} Venmo &middot; as of {{ made_at|slice:"11:" }}
+      </div>
+      <div class="pb-hero-rule"></div>
+    </div>
+    <div class="pb-actions">
+      <form method="post" id="pb-download">
+        {% csrf_token %}
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="who" value="{{ who }}">
+        <input type="hidden" name="action" value="download">
+        <button type="submit" class="pb-btn pb-btn-gold"><i class="bi bi-download"></i>Download file</button>
+      </form>
+      <form method="post" id="pb-mark"
+            data-confirm="Only do this after PayPal shows the batch as sent.&#10;&#10;Mark {{ rows|length }} payee{{ rows|length|pluralize }} paid (${{ total|floatformat:2|intcomma }})?">
+        {% csrf_token %}
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="who" value="{{ who }}">
+        <input type="hidden" name="action" value="mark_paid">
+        <button type="submit" class="pb-btn pb-btn-ghost" id="pb-mark-btn"><i class="bi bi-check2-all"></i>Mark these paid</button>
+      </form>
+    </div>
+  </div>
+
+  <ol class="pb-steps">
+    <li><span class="pb-step-n">1</span><span><strong>Download the file.</strong> It holds exactly the list below.</span></li>
+    <li><span class="pb-step-n">2</span><span><strong>Upload it in PayPal</strong> under Payouts. Review and send.</span></li>
+    <li><span class="pb-step-n">3</span><span><strong>Come back and mark them paid.</strong> Anyone whose amount moved in between is left for you to check.</span></li>
+  </ol>
+
+  <section class="pb-section">
+    <div class="pb-section-head">
+      <h2>In the file</h2>
+      <span class="pb-section-note">PayPal pays Venmo by phone or email, so @handles use the phone on their profile. Venmo payments are sent private.</span>
+    </div>
+    <div class="pb-list">
+      <div class="pb-row pb-row-head"><span>Payee</span><span>Wallet</span><span>Sends to</span><span class="pb-amount">Amount</span></div>
+      {% for r in rows %}
+      <div class="pb-row">
+        {% include 'dispatching/_paypal_batch_name.html' with r=r show_wallet=False %}
+        <span class="pb-wallet-cell"><span class="pb-wallet {{ r.method }}">{% if r.method == 'venmo' %}Venmo{% else %}PayPal{% endif %}</span></span>
+        <span class="pb-recipient">
+          {{ r.recipient_display }}
+          {% if r.handle %}<span class="pb-via">Venmo {{ r.handle }} &middot; phone on their profile</span>{% endif %}
+        </span>
+        <span class="pb-amount">${{ r.amount|floatformat:2|intcomma }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <div class="pb-empty">
+    {% if skipped %}Nothing ready for the file yet. Fix the handles below and they'll show up here.{% elif who == 'agents' %}No agents paid by PayPal or Venmo are owed money right now.{% elif who == 'agencies' %}No agencies paid by PayPal or Venmo are owed money right now.{% else %}Nobody paid by PayPal or Venmo is owed money right now.{% endif %}
+  </div>
+  {% endif %}
+
+  {% if skipped %}
+  <section class="pb-section pb-skip">
+    <div class="pb-section-head">
+      <h2>Left out: handle needs fixing</h2>
+      <span class="pb-section-note">{{ skipped|length }} payee{{ skipped|length|pluralize }}, ${{ skipped_total|floatformat:2|intcomma }} owed. Fix the profile, then refresh.</span>
+    </div>
+    <div class="pb-list">
+      <div class="pb-row pb-row-head"><span>Payee</span><span>What they saved</span><span>Problem</span><span class="pb-fix">&nbsp;</span></div>
+      {% for r in skipped %}
+      <div class="pb-row">
+        {% include 'dispatching/_paypal_batch_name.html' with r=r show_wallet=True %}
+        <span class="pb-said">{{ r.payment_info|default:"(nothing)" }}</span>
+        <span class="pb-problem">{{ r.problem }}</span>
+        <span class="pb-fix">
+          {% if r.kind == 'agency' %}<a href="{% url 'admin_travel_agency_detail' r.id %}">Fix</a>{% else %}<a href="{% url 'admin_travel_agent_detail' r.id %}">Fix</a>{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var mark = document.getElementById('pb-mark');
+    var download = document.getElementById('pb-download');
+    if (mark) {
+      mark.addEventListener('submit', function (e) {
+        if (!window.confirm(mark.dataset.confirm)) { e.preventDefault(); return; }
+        var btn = document.getElementById('pb-mark-btn');
+        btn.disabled = true;
+        btn.textContent = 'Marking paid…';
+      });
+    }
+    if (download) {
+      // The file downloads in place; nudge toward step 3 once it has.
+      download.addEventListener('submit', function () {
+        var btn = document.getElementById('pb-mark-btn');
+        if (btn) btn.classList.add('is-next');
+      });
+    }
+  })();
+</script>
+{% endblock %}
