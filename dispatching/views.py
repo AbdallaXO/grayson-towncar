@@ -17181,7 +17181,8 @@ def get_scheduler_settings(request):
 @login_required(login_url="login")
 def update_scheduler_settings(request):
     """Update scheduler tuning parameters. Accepts JSON body with field:value pairs.
-    Send {"reset": true} to reset all values to defaults."""
+    Send {"reset": true} to reset all values to defaults. Neither path ever
+    writes SchedulerSettings.GUARDED_FIELDS (the regular-shift switch)."""
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
@@ -17193,6 +17194,9 @@ def update_scheduler_settings(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
     from dispatching.models import SchedulerSettings
+    # Write from a fresh read, not this process's cached copy (another worker may
+    # have changed the row since), and save only the fields this request names.
+    SchedulerSettings.clear_cache()
     settings = SchedulerSettings.get_settings()
 
     if data.get("reset"):
@@ -17210,7 +17214,8 @@ def update_scheduler_settings(request):
     updated = []
 
     for field_name, value in data.items():
-        if field_name not in valid_fields:
+        # Guarded fields (the regular-shift switch) belong to their own page.
+        if field_name not in valid_fields or field_name in SchedulerSettings.GUARDED_FIELDS:
             continue
         try:
             # FloatFields (load_balance_exponent, span_exception_max_hours) take
@@ -17226,7 +17231,7 @@ def update_scheduler_settings(request):
         updated.append(field_name)
 
     if updated:
-        settings.save()
+        settings.save(update_fields=updated)
         SchedulerSettings.clear_cache()
 
     return JsonResponse({

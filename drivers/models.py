@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
@@ -6,6 +8,16 @@ from reservations.models import Leg
 from decimal import Decimal
 from datetime import timedelta
 from business.datefmt import strf
+
+
+#: Django-cache key for drivers.regular_shifts.templates_by_id() ({id: ShiftTemplate}).
+#: Anything that saves a ShiftTemplate deletes it.
+SHIFT_TEMPLATES_CACHE_KEY = "drivers:shift_templates"
+
+
+def _time_minutes(t):
+    """time(4, 10) -> 250 (minutes after midnight)."""
+    return t.hour * 60 + t.minute
 
 
 class Driver(models.Model):
@@ -128,6 +140,43 @@ class Driver(models.Model):
     night_bonus = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal("10.00"),
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
+    )
+
+    # ── Shift facts (structured shifts, Stage 1) ──────────────────────────────
+    # Hard limits a regular shift may never break, and the stamp that says a
+    # manager has confirmed the per-day regular shift on DriverWeeklySchedule
+    # (shift_template / shift_start / shift_end). All optional: blank means no
+    # limit. The logic lives in drivers/regular_shifts.py.
+    hard_earliest_start = models.TimeField(
+        null=True, blank=True,
+        help_text="The earliest this driver will ever leave base. Blank = no limit.",
+    )
+    hard_latest_finish = models.TimeField(
+        null=True, blank=True,
+        help_text="The latest this driver will ever be back at base. Blank = no limit.",
+    )
+    hard_latest_finish_next_day = models.BooleanField(
+        default=False,
+        help_text="Tick when the latest finish above is after midnight, e.g. 1 AM the next day.",
+    )
+    max_days_per_week = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(7)],
+        help_text="The most days a week this driver works (1-7). Blank = no limit.",
+    )
+    extra_shift_days = models.JSONField(
+        default=list, blank=True,
+        help_text="Weekdays this driver is open to an extra shift, 0 = Monday to 6 = Sunday. "
+                  "Empty = not open to extra shifts.",
+    )
+    regular_shift_confirmed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When a manager confirmed this driver's regular shift. Blank = no regular "
+                  "shift yet. A week where every day is Off still counts as confirmed.",
+    )
+    regular_shift_confirmed_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="The manager who confirmed this driver's regular shift.",
     )
 
     # ── Onboarding & personal details ─────────────────────────────────────────
@@ -452,6 +501,24 @@ class Driver(models.Model):
         """
         return self.get_effective_availability(target_date)
 
+    # ── Shift facts helpers ──────────────────────────────────────────────────
+    @property
+    def has_regular_shift(self):
+        """True once a manager has confirmed this driver's regular shift."""
+        return self.regular_shift_confirmed_at is not None
+
+    def hard_window_minutes(self):
+        """(earliest start, latest finish) in minutes after midnight, None where
+        blank. A latest finish flagged next-day gets +1440 (1 AM -> 1500)."""
+        earliest = (_time_minutes(self.hard_earliest_start)
+                    if self.hard_earliest_start is not None else None)
+        latest = None
+        if self.hard_latest_finish is not None:
+            latest = _time_minutes(self.hard_latest_finish)
+            if self.hard_latest_finish_next_day:
+                latest += 1440
+        return earliest, latest
+
     # ── Vehicle capability + preference helpers ──────────────────────────────
     def can_drive(self, vehicle_type):
         """True if this driver may be assigned the given rates.Vehicle (type).
@@ -508,6 +575,84 @@ class Driver(models.Model):
         if self.profile.first_name:
             return f"{self.profile.first_name} {self.profile.last_name}"
         return self.profile.username
+
+
+class ShiftTemplate(models.Model):
+    """One of the three regular-shift shapes: Morning, Midday or Evening.
+
+    The start and end bands are targets, not limits (U11): a regular shift
+    outside them is allowed with a warning. max_span_minutes is the hard
+    ceiling — no regular-shift day may run longer, base to base, and it can
+    never be set past 720 (12 hours). An end band whose latest time is earlier
+    than its earliest runs past midnight (Evening is back 8 PM–2:15 AM).
+    Seeded by drivers 0063 from §3 of
+    docs/scheduling-redesign/07_STRUCTURED_SHIFTS_DESIGN.md.
+    """
+    KIND_CHOICES = [
+        ("morning", "Morning"),
+        ("midday", "Midday"),
+        ("evening", "Evening"),
+    ]
+
+    kind = models.CharField(
+        max_length=12, choices=KIND_CHOICES, unique=True,
+        help_text="Which shape this is: Morning, Midday or Evening.",
+    )
+    name = models.CharField(max_length=40, help_text="The name dispatchers see.")
+    start_earliest = models.TimeField(help_text="Earliest usual time to leave base.")
+    start_latest = models.TimeField(help_text="Latest usual time to leave base.")
+    end_earliest = models.TimeField(help_text="Earliest usual time to be back at base.")
+    end_latest = models.TimeField(
+        help_text="Latest usual time to be back at base. Earlier than the earliest "
+                  "means the next day.",
+    )
+    max_span_minutes = models.PositiveSmallIntegerField(
+        default=720,
+        validators=[MinValueValidator(60), MaxValueValidator(720)],
+        help_text="Longest a regular shift of this shape may run, base to base, in "
+                  "minutes. Never more than 720 (12 hours).",
+    )
+    notes = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="What the trip data shows for this shape, for whoever tunes it.",
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["sort_order"]
+
+    def clean(self):
+        super().clean()
+        if (self.start_earliest is not None and self.start_latest is not None
+                and self.start_earliest > self.start_latest):
+            raise ValidationError({
+                "start_latest": "The latest start can't be earlier than the earliest start.",
+            })
+
+    def start_band_minutes(self):
+        """(earliest, latest) start in minutes after midnight."""
+        return _time_minutes(self.start_earliest), _time_minutes(self.start_latest)
+
+    def end_band_minutes(self):
+        """(earliest, latest) end in minutes after midnight; a latest end earlier
+        than the earliest is the next day (+1440)."""
+        earliest, latest = _time_minutes(self.end_earliest), _time_minutes(self.end_latest)
+        if latest < earliest:
+            latest += 1440
+        return earliest, latest
+
+    def band_label(self):
+        """'leaves 3 AM–6 AM, back 12 PM–4 PM'."""
+        from drivers.availability import fmt_time_long
+        return (f"leaves {fmt_time_long(self.start_earliest)}–{fmt_time_long(self.start_latest)}, "
+                f"back {fmt_time_long(self.end_earliest)}–{fmt_time_long(self.end_latest)}")
+
+    def __str__(self):
+        return self.name
 
 
 class DriverWeeklySchedule(models.Model):
@@ -577,9 +722,41 @@ class DriverWeeklySchedule(models.Model):
         help_text="Short note visible to dispatchers on the schedule board."
     )
 
+    # ── Regular shift (structured shifts, Stage 1) ──
+    # Kept apart from the legacy fields above on purpose: new code never rewrites
+    # is_available / shift_type / start_hour / end_hour / flexible on an existing
+    # row, so what auto-assign reads with the regular-shift switch off cannot move.
+    # Only counts once the driver's regular_shift_confirmed_at is set.
+    shift_template = models.ForeignKey(
+        ShiftTemplate, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="weekly_rows",
+        help_text="This day's regular shift: Morning, Midday or Evening. Blank = Off.",
+    )
+    shift_start = models.TimeField(
+        null=True, blank=True,
+        help_text="When this day's regular shift leaves base.",
+    )
+    shift_end = models.TimeField(
+        null=True, blank=True,
+        help_text="When this day's regular shift is back at base. At or before the start "
+                  "means the next day.",
+    )
+
     class Meta:
         unique_together = ("driver", "day_of_week")
         ordering = ["driver", "day_of_week"]
+
+    def regular_minutes(self):
+        """(start, end) of this day's regular shift in minutes after midnight, the
+        end +1440 when it is at or before the start (14:15–02:15 -> (855, 1575)).
+        None when the day is Off or a time is missing. Reads shift_template_id
+        only, so it never costs a query."""
+        if self.shift_template_id is None or self.shift_start is None or self.shift_end is None:
+            return None
+        start, end = _time_minutes(self.shift_start), _time_minutes(self.shift_end)
+        if end <= start:
+            end += 1440
+        return start, end
 
     def __str__(self):
         day_name = dict(self.DAY_CHOICES).get(self.day_of_week, "?")

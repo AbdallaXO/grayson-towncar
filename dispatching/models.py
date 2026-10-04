@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
@@ -5,6 +6,12 @@ from django.db import models
 # Module-level cache for the singleton — avoids repeated DB queries
 # during a single scheduling operation (cleared after save or manually).
 _settings_cache = None
+
+# Django-cache key holding SchedulerSettings.regular_shift_windows for
+# drivers.regular_shifts.regular_windows_on(). Shared by every worker (the
+# per-process _settings_cache above is not), so a flip reaches all of them
+# within its 60s life. Every writer deletes it; so does clear_cache().
+REGULAR_WINDOWS_CACHE_KEY = "scheduler:regular_shift_windows"
 
 
 class SchedulerSettings(models.Model):
@@ -261,6 +268,22 @@ class SchedulerSettings(models.Model):
         help_text="Day-Builder quality weight [assumed]: hours of internal "
                   "idle gaps above the idle-gap threshold. Tie-break only.")
 
+    # ── Regular shifts (structured shifts, Stage 1) ───────────────
+    # Written ONLY by the Regular Shifts page (drivers.regular_shifts.
+    # set_regular_windows, a filter().update()), and read through
+    # regular_windows_on(). GUARDED_FIELDS keeps the generic settings endpoint
+    # and "Reset to defaults" from ever touching it — including from a stale
+    # process-cached row (production runs several workers).
+    regular_shift_windows = models.BooleanField(
+        default=False,
+        help_text="Auto-assign reads each driver's hours from their confirmed regular "
+                  "shift instead of the old fixed table. Turned on from the Regular "
+                  "Shifts page once every driver has one.")
+
+    #: Fields only their own page may write: never set by the generic settings
+    #: endpoint, never reset by reset_to_defaults().
+    GUARDED_FIELDS = frozenset({"regular_shift_windows"})
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")
@@ -280,16 +303,23 @@ class SchedulerSettings(models.Model):
 
     @classmethod
     def clear_cache(cls):
-        """Clear the in-memory cache (call after saving settings)."""
+        """Clear the in-memory cache (call after saving settings), and the shared
+        cached copy of the regular-shift switch."""
         global _settings_cache
         _settings_cache = None
+        cache.delete(REGULAR_WINDOWS_CACHE_KEY)
 
     def reset_to_defaults(self):
-        """Reset all fields to their model-defined defaults."""
+        """Reset all fields to their model-defined defaults, except GUARDED_FIELDS.
+        Saves only the fields it reset, so a guarded value is never written back."""
+        reset = []
         for field in self._meta.get_fields():
+            if field.name in self.GUARDED_FIELDS:
+                continue
             if hasattr(field, 'default') and field.default is not models.NOT_PROVIDED:
                 setattr(self, field.name, field.default)
-        self.save()
+                reset.append(field.name)
+        self.save(update_fields=reset)
         SchedulerSettings.clear_cache()
 
     def to_dict(self):
