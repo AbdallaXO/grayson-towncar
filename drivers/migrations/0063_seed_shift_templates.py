@@ -7,8 +7,11 @@ Midday's end band (3 PM) and of Evening's end band (8 PM). Every shape is
 capped at 12 hours base to base. The bands are targets a manager can tune on
 the Shift Templates page; a regular shift outside them only gets a warning.
 
-Forwards never overwrites a shape that is already there. Backwards removes the
-three seeded shapes (it refuses while a weekly row still points at one).
+Forwards never overwrites a shape that is already there. Backwards leaves the
+shapes in place: a weekly row may point at one (the link is PROTECT), so
+deleting them would either fail or wipe managers' regular shifts. Re-running
+forwards is then a no-op, and reversing drivers 0062 drops the table along with
+every link to it.
 """
 from datetime import time
 
@@ -49,16 +52,11 @@ def seed(apps, schema_editor):
                                             defaults={**values, "max_span_minutes": 720})
 
 
-def unseed(apps, schema_editor):
-    ShiftTemplate = apps.get_model("drivers", "ShiftTemplate")
-    ShiftTemplate.objects.filter(kind__in=[row["kind"] for row in SEED]).delete()
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("drivers", "0062_shift_facts"),
     ]
 
     operations = [
-        migrations.RunPython(seed, unseed),
+        migrations.RunPython(seed, migrations.RunPython.noop),
     ]

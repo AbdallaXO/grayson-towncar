@@ -14,6 +14,8 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -45,6 +47,37 @@ class ShiftTemplateTests(RegularShiftCacheMixin, TestCase):
         with self.assertRaises(ValidationError) as cm:
             t.full_clean()
         self.assertIn("max_span_minutes", cm.exception.message_dict)
+
+    def test_template_span_floor(self):
+        t = ShiftTemplate.objects.get(kind="morning")
+        t.max_span_minutes = 59
+        with self.assertRaises(ValidationError) as cm:
+            t.full_clean()
+        self.assertIn("max_span_minutes", cm.exception.message_dict)
+        t.max_span_minutes = 60
+        t.full_clean()                                       # one hour is the shortest allowed
+
+    def test_template_kind_is_unique(self):
+        morning = ShiftTemplate.objects.get(kind="morning")
+        twin = ShiftTemplate(kind="morning", name="Morning 2",
+                             start_earliest=morning.start_earliest, start_latest=morning.start_latest,
+                             end_earliest=morning.end_earliest, end_latest=morning.end_latest)
+        with self.assertRaises(ValidationError) as cm:
+            twin.validate_unique()
+        self.assertIn("kind", cm.exception.message_dict)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            twin.save()
+
+    def test_template_in_use_cannot_be_deleted(self):
+        # PROTECT, not CASCADE: deleting a shape must never wipe drivers' regular shifts.
+        morning = ShiftTemplate.objects.get(kind="morning")
+        row = DriverWeeklySchedule.objects.create(driver=_driver(), day_of_week=0,
+                                                  shift_template=morning,
+                                                  shift_start=time(4, 10), shift_end=time(15, 30))
+        with self.assertRaises(ProtectedError):
+            morning.delete()
+        row.refresh_from_db()
+        self.assertEqual(row.shift_template_id, morning.id)
 
     def test_template_start_band_must_run_forwards(self):
         t = ShiftTemplate.objects.get(kind="morning")
@@ -157,6 +190,13 @@ class RegularShiftSwitchGuardTests(RegularShiftCacheMixin, TestCase):
         with mock.patch.object(SchedulerSettings, "get_settings", return_value=stale):
             self._post({"min_turn_buffer": 7})
         self.assertTrue(SchedulerSettings.objects.get(pk=1).regular_shift_windows)
+
+    def test_bad_value_leaves_cached_row_untouched(self):
+        # A good field ahead of a bad one must not stay set on this worker's cached row.
+        resp = self._post({"min_turn_buffer": 7, "buffer_perfect": "lots"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(SchedulerSettings.get_settings().min_turn_buffer, 5)
+        self.assertEqual(SchedulerSettings.objects.get(pk=1).min_turn_buffer, 5)
 
     def test_reset_keeps_switch(self):
         SchedulerSettings.get_settings()

@@ -8,9 +8,16 @@ from django.db import models
 _settings_cache = None
 
 # Django-cache key holding SchedulerSettings.regular_shift_windows for
-# drivers.regular_shifts.regular_windows_on(). Shared by every worker (the
-# per-process _settings_cache above is not), so a flip reaches all of them
-# within its 60s life. Every writer deletes it; so does clear_cache().
+# drivers.regular_shifts.regular_windows_on(), cached for 60s. Every writer
+# deletes it; so does clear_cache(). How far that delete reaches depends on
+# the cache backend:
+#   - With Redis (REDIS_URL set) the key is shared by every worker, so a
+#     writer's delete takes effect everywhere at once.
+#   - With LocMemCache (no REDIS_URL; see FlightRefreshTask below on
+#     production's 3 gunicorn workers) each worker holds its own copy. A
+#     delete clears only the writer's worker; the others pick up a flip when
+#     their copy's 60s TTL runs out. The TTL, not the delete, bounds how
+#     stale a reader can be.
 REGULAR_WINDOWS_CACHE_KEY = "scheduler:regular_shift_windows"
 
 

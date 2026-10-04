@@ -17211,8 +17211,10 @@ def update_scheduler_settings(request):
     valid_fields = set(settings.to_dict().keys())
     float_fields = {f.name for f in settings._meta.get_fields()
                     if f.__class__.__name__ == "FloatField"}
-    updated = []
-
+    # Coerce every value before touching the row: `settings` is this worker's
+    # cached singleton, so a bad value part-way through must not leave the
+    # earlier ones set on it (the engine would read them until the next save).
+    coerced = {}
     for field_name, value in data.items():
         # Guarded fields (the regular-shift switch) belong to their own page.
         if field_name not in valid_fields or field_name in SchedulerSettings.GUARDED_FIELDS:
@@ -17221,14 +17223,16 @@ def update_scheduler_settings(request):
             # FloatFields (load_balance_exponent, span_exception_max_hours) take
             # decimals; everything else stays on the integer-only path so the
             # existing fields round-trip exactly as before.
-            value = float(value) if field_name in float_fields else int(value)
+            coerced[field_name] = float(value) if field_name in float_fields else int(value)
         except (ValueError, TypeError):
             return JsonResponse({
                 "success": False,
                 "error": f"Invalid value for {field_name}: must be a number",
             }, status=400)
+
+    for field_name, value in coerced.items():
         setattr(settings, field_name, value)
-        updated.append(field_name)
+    updated = list(coerced)
 
     if updated:
         settings.save(update_fields=updated)
