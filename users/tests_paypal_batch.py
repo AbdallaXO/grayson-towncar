@@ -233,85 +233,46 @@ class BatchPageTests(_ReadyAgentMixin, TestCase):
         self.client.force_login(User.objects.create_user("disp", password="x", is_staff=True))
         self.url = reverse("paypal_batch")
 
-    def _token(self):
-        return self.client.get(self.url).context["token"]
+    def _page(self, **params):
+        return self.client.get(self.url, params).context
 
-    def test_page_lists_the_agent(self):
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "407-555-0100")
-        self.assertContains(response, "Venmo @agent")
+    def _picks(self, ctx):
+        return [f"{r.kind}:{r.id}" for r in ctx["rows"]]
 
-    def test_download_returns_the_file(self):
-        response = self.client.post(self.url, {"token": self._token(), "action": "download"})
-        self.assertEqual(response["Content-Type"], "text/csv")
-        body = response.content.decode()
-        self.assertTrue(body.startswith(f"4075550100,10.00,USD,AGT{self.agent.id},"))
-        self.assertNotIn("@agent", body)
-        self.assertTrue(body.rstrip().endswith("VENMO,PRIVATE"))
+    def _post(self, ctx, action, picks=None, **kw):
+        picks = self._picks(ctx) if picks is None else picks
+        return self.client.post(self.url, {"token": ctx["token"], "action": action, "pick": picks}, **kw)
 
-    def test_download_refuses_when_amounts_moved(self):
-        token = self._token()
-        res = _make_reservation(self.rate, self.customer, self.agent, status="completed")
-        _add_leg(res, pickup_date=self.past, status="completed")
-        response = self.client.post(self.url, {"token": token, "action": "download"})
-        self.assertRedirects(response, self.url)
-
-    def test_mark_paid_pays_what_was_listed(self):
-        response = self.client.post(self.url, {"token": self._token(), "action": "mark_paid"})
-        self.assertRedirects(response, self.url)
-        self.reservation.refresh_from_db()
-        self.assertTrue(self.reservation.commission_paid)
-        payout = CommissionPayout.objects.get(agent=self.agent)
-        self.assertEqual(payout.payment_method_used, "venmo")
-        self.assertTrue(payout.payment_reference.startswith("PayPal batch"))
-
-    def test_mark_paid_explains_a_moved_amount(self):
-        token = self._token()
-        res = _make_reservation(self.rate, self.customer, self.agent, status="completed")
-        _add_leg(res, pickup_date=self.past, status="completed")
-        response = self.client.post(self.url, {"token": token, "action": "mark_paid"}, follow=True)
-        self.assertContains(response, "send them the other $10.00")
-        self.reservation.refresh_from_db()
-        self.assertFalse(self.reservation.commission_paid)
+    def _download_then_mark(self, ctx, picks=None, **kw):
+        self._post(ctx, "download", picks)
+        return self._post(ctx, "mark_paid", picks, **kw)
 
     def _with_agency(self):
         agency = Agency.objects.create(name="Ears Travel", payment_method="paypal", payment_info="ears@agency.com")
         child = self._agent("ann", method="agency", info="", agency=agency, agency_pays=True)
         return agency, Reservation.objects.get(travel_agent=child)
 
-    def test_agents_only_leaves_agencies_out_of_the_file_and_unpaid(self):
-        _, agency_res = self._with_agency()
-        token = self.client.get(self.url, {"who": "agents"}).context["token"]
+    # ---- listing ----
+    def test_page_lists_the_agent(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "407-555-0100")
+        self.assertContains(response, "Venmo @agent")
 
-        download = self.client.post(self.url, {"token": token, "action": "download"})
-        self.assertNotIn("ears@agency.com", download.content.decode())
-        self.assertIn("agents-", download["Content-Disposition"])
-
-        response = self.client.post(self.url, {"token": token, "action": "mark_paid"})
-        self.assertRedirects(response, f"{self.url}?who=agents")
-        self.reservation.refresh_from_db()
-        agency_res.refresh_from_db()
-        self.assertTrue(self.reservation.commission_paid)
-        self.assertFalse(agency_res.commission_paid)
-
-    def test_agencies_only_leaves_direct_agents_unpaid(self):
-        _, agency_res = self._with_agency()
-        token = self.client.get(self.url, {"who": "agencies"}).context["token"]
-        self.client.post(self.url, {"token": token, "action": "mark_paid"})
-        self.reservation.refresh_from_db()
-        agency_res.refresh_from_db()
-        self.assertFalse(self.reservation.commission_paid)
-        self.assertTrue(agency_res.commission_paid)
+    def test_wallet_switch_narrows_the_list(self):
+        pp = self._agent("pp", method="paypal", info="pp@gmail.com")
+        self.assertEqual([r.id for r in self._page(wallet="venmo")["rows"]], [self.agent.id])
+        self.assertEqual([r.id for r in self._page(wallet="paypal")["rows"]], [pp.id])
+        wallets = {w["key"]: w["count"] for w in self._page()["wallets"]}
+        self.assertEqual(wallets, {"both": 2, "paypal": 1, "venmo": 1})
 
     def test_switch_shows_counts_for_each_group(self):
         self._with_agency()
-        groups = {g["key"]: g["count"] for g in self.client.get(self.url).context["groups"]}
+        groups = {g["key"]: g["count"] for g in self._page()["groups"]}
         self.assertEqual(groups, {"all": 2, "agents": 1, "agencies": 1})
 
     def test_names_link_to_agent_and_agency_profiles(self):
         agency, _ = self._with_agency()
-        # Paid directly, but still a member of the agency.
         member = self._agent("dee", method="paypal", info="dee@gmail.com", agency=agency)
         response = self.client.get(self.url)
         for url in (
@@ -321,8 +282,113 @@ class BatchPageTests(_ReadyAgentMixin, TestCase):
         ):
             self.assertContains(response, f'href="{url}"')
 
+    # ---- download ----
+    def test_download_returns_the_file(self):
+        response = self._post(self._page(), "download")
+        self.assertEqual(response["Content-Type"], "text/csv")
+        body = response.content.decode()
+        self.assertTrue(body.startswith(f"4075550100,10.00,USD,AGT{self.agent.id},"))
+        self.assertNotIn("@agent", body)
+        self.assertTrue(body.rstrip().endswith("VENMO,PRIVATE"))
+
+    def test_download_refuses_when_amounts_moved(self):
+        ctx = self._page()
+        res = _make_reservation(self.rate, self.customer, self.agent, status="completed")
+        _add_leg(res, pickup_date=self.past, status="completed")
+        self.assertRedirects(self._post(ctx, "download"), self.url)
+
+    def test_unticked_payee_is_left_out_of_the_file(self):
+        pp = self._agent("pp", method="paypal", info="pp@gmail.com")
+        body = self._post(self._page(), "download", picks=[f"agent:{pp.id}"]).content.decode()
+        self.assertIn("pp@gmail.com", body)
+        self.assertNotIn("4075550100", body)
+
+    def test_a_pick_not_on_the_page_is_ignored(self):
+        pp = self._agent("pp", method="paypal", info="pp@gmail.com")
+        ctx = self._page(wallet="venmo")
+        body = self._post(ctx, "download", picks=self._picks(ctx) + [f"agent:{pp.id}"]).content.decode()
+        self.assertNotIn("pp@gmail.com", body)
+
+    def test_nothing_ticked(self):
+        response = self._post(self._page(), "download", picks=[], follow=True)
+        self.assertContains(response, "Nobody is ticked.")
+
+    # ---- mark paid ----
+    def test_mark_paid_pays_what_was_downloaded(self):
+        response = self._download_then_mark(self._page())
+        self.assertRedirects(response, self.url)
+        self.reservation.refresh_from_db()
+        self.assertTrue(self.reservation.commission_paid)
+        payout = CommissionPayout.objects.get(agent=self.agent)
+        self.assertEqual(payout.payment_method_used, "venmo")
+        self.assertTrue(payout.payment_reference.startswith("PayPal batch"))
+
+    def test_mark_paid_without_downloading_is_refused(self):
+        response = self._post(self._page(), "mark_paid", follow=True)
+        self.assertContains(response, "don&#x27;t match a file you downloaded")
+        self.reservation.refresh_from_db()
+        self.assertFalse(self.reservation.commission_paid)
+
+    def test_ticks_changed_after_download_are_refused(self):
+        pp = self._agent("pp", method="paypal", info="pp@gmail.com")
+        ctx = self._page()
+        self._post(ctx, "download", picks=[f"agent:{pp.id}"])
+        self._post(ctx, "mark_paid")  # both ticked now -- not what was in the file
+        self.reservation.refresh_from_db()
+        self.assertFalse(self.reservation.commission_paid)
+        self.assertFalse(CommissionPayout.objects.filter(agent=pp).exists())
+
+    def test_only_ticked_payees_are_marked_paid(self):
+        pp = self._agent("pp", method="paypal", info="pp@gmail.com")
+        self._download_then_mark(self._page(), picks=[f"agent:{pp.id}"])
+        self.reservation.refresh_from_db()
+        self.assertFalse(self.reservation.commission_paid)
+        self.assertTrue(CommissionPayout.objects.filter(agent=pp).exists())
+
+    def test_two_files_downloaded_can_both_be_marked(self):
+        _, agency_res = self._with_agency()
+        agents, agencies = self._page(who="agents"), self._page(who="agencies")
+        self._post(agents, "download")
+        self._post(agencies, "download")
+        self._post(agents, "mark_paid")
+        self._post(agencies, "mark_paid")
+        self.reservation.refresh_from_db()
+        agency_res.refresh_from_db()
+        self.assertTrue(self.reservation.commission_paid)
+        self.assertTrue(agency_res.commission_paid)
+
+    def test_a_reload_after_download_still_matches(self):
+        """Same people, same amounts: a fresh page still matches the file."""
+        self._post(self._page(), "download")
+        self._post(self._page(), "mark_paid")
+        self.reservation.refresh_from_db()
+        self.assertTrue(self.reservation.commission_paid)
+
+    def test_mark_paid_explains_a_moved_amount(self):
+        ctx = self._page()
+        self._post(ctx, "download")
+        res = _make_reservation(self.rate, self.customer, self.agent, status="completed")
+        _add_leg(res, pickup_date=self.past, status="completed")
+        response = self._post(ctx, "mark_paid", follow=True)
+        self.assertContains(response, "send them the other $10.00")
+        self.reservation.refresh_from_db()
+        self.assertFalse(self.reservation.commission_paid)
+
+    def test_agents_only_leaves_agencies_unpaid(self):
+        _, agency_res = self._with_agency()
+        ctx = self._page(who="agents")
+        download = self._post(ctx, "download")
+        self.assertNotIn("ears@agency.com", download.content.decode())
+        self.assertIn("agents-", download["Content-Disposition"])
+        response = self._post(ctx, "mark_paid")
+        self.assertRedirects(response, f"{self.url}?who=agents")
+        self.reservation.refresh_from_db()
+        agency_res.refresh_from_db()
+        self.assertTrue(self.reservation.commission_paid)
+        self.assertFalse(agency_res.commission_paid)
+
     def test_forged_token_is_rejected(self):
-        response = self.client.post(self.url, {"token": "nope", "action": "mark_paid"})
+        response = self.client.post(self.url, {"token": "nope", "action": "mark_paid", "pick": [f"agent:{self.agent.id}"]})
         self.assertRedirects(response, self.url)
         self.reservation.refresh_from_db()
         self.assertFalse(self.reservation.commission_paid)
