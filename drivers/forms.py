@@ -12,6 +12,7 @@ from rates.models import Vehicle
 from reservations.models import Leg
 
 from . import phones, regular_shifts
+from .availability import fmt_time_long
 from .document_uploads import prepare_document_upload, sniff_and_validate
 from .driver_knowledge import recent_legs_for, trip_label
 from .models import Driver, DriverLogEntry, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
@@ -154,6 +155,16 @@ class DriverProfileForm(forms.ModelForm):
         # "Next day" means nothing without a latest finish; it is not stored alone.
         if cleaned.get("hard_latest_finish") is None:
             cleaned["hard_latest_finish_next_day"] = False
+        # The two limits must leave some time between them: 2 AM without Next
+        # day is before a 2 PM earliest start, and 12 AM without it is the very
+        # start of the day, so no shift could ever be confirmed. Judged when a
+        # limit is edited, like the week check below. When it fires, the week
+        # check is skipped: it would only repeat it once per working day.
+        if not self.LIMIT_FIELDS.isdisjoint(self.changed_data):
+            message = self._window_message(cleaned)
+            if message:
+                self.add_error("hard_latest_finish", message)
+                return cleaned
         # Limits edited later must not break a confirmed regular shift (Review
         # Focus 5): each day they cut, and a days-a-week limit below the
         # working days, is an error on the form, so nothing saves. Judged only
@@ -170,6 +181,25 @@ class DriverProfileForm(forms.ModelForm):
                     max_days_per_week=cleaned.get("max_days_per_week")):
                 self.add_error(None, message)
         return cleaned
+
+    @staticmethod
+    def _window_message(cleaned):
+        """Why the latest finish leaves no time after the earliest start, or
+        None. The banner prints it after the field's label, Never finishes after."""
+        earliest = cleaned.get("hard_earliest_start")
+        latest = cleaned.get("hard_latest_finish")
+        if latest is None or cleaned.get("hard_latest_finish_next_day"):
+            return None
+        latest_min = latest.hour * 60 + latest.minute
+        if earliest is None:
+            if latest_min == 0:
+                return ("12 AM on the same day leaves no time for a shift. "
+                        "Tick Next day if it's after midnight.")
+            return None
+        if latest_min <= earliest.hour * 60 + earliest.minute:
+            return (f"has to be later than the earliest start ({fmt_time_long(earliest)}). "
+                    "Tick Next day if it's after midnight.")
+        return None
 
     def _clean_scan(self, field_name):
         """Route a newly-uploaded scan through the same content-sniffing /

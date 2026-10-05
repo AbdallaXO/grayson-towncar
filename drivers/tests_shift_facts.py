@@ -542,6 +542,48 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
                          ["Monday: starts at 4:10 AM — before this driver's earliest start "
                           "(5:30 AM)."])
 
+    def test_latest_finish_must_come_after_earliest_start(self):
+        # No regular shift yet: nothing else would catch a pair that leaves no time.
+        self.client.force_login(self.manager)
+        for fields, error in (
+                ({"hard_earliest_start": "14:00", "hard_latest_finish": "02:00"},
+                 "has to be later than the earliest start (2 PM). "
+                 "Tick Next day if it's after midnight."),
+                ({"hard_earliest_start": "14:00", "hard_latest_finish": "14:00"},
+                 "has to be later than the earliest start (2 PM). "
+                 "Tick Next day if it's after midnight."),
+                ({"hard_latest_finish": "00:00"},
+                 "12 AM on the same day leaves no time for a shift. "
+                 "Tick Next day if it's after midnight.")):
+            with self.subTest(**fields):
+                resp = self._post(phone_number="4075550000", **fields)
+                self.assertEqual(resp.status_code, 200)
+                form = resp.context["driver_form"]
+                self.assertEqual(form.errors["hard_latest_finish"], [error])
+                self.assertContains(resp, f"Never finishes after: {error}".replace("'", "&#x27;"))
+                self.driver.refresh_from_db()
+                self.assertEqual((self.driver.hard_earliest_start, self.driver.hard_latest_finish,
+                                  self.driver.phone_number), (None, None, None))
+        # Ticking Next day makes each of them a real window.
+        for fields in ({"hard_earliest_start": "14:00", "hard_latest_finish": "02:00"},
+                       {"hard_latest_finish": "00:00"}):
+            with self.subTest(next_day=fields):
+                resp = self._post(hard_latest_finish_next_day="on", **fields)
+                self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.hard_window_minutes(), (None, 1440))
+
+    def test_impossible_limits_name_the_field_once_for_a_confirmed_week(self):
+        m = self.shapes["morning"]
+        self._confirm([DayShift(i, m, None, None) for i in range(5)])
+        self.client.force_login(self.manager)
+        form = self._post(hard_earliest_start="14:00",
+                          hard_latest_finish="02:00").context["driver_form"]
+        self.assertEqual(form.errors["hard_latest_finish"],
+                         ["has to be later than the earliest start (2 PM). "
+                          "Tick Next day if it's after midnight."])
+        self.assertEqual(form.non_field_errors(), [])        # not once per working day
+
     def test_limits_not_checked_without_a_confirmed_regular_shift(self):
         DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=0,
                                             shift_template_id=self.shapes["morning"],
