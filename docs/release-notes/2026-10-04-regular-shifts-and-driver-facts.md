@@ -13,21 +13,21 @@ title: Every driver's profile shows their regular shift, their limits and their 
 
 ## Send this to the team
 
-> Hey team — every driver's profile now has a Shift facts card: Morning, Midday, Evening or Float driver (Float means any shift), their regular week (including "Morning or Evening" and "done by 3 PM" days), the earliest they start and the latest they finish, days a week, extra-shift days, and their regular car.
+> Hey team — every driver's profile now has a Shift facts card: Morning, Midday, Evening or Float driver (Float means any shift), their regular week (including "Morning or Evening" and "done by 3 PM" days), their earliest start and latest finish, days a week, extra-shift days, and their regular car.
 >
 > 1. Drivers → Regular Shifts lists who still needs one, suggested from their last 8 weeks.
-> 2. A manager presses Review & confirm, picks the usual shift and working days, changes any day that's different, and confirms.
-> 3. The Morning, Midday and Evening shapes are on Shift Templates, each capped at 12 hours.
+> 2. A manager presses Review & confirm, picks the usual shift and days, adjusts any day that's different, and confirms.
+> 3. Shift Templates, linked from there, has each shift's usual times and longest length — never over 12 hours.
 >
 > Only managers can change these; everyone can see them.
 >
-> Auto-assign, the schedule board and Day Setup stay on today's hours until a manager switches over on Regular Shifts, once everyone has one. Day Setup still offers each driver his regular car first. Nothing is sent to drivers, and the driver app is the same.
+> Auto-assign, the schedule board and Day Setup stay on today's hours until a manager switches over, once everyone has one. Day Setup still offers each driver's regular car first. Nothing is sent to drivers; the driver app is the same.
 
 ---
 
 ## Behind the scenes
 
-**Where it lives:** Every driver's profile, left column, just above Weekly Schedule. Managers change the earliest start, latest finish, days a week, extra-shift days and regular car under Edit Driver → Shift facts. The regular week itself is set on Drivers → Regular Shifts (managers also get a Set / Edit regular shift button on the card). The switch for auto-assign sits at the top of Regular Shifts.
+**Where it lives:** Every driver's profile, left column, just above Weekly Schedule. Managers change the earliest start, latest finish, days a week, extra-shift days and regular car under Edit Driver → Shift facts. The regular week itself is set on Drivers → Regular Shifts (managers also get a Set / Edit regular shift button on the card). The switch for auto-assign sits at the top of Regular Shifts. The usual times of Morning, Midday, Evening and Float, and the longest each may run, are on Shift Templates (the link at the top of Regular Shifts): everyone can look, managers change them.
 
 **Why:** Each driver's hours lived in a fixed table nobody could see or change, so auto-assign was working from a guess. This puts every driver's real week and limits in one place, to the minute, and holds every regular day to 12 hours from leaving base to getting back — ready for auto-assign once everyone has one.
 
@@ -44,3 +44,6 @@ title: Every driver's profile shows their regular shift, their limits and their 
 - *"It says no trips in the last 8 weeks."* — There's nothing to suggest from. A manager picks his usual shift and days by hand — or no days at all, for a driver who only takes extra shifts.
 - *"What does Same as usual mean on a day?"* — That day follows the driver's usual shift. Leaving its times blank means the shift's usual times, shown under the boxes.
 - *"What's Float?"* — A driver who goes wherever the day needs them, any shift, still within 12 hours and their limits.
+- *"Can a regular shift sit outside a shift's usual times?"* — Yes. The usual times on Shift Templates are targets: the editor warns, and still confirms. Only the longest length is a hard limit, and it can never go over 12 hours.
+- *"I lowered a shift's longest length on Shift Templates and it won't save."* — Some confirmed regular days on that shift are longer. The message names the drivers and days: shorten those on Regular Shifts first.
+- *"I changed Morning's usual times. Did anyone's shift move?"* — Only days left with blank times, which follow the usual times, and Float or "Morning or Evening" days, which can run anywhere from their shifts' earliest leave to their latest return. Days with their own times stay as they are, and auto-assign reads none of it until a manager switches over.

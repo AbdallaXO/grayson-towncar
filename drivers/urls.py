@@ -34,8 +34,10 @@ urlpatterns = [
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),
     path("<int:driver_id>/profile/", views.driver_profile, name="driver_profile"),
-    # Regular shifts (structured shifts, Stage 1): the list, the editor, the switch
+    # Regular shifts (structured shifts, Stage 1): the list, the editor, the
+    # switch, and the shapes (Shift Templates)
     path("regular-shifts/", regular_shift_views.regular_shifts, name="regular_shifts"),
+    path("shift-templates/", regular_shift_views.shift_templates, name="shift_templates"),
     path(
         "<int:driver_id>/regular-shift/",
         regular_shift_views.regular_shift_edit,

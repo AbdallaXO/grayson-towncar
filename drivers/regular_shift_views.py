@@ -1,6 +1,6 @@
-"""Drivers -> Regular Shifts (structured shifts, Stage 1, Task 7).
+"""Drivers -> Regular Shifts (structured shifts, Stage 1, Tasks 7 and 8).
 
-Three staff pages over drivers/regular_shifts.py:
+Four staff pages over drivers/regular_shifts.py:
 
   * regular_shifts — who still needs a regular shift (with what their last 8
     weeks suggest) and who has one, plus the switch that hands confirmed
@@ -10,19 +10,23 @@ Three staff pages over drivers/regular_shifts.py:
     (is_superuser) confirms (S10).
   * regular_shift_switch — turns the switch on or off. Managers only; on is
     refused while anyone still needs a regular shift (S3).
+  * shift_templates — the four shapes' usual times (targets, not limits) and
+    the longest shift each may run. Staff may look; only a manager saves.
 
 Regular shifts are for in-house chauffeurs (the roster): an affiliate or an
 operator never gets one, so the editor 404s for them.
 
-Plan: docs/scheduling-redesign/08_STAGE1_FOUNDATION_PLAN.md (Task 7).
+Plan: docs/scheduling-redesign/08_STAGE1_FOUNDATION_PLAN.md (Tasks 7 and 8).
 """
 from __future__ import annotations
 
+from collections import Counter
 from types import SimpleNamespace
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -32,8 +36,8 @@ from dispatching.models import SchedulerSettings
 
 from . import regular_shifts as rs
 from .availability import fmt_time_long
-from .forms import RegularDayFormSet, RegularShiftForm, regular_week
-from .models import Driver
+from .forms import RegularDayFormSet, RegularShiftForm, ShiftTemplateFormSet, regular_week
+from .models import Driver, ShiftTemplate
 
 WEEKS = rs.LOOKBACK_DAYS // 7
 NO_TRIPS = f"no trips in the last {WEEKS} weeks"
@@ -306,3 +310,70 @@ def regular_shift_switch(request):
     else:
         messages.success(request, "Auto-assign is back on today's hours.")
     return redirect("regular_shifts")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Shift Templates
+# ════════════════════════════════════════════════════════════════════════════
+
+def _shape_card(form, stored, used_by) -> dict:
+    """What a shape's card shows besides its fields, from the shape as saved
+    (``stored``), not as posted: how many drivers have it as their usual
+    shift, the times blank means on a day of it, and who last changed it.
+    A form the page never offered (a POST with extra forms) has an unsaved
+    shape with no times, so it shows no usual times."""
+    is_float = stored.kind == rs.FLOAT_KIND
+    end_lo, end_hi = stored.end_earliest, stored.end_latest
+    has_times = None not in (stored.start_latest, end_lo, end_hi)
+    return {
+        "form": form, "name": stored.name, "kind": stored.kind,
+        "is_float": is_float,
+        "used_by": used_by,
+        # A Float day (or one that may be either of two shifts) runs anywhere
+        # from the earliest leave to the latest return (S18); its times are
+        # only a note, so there are no usual times to show.
+        "usual": _times(*rs.band_fill(stored)) if has_times and not is_float else "",
+        "back_next_day": has_times and end_hi < end_lo,
+        "updated_by": _confirmed_by(stored.updated_by),
+        "updated_at": stored.updated_at,
+    }
+
+
+@login_required(login_url="login")
+def shift_templates(request):
+    """The four shapes (Morning, Midday, Evening, Float): their usual leave and
+    return times, the longest shift each may run and notes. Every staff user
+    may look; only a manager saves (S10). Saving drops the cached shapes so
+    every page and auto-assign read the new ones."""
+    if not request.user.is_staff:
+        return HttpResponseForbidden() if request.method == "POST" else redirect("home")
+    can_manage = request.user.is_superuser
+    if request.method == "POST" and not can_manage:
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        formset = ShiftTemplateFormSet(request.POST, prefix="shapes")
+        if formset.is_valid():
+            with transaction.atomic():
+                for template in formset.save(commit=False):    # the changed ones
+                    template.updated_by = request.user
+                    template.save()
+            rs.clear_template_cache()
+            messages.success(request, "Shift templates saved.")
+            return redirect("shift_templates")
+    else:
+        formset = ShiftTemplateFormSet(prefix="shapes")
+
+    # A refused POST has put the posted values on the forms' instances; the
+    # cards' own lines read the shapes as saved.
+    stored = {t.id: t for t in ShiftTemplate.objects.select_related("updated_by")}
+    used_by = Counter(d.shift_role_id for d in rs.roster_drivers() if d.shift_role_id)
+    cards = [_shape_card(form, stored.get(form.instance.pk) or form.instance,
+                         used_by[form.instance.pk])
+             for form in formset.forms]
+    return render(request, "drivers/shift_templates.html", {
+        "can_manage": can_manage,
+        "formset": formset,
+        "cards": cards,
+        "float_hint": FLOAT_HINT,
+    })

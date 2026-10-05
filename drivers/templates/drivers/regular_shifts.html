@@ -6,6 +6,10 @@
 <style>
   {% include "drivers/_regular_shift_styles.html" %}
 
+  /* The way to the shapes */
+  .rs-page .hero-link { display: inline-flex; align-items: center; margin-top: .75rem; font-size: .84rem; font-weight: 600; }
+  .rs-page .hero-link-note { display: block; font-size: .74rem; color: var(--gt-muted); margin-top: .15rem; }
+
   /* The switch */
   .rs-page .switch-panel { display: grid; grid-template-columns: 1fr auto; gap: 1rem 1.5rem; align-items: center; padding: 1.15rem; }
   .rs-page .switch-state { display: flex; align-items: center; gap: .85rem; }
@@ -65,6 +69,8 @@
         Evening, or Float for any shift — and the days he works. The suggestion comes from
         his last 8 weeks of trips; a manager checks it and confirms.
       </p>
+      <a class="hero-link" href="{% url 'shift_templates' %}"><i class="bi bi-sliders me-1" aria-hidden="true"></i>Shift Templates</a>
+      <span class="hero-link-note">The usual times of Morning, Midday, Evening and Float, and the longest shift each may run.</span>
     </header>
 
     {% if messages %}

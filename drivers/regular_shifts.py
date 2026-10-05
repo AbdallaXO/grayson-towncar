@@ -29,11 +29,13 @@ What lives here:
     days) and the softer warnings: typed times outside the bands (U11: the
     bands are targets, not limits), and what the limits leave of a day with
     blank times or an open day, which they clip rather than refuse (S18);
+  * which confirmed days a shorter longest shift would break
+    (confirmed_days_longer_than, for the Shift Templates page);
   * save_regular_shift, which writes ONLY the new fields on an existing row so
     the legacy hour reading cannot move while the switch is off (S1);
   * the labels dispatcher pages show.
 
-Plan: docs/scheduling-redesign/08_STAGE1_FOUNDATION_PLAN.md (Tasks 3 and 3b).
+Plan: docs/scheduling-redesign/08_STAGE1_FOUNDATION_PLAN.md (Tasks 3, 3b and 8).
 Design: docs/scheduling-redesign/07_STRUCTURED_SHIFTS_DESIGN.md.
 """
 from __future__ import annotations
@@ -713,6 +715,32 @@ def band_warnings(days, templates, *, hard_earliest_start=None, hard_latest_fini
             out.append(f"{DAY_NAMES[day.day]}: {times} is outside the usual {tpl.name} "
                        f"shape ({tpl.band_label()}).")
     return out
+
+
+def confirmed_days_longer_than(template, max_span_minutes) -> list[tuple[Driver, int]]:
+    """(driver, weekday) for every confirmed regular day on this shape whose
+    typed times run longer than ``max_span_minutes`` base to base — what
+    lowering the shape's longest shift would break (Shift Templates, Task 8).
+    By driver name, then weekday.
+
+    A day with blank times takes the shape's usual times, which never run past
+    its longest shift (band_fill), and a Float or two-shape day's times are
+    labels only (the rules door holds it to the longest shift), so neither
+    counts. Nor does a row of a driver whose regular shift isn't confirmed."""
+    templates = templates_by_id()
+    rows = (DriverWeeklySchedule.objects
+            .filter(shift_template_id=template.pk,
+                    driver__regular_shift_confirmed_at__isnull=False,
+                    shift_start__isnull=False, shift_end__isnull=False)
+            .select_related("driver__profile"))
+    out = []
+    for row in rows:
+        day = DayShift(row.day_of_week, row.shift_template_id, row.shift_start, row.shift_end,
+                       alt_template_id=row.alt_template_id)
+        start, end = _span(row.shift_start, row.shift_end)
+        if not is_open_day(day, templates) and end - start > max_span_minutes:
+            out.append((row.driver, row.day_of_week))
+    return sorted(out, key=lambda pair: (_name(pair[0]).casefold(), pair[0].pk, pair[1]))
 
 
 def band_fill(template) -> tuple[time, time]:

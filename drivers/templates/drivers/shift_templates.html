@@ -1,0 +1,225 @@
+{% extends "main.html" %}
+
+{% block title %}Shift Templates — Grayson Towncar{% endblock %}
+
+{% block extra_css %}
+<style>
+  {% include "drivers/_regular_shift_styles.html" %}
+
+  .rs-page .hero-note { color: var(--gt-muted); font-size: .8rem; line-height: 1.6; margin: .5rem 0 0; max-width: 46rem; }
+  .rs-page .hero-note strong { color: var(--gt-text); font-weight: 600; }
+
+  /* The four shapes */
+  .rs-page .st-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .rs-page .st-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; margin-bottom: 1.1rem; }
+  .rs-page .st-grid .rs-panel { margin-bottom: 0; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .rs-page .st-grid .rs-panel::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, rgba(201,162,39,0.85), rgba(201,162,39,0) 70%);
+  }
+  .rs-page .shape-name { display: flex; align-items: center; gap: .55rem; font-size: 1.05rem !important; }
+  .rs-page .shape-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; flex: none;
+    border-radius: 50%; color: var(--gt-gold); background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.35);
+    font-size: .95rem;
+  }
+  .rs-page .used-by { font-size: .76rem; font-weight: 500; color: var(--gt-muted); }
+  .rs-page .used-by:hover { color: var(--gt-gold); }
+  .rs-page .shape-body { display: grid; gap: 1rem; flex: 1; }
+
+  /* A band: earliest – latest */
+  .rs-page .band { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .rs-page .band legend, .rs-page .fg > label {
+    float: none; width: auto; display: flex; align-items: center; gap: .45rem; margin: 0 0 .4rem; padding: 0;
+    font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--gt-muted); font-weight: 600;
+  }
+  .rs-page .band-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .55rem; align-items: end; }
+  .rs-page .band-row label { display: block; margin-bottom: .25rem; font-size: .72rem; color: var(--gt-muted); }
+  .rs-page .band-dash { padding-bottom: .6rem; color: var(--gt-muted); }
+  .rs-page .next-day-tag {
+    font-size: .6rem; letter-spacing: .04em; text-transform: none; font-weight: 600;
+    padding: 1px 7px; border-radius: 999px; color: var(--gt-gold); border: 1px solid rgba(201,162,39,0.4);
+  }
+  .rs-page .span-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .85rem; }
+  .rs-page .span-row .gt-field { max-width: 7.5rem; }
+  .rs-page .fg-hint { font-size: .74rem; color: var(--gt-muted); line-height: 1.5; }
+  .rs-page .gt-field {
+    width: 100%; min-height: 2.6rem; padding: .5rem .6rem; border-radius: 7px; font-size: .88rem;
+    background: var(--gt-bg); color: var(--gt-text); border: 1px solid var(--gt-border); color-scheme: dark;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .rs-page textarea.gt-field { resize: vertical; line-height: 1.5; min-height: 3.6rem; }
+  .rs-page .gt-field:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
+  .rs-page .st-fields[disabled] .gt-field { opacity: .85; }
+  .rs-page .field-error { color: #f87171; font-size: .76rem; margin-top: .35rem; }
+
+  /* What blank times mean, and who changed it last */
+  .rs-page .shape-foot {
+    margin: 0; padding-top: .8rem; border-top: 1px solid var(--gt-border);
+    font-size: .76rem; color: var(--gt-muted); line-height: 1.6;
+  }
+  .rs-page .shape-foot strong { color: var(--gt-text); font-weight: 600; }
+  .rs-page .shape-foot .changed { display: block; margin-top: .2rem; }
+
+  .rs-page .st-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+  .rs-page .read-only { color: var(--gt-muted); font-size: .85rem; margin: 0; }
+  .rs-page .problems { margin: .4rem 0 0; padding-left: 1.1rem; }
+
+  @media (max-width: 767px) {
+    .rs-page .st-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 575px) {
+    .rs-page .st-actions .rs-btn { flex: 1 1 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rs-page .gt-field { transition: none; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% include "dispatching/dispatcher_navbar.html" %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block content %}
+<div class="rs-page">
+  <div class="rs-wrap">
+
+    <header class="rs-hero">
+      <div class="rs-eyebrow"><a href="{% url 'regular_shifts' %}"><i class="bi bi-arrow-left me-1"></i>Regular Shifts</a></div>
+      <h1>Shift Templates</h1>
+      <p class="rs-lede">
+        These are targets, not limits — a regular shift outside them is allowed with a warning.
+      </p>
+      <p class="hero-note">
+        <strong>The longest shift is a hard limit:</strong> no regular day on that shift may run
+        longer, from leaving base to getting back, and none can run past 12 hours.
+      </p>
+    </header>
+
+    {% if messages or formset.total_error_count %}
+      <ul class="rs-notices">
+        {% for message in messages %}
+          <li class="rs-notice {{ message.level_tag }}">
+            {% if message.level_tag == "success" %}<i class="bi bi-check-circle-fill"></i>{% elif message.level_tag == "warning" %}<i class="bi bi-exclamation-triangle-fill"></i>{% else %}<i class="bi bi-x-octagon-fill"></i>{% endif %}
+            <span>{{ message }}</span>
+          </li>
+        {% endfor %}
+        {% if formset.total_error_count %}
+          <li class="rs-notice error">
+            <i class="bi bi-x-octagon-fill"></i>
+            <div>
+              <strong>Not saved — please fix:</strong>
+              <ul class="problems">
+                {% for card in cards %}
+                  {% for field in card.form %}{% for error in field.errors %}<li>{{ card.name }} · {{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+                  {% for error in card.form.non_field_errors %}<li>{{ card.name }}: {{ error }}</li>{% endfor %}
+                {% endfor %}
+                {% for error in formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+              </ul>
+            </div>
+          </li>
+        {% endif %}
+      </ul>
+    {% endif %}
+
+    <form method="post" action="{% url 'shift_templates' %}" class="st-form">
+      {% csrf_token %}
+      {{ formset.management_form }}
+      <fieldset{% if not can_manage %} disabled{% endif %} class="st-fields">
+        <div class="st-grid">
+          {% for card in cards %}
+            {% with form=card.form %}
+            <section class="rs-panel" aria-labelledby="shape-{{ forloop.counter0 }}-name">
+              <div class="rs-panel-head">
+                <h2 class="shape-name" id="shape-{{ forloop.counter0 }}-name">
+                  <span class="shape-icon" aria-hidden="true"><i class="bi {% if card.kind == 'morning' %}bi-sunrise{% elif card.kind == 'midday' %}bi-sun{% elif card.kind == 'evening' %}bi-moon-stars{% else %}bi-shuffle{% endif %}"></i></span>{{ card.name }}
+                </h2>
+                <a class="used-by" href="{% url 'regular_shifts' %}"><i class="bi bi-people me-1" aria-hidden="true"></i>{% if card.used_by %}Used by {{ card.used_by }} driver{{ card.used_by|pluralize }} as their usual shift{% else %}Used by no one as their usual shift yet{% endif %}</a>
+              </div>
+              <div class="rs-panel-body shape-body">
+                {{ form.id }}
+                {% for error in form.non_field_errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+
+                <fieldset class="band">
+                  <legend>Leaves base</legend>
+                  <div class="band-row">
+                    <div>
+                      <label for="{{ form.start_earliest.id_for_label }}">Earliest</label>
+                      {{ form.start_earliest }}
+                    </div>
+                    <span class="band-dash" aria-hidden="true">–</span>
+                    <div>
+                      <label for="{{ form.start_latest.id_for_label }}">Latest</label>
+                      {{ form.start_latest }}
+                    </div>
+                  </div>
+                  {% for error in form.start_earliest.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                  {% for error in form.start_latest.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </fieldset>
+
+                <fieldset class="band">
+                  <legend>Back at base{% if card.back_next_day %} <span class="next-day-tag">runs past midnight</span>{% endif %}</legend>
+                  <div class="band-row">
+                    <div>
+                      <label for="{{ form.end_earliest.id_for_label }}">Earliest</label>
+                      {{ form.end_earliest }}
+                    </div>
+                    <span class="band-dash" aria-hidden="true">–</span>
+                    <div>
+                      <label for="{{ form.end_latest.id_for_label }}">Latest</label>
+                      {{ form.end_latest }}
+                    </div>
+                  </div>
+                  {% for error in form.end_earliest.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                  {% for error in form.end_latest.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                  <div class="fg-hint">A latest earlier than the earliest means after midnight.</div>
+                </fieldset>
+
+                <div class="fg">
+                  <label for="{{ form.max_span_hours.id_for_label }}">{{ form.max_span_hours.label }}</label>
+                  <div class="span-row">
+                    {{ form.max_span_hours }}
+                    <span class="fg-hint">Leaving base to getting back, in half hours. Never more than 12.</span>
+                  </div>
+                  {% for error in form.max_span_hours.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+
+                <div class="fg">
+                  <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                  {{ form.notes }}
+                  {% for error in form.notes.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+
+                <p class="shape-foot">
+                  {% if card.is_float %}
+                    <strong>{{ float_hint }}.</strong> A Float day, or one that may be either of two
+                    shifts, runs anywhere from the earliest leave to the latest return of its shifts.
+                  {% else %}
+                    <strong>Usual times: {{ card.usual }}.</strong> A day left with blank times
+                    leaves at the latest leave and is back by the latest return, or sooner to stay
+                    within the longest shift.
+                  {% endif %}
+                  {% if card.updated_by %}<span class="changed"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Last changed by {{ card.updated_by }} on {{ card.updated_at|date:"M j" }}</span>{% endif %}
+                </p>
+              </div>
+            </section>
+            {% endwith %}
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <div class="st-actions">
+        {% if can_manage %}
+          <button type="submit" id="save-shapes" class="rs-btn rs-btn-gold"><i class="bi bi-check2"></i>Save</button>
+          <a class="rs-btn" href="{% url 'regular_shifts' %}">Cancel</a>
+        {% else %}
+          <p class="read-only"><i class="bi bi-lock me-1"></i>Only a manager can change these.</p>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

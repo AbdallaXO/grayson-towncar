@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth.forms import SetPasswordForm
 from django.contrib.auth.models import User
@@ -9,7 +11,7 @@ from rates.models import Vehicle
 
 from . import phones, regular_shifts
 from .document_uploads import prepare_document_upload, sniff_and_validate
-from .models import Driver, DriverWeeklySchedule, FleetVehicle
+from .models import Driver, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
 
 
 class _RegularCarField(forms.ModelMultipleChoiceField):
@@ -323,6 +325,97 @@ class BaseRegularDayFormSet(forms.BaseFormSet):
 RegularDayFormSet = forms.formset_factory(
     RegularDayForm, formset=BaseRegularDayFormSet, extra=0,
     max_num=7, validate_max=True, absolute_max=7)
+
+
+def _join_days(days) -> str:
+    """[0, 1, 4] -> 'Monday, Tuesday and Friday'."""
+    names = [regular_shifts.DAY_NAMES[d] for d in days]
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def _hours(minutes) -> Decimal:
+    """720 -> 12, 690 -> 11.5: the longest shift as the page shows it. A value
+    set in admin that isn't a tenth of an hour is rounded to one."""
+    hours = Decimal(minutes) / 60
+    tenth = hours.quantize(Decimal("0.1"))
+    return hours if hours == tenth else tenth
+
+
+class ShiftTemplateForm(forms.ModelForm):
+    """One shape on the Shift Templates page (Task 8): its usual leave and
+    return times (targets, not limits — U11), its notes, and the longest shift
+    it may run, in hours. The hours are written to max_span_minutes in clean();
+    no more than 12 (720 minutes, the ceiling every regular day is held to),
+    and never below a confirmed regular day on this shape — those have to be
+    edited first."""
+
+    # step_size is a Decimal: with a float, Django's step check can't word its
+    # own error for a value like 11.25 (Decimal + float).
+    max_span_hours = forms.DecimalField(
+        min_value=1, max_value=12, decimal_places=1, step_size=Decimal("0.5"),
+        label="Longest shift (hours)",
+        error_messages={"max_value": "No shift can be longer than 12 hours.",
+                        "min_value": "A shift must be at least 1 hour.",
+                        "step_size": "Use whole or half hours, like 11 or 11.5."},
+    )
+
+    class Meta:
+        model = ShiftTemplate
+        # max_span_minutes is deliberately left out: the page works in hours.
+        fields = ["start_earliest", "start_latest", "end_earliest", "end_latest", "notes"]
+        widgets = {
+            **{name: forms.TimeInput(attrs={"type": "time"}, format="%H:%M")
+               for name in ("start_earliest", "start_latest", "end_earliest", "end_latest")},
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+        labels = {
+            "start_earliest": "Leaves base, earliest",
+            "start_latest": "Leaves base, latest",
+            "end_earliest": "Back at base, earliest",
+            "end_latest": "Back at base, latest",
+            "notes": "Notes",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initial.setdefault("max_span_hours", _hours(self.instance.max_span_minutes))
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "gt-field")
+            # The page prints no caption under a field (the model's help_text is
+            # written for the admin), so no aria-describedby to a missing id.
+            field.help_text = ""
+
+    def clean(self):
+        cleaned = super().clean()
+        hours = cleaned.get("max_span_hours")
+        if hours is None:
+            return cleaned
+        minutes = int(hours * 60)
+        self.instance.max_span_minutes = minutes
+        # Judged only when the hours change, so a day made longer in admin
+        # never blocks saving this shape's times or notes.
+        if self.instance.pk and "max_span_hours" in self.changed_data:
+            longer = regular_shifts.confirmed_days_longer_than(self.instance, minutes)
+            if longer:
+                n, name = len(longer), self.instance.name
+                first = (f"1 confirmed regular shift on {name} is longer than that — "
+                         "edit it first." if n == 1 else
+                         f"{n} confirmed regular shifts on {name} are longer than that — "
+                         "edit them first.")
+                by_driver = {}
+                for driver, day in longer:
+                    by_driver.setdefault(driver, []).append(day)
+                who = "; ".join(f"{driver} on {_join_days(days)}"
+                                for driver, days in by_driver.items())
+                self.add_error("max_span_hours",
+                               [first, f"Longer than {minutes / 60:g} hours: {who}."])
+        return cleaned
+
+
+# The shapes are edited in place: the page never adds one (edit_only), and a
+# shape can't be deleted (drivers' regular days point at it).
+ShiftTemplateFormSet = forms.modelformset_factory(
+    ShiftTemplate, form=ShiftTemplateForm, extra=0, can_delete=False, edit_only=True)
 
 
 class DriverLicenseDetailsForm(forms.ModelForm):
