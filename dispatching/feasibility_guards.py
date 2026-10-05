@@ -449,7 +449,8 @@ def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
     he is back (clear + shift_tail_min). Both are 0 unless the window names its `kind`
     and the caller passed the leg's location category. Flexible / night / LAST_PICKUP /
     max-hours semantics mirror the hour path exactly. A window with max_span_min also
-    caps the caller's base -> base day span (base_span_min, with the leg added).
+    caps the caller's base -> base day span (base_span_min, with the leg added), and
+    refuses any leg on a day already over it before the leg (S20).
     """
     flexible = bool(window.get("flexible", False))
     start_min = int(window["start_min"])
@@ -501,17 +502,15 @@ def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
 
     # BASE-TO-BASE SPAN — the whole day, leaving base to back at base, stays within the
     # shape's max_span_min (12h). This is what holds a Float or "Morning or Evening" day,
-    # whose window runs from the earliest start to the latest end. Same delta rule as
-    # max-hours: a day already over before this leg may still take one that does not
-    # make it longer (a hole-fill), but never one that grows it.
+    # whose window runs from the earliest start to the latest end. Strict (S20, 07 §13
+    # K9-K10): a day already over before this leg takes no further planned leg, even one
+    # that fits inside it — unlike the max-hours delta rule below, which stays as it is
+    # for parity. A dispatcher's own move only warns; that is the caller's business.
     max_span = window.get("max_span_min")
-    if (max_span is not None and base_span_min_after is not None
-            and base_span_min_after > int(max_span)):
-        already_over = (base_span_min_before is not None
-                        and base_span_min_before > int(max_span))
-        grows = (base_span_min_before is None
-                 or base_span_min_after > base_span_min_before)
-        if not already_over or grows:
+    if max_span is not None:
+        if base_span_min_before is not None and base_span_min_before > int(max_span):
+            return False, f"day already over {_hm(max_span)} base to base"
+        if base_span_min_after is not None and base_span_min_after > int(max_span):
             return False, f"base to base {_hm(base_span_min_after)} > {_hm(max_span)}"
 
     # MAX HOURS — run the hour path's own block on a cap-only window (no start / end /
@@ -544,8 +543,9 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
         minute path reads them (the drive from / back to base); hour windows ignore them.
     base_span_min_after / base_span_min_before: the day's base -> base span in minutes
         (base_span_min) with and without the leg. Only the minute path reads them, and
-        only when the window carries max_span_min. after None => no base-to-base cap;
-        before None => total gate (no hole-fill exemption), as for span_hours_before.
+        only when the window carries max_span_min. A before over the ceiling refuses the
+        leg outright — no hole-fill exemption on the minute path (S20); otherwise an
+        after over it refuses. Both None => no base-to-base cap.
     """
     if not window:
         return True, ""

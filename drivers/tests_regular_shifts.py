@@ -126,9 +126,9 @@ class SuggestTests(_Fixture):
         self.assertEqual(monday.template_id, self.t["morning"].id)
         # 05:00 - (12 drive + 10 airport buffer) = 04:38, rounded down to 04:35.
         self.assertEqual(monday.start, time(4, 35))
-        # Last clear 09:00 + 34.8 (P50 departure tail) + 27 (MCO -> base + fuel)
-        # = 10:01.8, rounded up to 10:05.
-        self.assertEqual(monday.end, time(10, 5))
+        # Last clear 09:00 + 34.8 (P50 departure tail) + 12 (MCO -> base)
+        # = 09:46.8, rounded up to 09:50.
+        self.assertEqual(monday.end, time(9, 50))
 
     def test_suggest_irregular_weekday_is_off(self):
         d = _driver()
@@ -140,7 +140,9 @@ class SuggestTests(_Fixture):
         self.assertIsNone(tuesday.start)
         self.assertIsNone(tuesday.end)
 
-    def test_suggest_evening_start_includes_report_and_end_includes_night_return(self):
+    def test_suggest_evening_start_and_end_are_drive_only(self):
+        # Stage 1 counts only the drive (07 §13 K10): an Evening start has no report
+        # offset and its end no end-of-night wash.
         d = _driver()
         firsts = [(14, 50), (15, 0), (15, 0), (15, 10), (15, 20)]
         for day, (hh, mm) in zip(_lookback(2), firsts):
@@ -148,11 +150,11 @@ class SuggestTests(_Fixture):
             self.leg(d, day, 23, 0, MCO, MCO)
         wednesday = rs.suggest_regular_shifts([d], TODAY)[d.id][2]
         self.assertEqual(wednesday.template_id, self.t["evening"].id)
-        # Raw starts 14:28..14:58 (pickup - 22) sit in the Evening band; minus the
-        # 25-min evening report -> median 14:13, rounded down to 14:10.
-        self.assertEqual(wednesday.start, time(14, 10))
-        # 23:00 + 75.5 (P50 arrival tail) + 61 (wash, fuel, base) = 01:16.5 -> 01:20.
-        self.assertEqual(wednesday.end, time(1, 20))
+        # Raw starts 14:28..14:58 (pickup - 22) sit in the Evening band -> median
+        # 14:38, rounded down to 14:35.
+        self.assertEqual(wednesday.start, time(14, 35))
+        # 23:00 + 75.5 (P50 arrival tail) + 12 (MCO -> base) = 00:27.5 -> 00:30.
+        self.assertEqual(wednesday.end, time(0, 30))
 
     def test_suggest_night_tail_counts_for_previous_day(self):
         d = _driver()
@@ -162,9 +164,9 @@ class SuggestTests(_Fixture):
         days = rs.suggest_regular_shifts([d], TODAY)[d.id]
         thursday, friday = days[3], days[4]
         self.assertEqual(thursday.template_id, self.t["evening"].id)
-        self.assertEqual(thursday.start, time(15, 10))     # 16:00 - 22 - 25 = 15:13 -> 15:10
-        # 00:30 next day + 75.5 + 61 = 02:46.5 -> 02:50, inside 15:10 + 12h.
-        self.assertEqual(thursday.end, time(2, 50))
+        self.assertEqual(thursday.start, time(15, 35))     # 16:00 - 22 = 15:38 -> 15:35
+        # 00:30 next day + 75.5 + 12 = 01:57.5 -> 02:00, inside 15:35 + 12h.
+        self.assertEqual(thursday.end, time(2, 0))
         self.assertEqual(friday.weeks_worked, 0)
         self.assertIsNone(friday.template_id)
 
@@ -174,13 +176,14 @@ class SuggestTests(_Fixture):
         d = _driver()
         for day in _lookback(2)[:5]:                       # Wednesdays
             self.leg(d, day, 15, 0, MCO, DISNEY)
-            self.leg(d, day, 20, 0, MCO, MCO)              # clears 21:15.5, back 22:16.5
-            self.leg(d, day, 20, 0, PORT, PORT)            # clears 20:53.6, back 22:49.6
+            self.leg(d, day, 20, 0, MCO, MCO)              # clears 21:15.5, back 21:27.5
+            self.leg(d, day, 20, 0, PORT, PORT)            # clears 20:53.6, back 21:43.6
         wednesday = rs.suggest_regular_shifts([d], TODAY)[d.id][2]
         self.assertEqual(wednesday.template_id, self.t["evening"].id)
-        self.assertEqual(wednesday.start, time(14, 10))
-        # 20:00 + 53.6 (P50 other tail) + 116 (Port -> MCO, wash, fuel, base) -> 22:50.
-        self.assertEqual(wednesday.end, time(22, 50))
+        self.assertEqual(wednesday.start, time(14, 35))
+        # 20:00 + 53.6 (P50 other tail) + 50 (Port -> base) = 21:43.6 -> 21:45;
+        # the MCO leg alone would give 21:30.
+        self.assertEqual(wednesday.end, time(21, 45))
 
     def test_suggest_start_uses_each_legs_own_lead(self):
         # The first pickup isn't always the first to leave base: the 05:30
@@ -192,8 +195,8 @@ class SuggestTests(_Fixture):
         monday = rs.suggest_regular_shifts([d], TODAY)[d.id][0]
         self.assertEqual(monday.template_id, self.t["morning"].id)
         self.assertEqual(monday.start, time(4, 25))        # 05:30 - 65, not 05:00 - 22
-        # 05:30 + 53.6 (P50 other tail) + 50 (Disney -> base + fuel) = 07:13.6 -> 07:15.
-        self.assertEqual(monday.end, time(7, 15))
+        # 05:30 + 53.6 (P50 other tail) + 35 (Disney -> base) = 06:58.6 -> 07:00.
+        self.assertEqual(monday.end, time(7, 0))
 
     def test_suggest_night_only_day_stays_on_its_own_date(self):
         # Every Friday's only work is a 01:30 pickup and Thursday wasn't worked:
@@ -206,10 +209,10 @@ class SuggestTests(_Fixture):
         self.assertEqual((thursday.weeks_worked, thursday.template_id), (0, None))
         self.assertEqual(friday.weeks_worked, 5)
         self.assertEqual(friday.template_id, self.t["morning"].id)
-        # 01:30 - 22 = 01:08 -> 01:05; 01:30 + 75.5 + 27 = 03:12.5 -> 03:15.
-        self.assertEqual((friday.start, friday.end), (time(1, 5), time(3, 15)))
+        # 01:30 - 22 = 01:08 -> 01:05; 01:30 + 75.5 + 12 = 02:57.5 -> 03:00.
+        self.assertEqual((friday.start, friday.end), (time(1, 5), time(3, 0)))
         self.assertEqual(DayShift(4, friday.template_id, friday.start, friday.end).minutes(),
-                         (65, 195))
+                         (65, 180))
 
     def test_suggest_start_never_before_midnight(self):
         # A 00:10 pickup with nothing the evening before would leave base at
@@ -219,10 +222,10 @@ class SuggestTests(_Fixture):
             self.leg(d, day, 0, 10, MCO, MCO)
         sunday = rs.suggest_regular_shifts([d], TODAY)[d.id][6]
         self.assertEqual(sunday.template_id, self.t["morning"].id)
-        # 00:10 + 75.5 + 27 = 01:52.5 -> 01:55.
-        self.assertEqual((sunday.start, sunday.end), (time(0, 0), time(1, 55)))
+        # 00:10 + 75.5 + 12 = 01:37.5 -> 01:40.
+        self.assertEqual((sunday.start, sunday.end), (time(0, 0), time(1, 40)))
         self.assertEqual(DayShift(6, sunday.template_id, sunday.start, sunday.end).minutes(),
-                         (0, 115))
+                         (0, 100))
 
     def test_suggest_counts_todays_night_tail_for_yesterday(self):
         # Yesterday's shift ran past midnight into today: today's 01:00 pickup
@@ -237,15 +240,15 @@ class SuggestTests(_Fixture):
         days = rs.suggest_regular_shifts([d], TODAY)[d.id]
         sunday = days[6]
         self.assertEqual((sunday.weeks_worked, sunday.template_id), (4, self.t["evening"].id))
-        self.assertEqual(sunday.start, time(15, 10))       # 16:00 - 22 - 25 = 15:13 -> 15:10
-        # Ends 16:00 + 75.5 + 91 = 18:46.5 (no tail) and 01:00 + 75.5 + 61 = 03:16.5
-        # (tail); median of two each = 23:01.5 -> 23:05. Without today's tail: 18:50.
-        self.assertEqual(sunday.end, time(23, 5))
+        self.assertEqual(sunday.start, time(15, 35))       # 16:00 - 22 = 15:38 -> 15:35
+        # Ends 16:00 + 75.5 + 35 = 17:50.5 (no tail) and 01:00 + 75.5 + 12 = 02:27.5
+        # (tail); median of two each = 22:09 -> 22:10. Without today's tail: 17:55.
+        self.assertEqual(sunday.end, time(22, 10))
         self.assertEqual(days[0].weeks_worked, 0)          # the 01:00 pickups aren't Mondays
 
     def test_suggest_majority_shape(self):
         # 3 Morning Mondays and 2 Midday: Morning, with medians over the Morning
-        # days only (over all five they'd be 04:55 and 07:30).
+        # days only (over all five they'd be 04:55 and 07:15).
         d = _driver()
         mondays = _lookback(0)
         for day, mm in zip(mondays[:3], (0, 10, 20)):
@@ -255,8 +258,8 @@ class SuggestTests(_Fixture):
         monday = rs.suggest_regular_shifts([d], TODAY)[d.id][0]
         self.assertEqual((monday.weeks_worked, monday.template_id), (5, self.t["morning"].id))
         self.assertEqual(monday.start, time(4, 45))        # median 04:48 -> 04:45
-        # Ends 05:10 + 75.5 + 50 = 07:15.5 (the median) -> 07:20.
-        self.assertEqual(monday.end, time(7, 20))
+        # Ends 05:10 + 75.5 + 35 = 07:00.5 (the median) -> 07:05.
+        self.assertEqual(monday.end, time(7, 5))
 
     def test_suggest_tied_shape_goes_to_nearest_median_start(self):
         d = _driver()
@@ -272,15 +275,15 @@ class SuggestTests(_Fixture):
         days = rs.suggest_regular_shifts([d], TODAY)[d.id]
         tuesday, wednesday = days[1], days[2]
         # Tuesday 2-2: median raw 06:08 sits in Midday's band, so Midday (not the
-        # first shape), with Midday-only medians: 07:38 -> 07:35, 08:00 + 75.5 + 91
-        # = 10:46.5 -> 10:50.
+        # first shape), with Midday-only medians: 07:38 -> 07:35, 08:00 + 75.5 + 35
+        # = 09:50.5 -> 09:55.
         self.assertEqual((tuesday.weeks_worked, tuesday.template_id), (4, self.t["midday"].id))
-        self.assertEqual((tuesday.start, tuesday.end), (time(7, 35), time(10, 50)))
+        self.assertEqual((tuesday.start, tuesday.end), (time(7, 35), time(9, 55)))
         # Wednesday 2-2: median raw 04:45 sits in Morning's band, so Morning:
-        # 03:20; 03:42 + 75.5 + 50 = 05:47.5 -> 05:50.
+        # 03:20; 03:42 + 75.5 + 35 = 05:32.5 -> 05:35.
         self.assertEqual((wednesday.weeks_worked, wednesday.template_id),
                          (4, self.t["morning"].id))
-        self.assertEqual((wednesday.start, wednesday.end), (time(3, 20), time(5, 50)))
+        self.assertEqual((wednesday.start, wednesday.end), (time(3, 20), time(5, 35)))
 
     def test_suggest_lookback_includes_its_first_day(self):
         d = _driver()
@@ -302,7 +305,7 @@ class SuggestTests(_Fixture):
         saturday = rs.suggest_regular_shifts([d], TODAY)[d.id][5]
         self.assertEqual(saturday.template_id, self.t["morning"].id)
         self.assertEqual(saturday.start, time(4, 35))
-        # 16:00 + 75.5 + 50 = 18:05.5 would be 13.5h; capped at 04:35 + 12h.
+        # 16:00 + 75.5 + 35 = 17:50.5 -> 17:55 would be 13h 20m; capped at 04:35 + 12h.
         self.assertEqual(saturday.end, time(16, 35))
 
     def test_suggest_no_recent_trips(self):
@@ -778,8 +781,9 @@ class LabelTests(_Fixture):
             self.leg(d, day, 5, 0, MCO, DISNEY)
             self.leg(d, day, 9, 0, DISNEY, MCO)
         suggestion = rs.suggest_regular_shifts([d], TODAY)[d.id]
+        # As in test_suggest_regular_weekday: 09:00 + 34.8 + 12 (MCO -> base) -> 9:50 AM.
         self.assertEqual(rs.summary_label(suggestion, rs.templates_by_id()),
-                         "Mon Morning 4:35 AM–10:05 AM")
+                         "Mon Morning 4:35 AM–9:50 AM")
 
 
 # ════════════════════════════════════════════════════════════════════════════

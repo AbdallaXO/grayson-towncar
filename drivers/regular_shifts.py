@@ -294,12 +294,11 @@ def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion
     otherwise it is early work on its own date, so a night-only day is never
     moved onto the wrong weekday. Today's pickups before 02:00 count for
     yesterday. Per worked day, every leg is held to the same base -> base rule
-    the engine checks: the raw start is the earliest of each pickup minus its
-    own drive from base and pickup buffer, and picks the shape whose start band
-    is nearest; an Evening day starts a further 25 min earlier (report before
-    car-ready); the end is the latest of each leg's P50 occupancy end plus its
-    own return to base. A start before midnight is held at 00:00 (the weekday
-    can't begin the day before).
+    the engine checks, drive-only in Stage 1 (07 §13 K10): the start is the
+    earliest of each pickup minus its own drive from base and pickup buffer,
+    and picks the shape whose start band is nearest; the end is the latest of
+    each leg's P50 occupancy end plus its own drive back to base. A start
+    before midnight is held at 00:00 (the weekday can't begin the day before).
     A weekday worked in at least 4 of the 8 weeks is regular: its shape is the
     one most of those days had (a tie goes to the shape nearest the median raw
     start), and its start and end are medians over the days of that shape —
@@ -363,8 +362,7 @@ def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion
         raw_start = min(minutes - hc.shift_lead_min("morning", pickup_zone)
                         for minutes, pickup_zone, _ in stops)
         tpl = _nearest_template(raw_start, templates)
-        start = raw_start - (hc.EVENING_REPORT_LEAD_MIN if tpl.kind == "evening" else 0)
-        start = max(0, start)
+        start = max(0, raw_start)
         base = datetime.combine(day, time(0))
         end = max(
             (hc.occupancy_interval(base + timedelta(minutes=minutes),
@@ -448,8 +446,8 @@ def regular_window(day, templates, *, hard_lo: Optional[int],
     times when blank. A Float or two-shape day runs from the earliest usual
     start of its shapes to the latest usual end, kind "float", with M the
     smallest longest-shift among them; its typed times are labels only. The
-    rules door uses kind for the drive from and back to base: "float" has no
-    evening report time and a full night return, the cautious choice.
+    rules door passes kind to the base -> base lead and tail, which are the
+    same drive-only values for every kind in Stage 1 (07 §13 K10).
 
     Then the window is clipped to the driver's hard limits (hard_lo / hard_hi,
     from Driver.hard_window_minutes()) and the day's own. None for an Off day,

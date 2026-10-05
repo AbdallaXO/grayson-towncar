@@ -3,8 +3,10 @@
 Task 3c: check_feasibility holds every regular-shift day to its shape's max_span_min,
 measured base -> base (leaving base for the first pickup to back at base after the last
 clear). That is what keeps Float and "Morning or Evening" days — whose window runs from
-the earliest start to the latest end — at 12 hours. A day already over 12h may still
-take a leg that does not make it longer.
+the earliest start to the latest end — at 12 hours.
+
+Task 4b: base -> base counts only the drive in Stage 1 (07 §13 K10), and a day already
+over 12h takes no further planned leg, even one that fits inside it (S20).
 
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_regular_shift_engine
 """
@@ -31,8 +33,8 @@ class BaseSpanFeasibilityTests(RegularShiftCacheMixin, TestCase):
 
     def test_check_feasibility_float_day_held_to_12h(self):
         # Leave base 04:38 for the 05:00 MCO arrival; the 14:00 departure clears 15:00 at MCO,
-        # back at base 16:01 (11h 23m). A 16:30 Disney departure clearing 17:20 at MCO puts
-        # him back at 18:21 — 13h 43m base to base.
+        # back at base 15:12 (10h 34m). A 16:30 Disney departure clearing 17:20 at MCO puts
+        # him back at 17:32 — 12h 54m base to base.
         day = _sched(46, [
             _slot(_leg(1, 5, 0, trip="arrival", pickup_loc="MCO Terminal",
                        dropoff_loc="Disney Resort"), end_dt=_at(6, 15)),
@@ -46,15 +48,16 @@ class BaseSpanFeasibilityTests(RegularShiftCacheMixin, TestCase):
             refused = check_feasibility(day, late, D, driver_window=self.FLOAT)
             allowed = check_feasibility(day, late, D, driver_window=no_cap)
         self.assertFalse(refused.feasible)
-        self.assertEqual(refused.reason, "Outside driver window: base to base 13h 43m > 12h 0m")
+        self.assertEqual(refused.reason, "Outside driver window: base to base 12h 54m > 12h 0m")
         self.assertTrue(allowed.feasible, allowed.reason)
 
-    def test_check_feasibility_day_already_over_takes_hole_fill_only(self):
-        # A day already past 12h (a board built by hand): leave base 04:38 for the 05:00 MCO
-        # arrival; the 17:00 departure clears 17:40 at MCO, back at base 18:41 — 14h 3m.
-        # A leg inside that span leaves it unchanged and still fits; one that ends later
-        # grows it and is refused. This only holds if check_feasibility passes the span
-        # WITHOUT the new leg: with none, every leg on an over-12h day reads as growing it.
+    def test_check_feasibility_day_already_over_takes_no_more_planned_work(self):
+        # S20: a board built by hand that is already past 12h — leave base 04:38 for the
+        # 05:00 MCO arrival; the 17:00 departure clears 17:40 at MCO, back at base 17:52
+        # (13h 14m). Neither a leg inside that span (it leaves the span unchanged) nor one
+        # that ends later is planned onto it. The hole-fill only gets the "already over"
+        # reason if check_feasibility passes the span WITHOUT the new leg; with none it
+        # would read as "base to base 13h 14m".
         day = _sched(47, [
             _slot(_leg(1, 5, 0, trip="arrival", pickup_loc="MCO Terminal",
                        dropoff_loc="Disney Resort"), end_dt=_at(6, 15)),
@@ -67,12 +70,14 @@ class BaseSpanFeasibilityTests(RegularShiftCacheMixin, TestCase):
                      dropoff_loc="MCO Terminal")
         no_cap = {k: v for k, v in self.FLOAT.items() if k != "max_span_min"}
         with mock.patch.object(sch, "estimate_job_end_time", return_value=_at(10, 40)):
-            filled = check_feasibility(day, hole, D, driver_window=self.FLOAT)
+            hole_refused = check_feasibility(day, hole, D, driver_window=self.FLOAT)
+            hole_allowed = check_feasibility(day, hole, D, driver_window=no_cap)
         with mock.patch.object(sch, "estimate_job_end_time", return_value=_at(19, 40)):
-            refused = check_feasibility(day, later, D, driver_window=self.FLOAT)
-            allowed = check_feasibility(day, later, D, driver_window=no_cap)
-        self.assertTrue(filled.feasible, filled.reason)
-        self.assertFalse(refused.feasible)
-        # Back at base 20:41 after the 19:40 MCO clear: 16h 3m.
-        self.assertEqual(refused.reason, "Outside driver window: base to base 16h 3m > 12h 0m")
-        self.assertTrue(allowed.feasible, allowed.reason)
+            later_refused = check_feasibility(day, later, D, driver_window=self.FLOAT)
+            later_allowed = check_feasibility(day, later, D, driver_window=no_cap)
+        for refused in (hole_refused, later_refused):
+            self.assertFalse(refused.feasible)
+            self.assertEqual(refused.reason,
+                             "Outside driver window: day already over 12h 0m base to base")
+        self.assertTrue(hole_allowed.feasible, hole_allowed.reason)
+        self.assertTrue(later_allowed.feasible, later_allowed.reason)

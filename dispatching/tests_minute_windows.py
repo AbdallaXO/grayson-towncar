@@ -9,6 +9,10 @@ pins that against a verbatim copy of the pre-Stage-1 window_check.
 Task 3c: a regular window may also carry max_span_min, and the caller's base -> base spans
 (fg.base_span_min, before and after the leg) are held to it — the 12-hour day.
 
+Task 4b (07 §13 K10): Stage 1 counts only the drive — the lead is the drive from base plus
+the pickup buffer, the tail the drive back to base, for every kind; no fuel, report or wash.
+A day already over its ceiling before a leg takes no further leg at all (S20).
+
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_minute_windows
 """
 from datetime import date, datetime, time, timedelta
@@ -166,25 +170,27 @@ class MinuteWindowTests(SimpleTestCase):
                                          dropoff_category="MCO Terminal"),
                          (False, "pickup 05:00 means leaving base 04:10, before start 04:35"))
 
-    def test_minute_tail_morning_fuel(self):
+    def test_minute_tail_is_the_drive_back(self):
+        # MCO -> base is 12 min, and that is the whole tail (no fuel stop in Stage 1).
         w = W(start=4, end=17, start_min=275, end_min=995, kind="morning", source="regular")  # ends 16:35
-        self.assertTrue(fg.window_check(w, time(15, 0), dt(16, 8), 1, target_date=D,
+        self.assertTrue(fg.window_check(w, time(15, 0), dt(16, 23), 1, target_date=D,
                                         pickup_category="Disney Resort",
                                         dropoff_category="MCO Terminal")[0])
-        self.assertEqual(fg.window_check(w, time(15, 0), dt(16, 9), 1, target_date=D,
+        self.assertEqual(fg.window_check(w, time(15, 0), dt(16, 24), 1, target_date=D,
                                          pickup_category="Disney Resort",
                                          dropoff_category="MCO Terminal"),
-                         (False, "clears 16:09, back at base 16:36, after 16:35"))
+                         (False, "clears 16:24, back at base 16:36, after 16:35"))
 
     def test_cross_midnight_evening_tail(self):
+        # An evening driver's tail is the same 12-min drive back (no end-of-night wash).
         w = W(start=14, end=23, start_min=855, end_min=1575, kind="evening", source="regular")  # ends 02:15
-        self.assertTrue(fg.window_check(w, time(23, 30), dt(1, 14, day=1), 1, target_date=D,
+        self.assertTrue(fg.window_check(w, time(23, 30), dt(2, 3, day=1), 1, target_date=D,
                                         pickup_category="MCO Terminal",
                                         dropoff_category="MCO Terminal")[0])
-        self.assertEqual(fg.window_check(w, time(23, 30), dt(1, 15, day=1), 1, target_date=D,
+        self.assertEqual(fg.window_check(w, time(23, 30), dt(2, 4, day=1), 1, target_date=D,
                                          pickup_category="MCO Terminal",
                                          dropoff_category="MCO Terminal"),
-                         (False, "clears 01:15, back at base 02:16, after 02:15 (next day)"))
+                         (False, "clears 02:04, back at base 02:16, after 02:15 (next day)"))
 
     def test_cross_midnight_without_target_date(self):
         w = W(start=14, end=23, start_min=855, end_min=1575, kind="evening", source="regular")
@@ -193,13 +199,13 @@ class MinuteWindowTests(SimpleTestCase):
                          (False, "clears 02:16 after clear-by 02:15 (next day)"))
 
     def test_lead_before_midnight_says_day_before(self):
-        # An evening lead at Disney is 75 min, so a 00:20 pickup means leaving base the
-        # evening before — the reason says so instead of a bare, wrapped 23:05.
+        # A lead at Disney is 50 min (35 drive + 15 buffer), so a 00:20 pickup means leaving
+        # base the evening before — the reason says so instead of a bare, wrapped 23:30.
         w = W(start=0, end=12, start_min=10, end_min=730, kind="evening", source="regular")
         self.assertEqual(fg.window_check(w, time(0, 20), dt(1, 0), 1, target_date=D,
                                          pickup_category="Disney Resort",
                                          dropoff_category="MCO Terminal"),
-                         (False, "pickup 00:20 means leaving base 23:05 (day before), "
+                         (False, "pickup 00:20 means leaving base 23:30 (day before), "
                                  "before start 00:10"))
 
     def test_half_minute_window_takes_hour_path(self):
@@ -288,7 +294,8 @@ class RegularWindowTests(SimpleTestCase):
 
 class BaseSpanTests(RegularShiftCacheMixin, SimpleTestCase):
     """The 12-hour base -> base span check (Task 3c): leaving base for the first pickup to
-    back at base after the last clear must stay within the window's max_span_min."""
+    back at base after the last clear must stay within the window's max_span_min. A day
+    already over it before the leg takes nothing more (Task 4b, S20)."""
 
     FLOAT = W(start=3, end=23, start_min=180, end_min=1575, kind="float", source="regular",
               max_span_min=720)
@@ -299,25 +306,59 @@ class BaseSpanTests(RegularShiftCacheMixin, SimpleTestCase):
                                base_span_min_after=after, base_span_min_before=before)
 
     def test_base_span_helper(self):
+        # Leave base 04:38 for the 05:00 MCO pickup (12 drive + 10 buffer); the 16:40 MCO
+        # clear is back at base 16:52 (12 drive), later than the 06:15 Disney clear's 06:50.
+        # Drive-only, so every kind gives the same span.
         legs = [(dt(5, 0), "MCO Terminal", dt(6, 15), "Disney Resort"),
                 (dt(16, 0), "Disney Resort", dt(16, 40), "MCO Terminal")]
-        self.assertEqual(fg.base_span_min(legs, "morning"), 749)   # 04:38 -> 17:07
+        for kind in ("morning", "midday", "evening", "float"):
+            self.assertEqual(fg.base_span_min(legs, kind), 734, kind)   # 04:38 -> 16:52
         self.assertIsNone(fg.base_span_min([], "morning"))
 
     def test_base_span_cap_rejects_over_12h(self):
         self.assertEqual(self._check(self.FLOAT, 725, 683), (False, "base to base 12h 5m > 12h 0m"))
         self.assertEqual(self._check(self.FLOAT, 725, None), (False, "base to base 12h 5m > 12h 0m"))
         self.assertEqual(self._check(self.FLOAT, 720, 683), (True, ""))   # exactly 12h is fine
+        self.assertEqual(self._check(self.FLOAT, 725, 720), (False, "base to base 12h 5m > 12h 0m"))
 
-    def test_base_span_allows_hole_fill_when_already_over(self):
-        # Same delta rule as max-hours: a day already over may take a leg that does not
-        # make it longer, but never one that grows it.
-        self.assertEqual(self._check(self.FLOAT, 760, 760), (True, ""))
-        self.assertEqual(self._check(self.FLOAT, 770, 760), (False, "base to base 12h 50m > 12h 0m"))
+    def test_s20_refuses_leg_inside_overrun_day(self):
+        # S20 (07 §13 K9-K10): a day already over 12h base to base takes no further planned
+        # leg, even one that fits inside it and leaves the span unchanged (no hole-fill).
+        self.assertEqual(self._check(self.FLOAT, 735, 735),
+                         (False, "day already over 12h 0m base to base"))
+        # One that also grows the day gets the same reason: the day was over first.
+        self.assertEqual(self._check(self.FLOAT, 770, 760),
+                         (False, "day already over 12h 0m base to base"))
+        # The limit named is the window's own.
+        self.assertEqual(self._check(dict(self.FLOAT, max_span_min=690), 700, 695),
+                         (False, "day already over 11h 30m base to base"))
+
+    def test_s20_hour_path_delta_rule_unchanged(self):
+        # The hour path's max-hours gate keeps its delta rule (parity): a day already over
+        # max_hours still takes a hole-fill, and only a leg that grows it is refused. Base
+        # spans never reach an hour window, even one carrying max_span_min.
+        hw = W(start=4, end=17, max_hours=10)
+        self.assertEqual(fg.window_check(hw, time(6, 0), dt(7, 0), 11.0, target_date=D,
+                                         span_hours_before=11.0), (True, ""))
+        self.assertEqual(fg.window_check(hw, time(6, 0), dt(7, 0), 11.5, target_date=D,
+                                         span_hours_before=11.0),
+                         (False, "day span 11.5h > max_hours 10"))
+        self.assertEqual(
+            fg.window_check(dict(hw, max_span_min=720), time(6, 0), dt(7, 0), 11.0,
+                            target_date=D, span_hours_before=11.0,
+                            base_span_min_after=735, base_span_min_before=735),
+            _legacy_window_check(hw, time(6, 0), dt(7, 0), 11.0, target_date=D,
+                                 span_hours_before=11.0))
+        # A minute window's own max-hours block (run through the hour path) keeps it too.
+        mw = W(start=4, end=17, start_min=250, end_min=970, kind="morning", source="regular",
+               max_hours=10)
+        self.assertEqual(fg.window_check(mw, time(6, 0), dt(7, 0), 11.0, target_date=D,
+                                         span_hours_before=11.0), (True, ""))
 
     def test_no_cap_without_max_span_min(self):
         no_cap = {k: v for k, v in self.FLOAT.items() if k != "max_span_min"}
         self.assertEqual(self._check(no_cap, 900, 683), (True, ""))
+        self.assertEqual(self._check(no_cap, 760, 760), (True, ""))   # S20 needs a ceiling too
         self.assertEqual(self._check(dict(self.FLOAT, max_span_min=None), 900, 683), (True, ""))
         self.assertEqual(self._check(self.FLOAT, None, None), (True, ""))   # caller gave no span
         # An hour window never reads the base spans, even if it carries max_span_min.
@@ -363,23 +404,46 @@ class ChainOkMinuteWindowTests(SimpleTestCase):
     def test_chain_ok_holds_base_span(self):
         from dispatching import scheduler
         # Float 03:00-02:15: leave base 04:38 for the 05:00 MCO arrival; the 16:30 Disney
-        # departure clears 17:20 at MCO and the night return makes it 18:21 back at base.
+        # departure clears 17:20 at MCO and the 12-min drive makes it 17:32 back at base.
         float_w = {"start": 3, "end": 23, "start_min": 180, "end_min": 1575, "kind": "float",
                    "source": "regular", "max_hours": None, "flexible": False,
                    "max_span_min": 720}
         late = self._slot(2, time(16, 30), "Disney Resort", "MCO Terminal", "departure",
                           dt(17, 20))
         day = self._day("MCO Terminal", "Disney Resort", "arrival", late)
-        self.assertFalse(scheduler._chain_ok(day, D, driver_window=float_w))   # 13h 43m
+        self.assertFalse(scheduler._chain_ok(day, D, driver_window=float_w))   # 12h 54m
         self.assertTrue(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=None)))
-        self.assertTrue(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=825)))
+        # 04:38 -> 17:32 is 774 min: a ceiling of exactly that passes, one minute less fails.
+        self.assertTrue(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=774)))
+        self.assertFalse(scheduler._chain_ok(day, D, driver_window=dict(float_w, max_span_min=773)))
 
 
 class ShiftLeadTailTests(SimpleTestCase):
-    """handoff_chain's base->base lead and tail (07 §6.1)."""
+    """handoff_chain's base->base lead and tail (07 §6.1), drive-only in Stage 1 (§13 K10)."""
 
     def test_shift_lead_tail(self):
+        # Lead = drive from base + pickup buffer (10 airport / 15 other); tail = drive back.
         self.assertEqual(hc.shift_lead_min("morning", "MCO Terminal"), 22)
-        self.assertEqual(hc.shift_tail_min("morning", "MCO Terminal"), 27)
-        self.assertEqual(hc.shift_tail_min("evening", "MCO Terminal"), 61)
-        self.assertEqual(hc.shift_lead_min("evening", "Disney Resort"), 75)
+        self.assertEqual(hc.shift_tail_min("morning", "MCO Terminal"), 12)
+        self.assertEqual(hc.shift_tail_min("evening", "MCO Terminal"), 12)
+        self.assertEqual(hc.shift_lead_min("evening", "Disney Resort"), 50)
+
+    def test_kind_does_not_change_lead_or_tail(self):
+        # `kind` stays in the signature for Stage 3's handover settings; today it is unused.
+        for zone, lead, tail in (("MCO Terminal", 22, 12), ("Disney Resort", 50, 35),
+                                 ("Port Canaveral Area", 65, 50), ("Nowhere Known", 53, 38)):
+            for kind in ("morning", "midday", "evening", "float", None):
+                self.assertEqual(hc.shift_lead_min(kind, zone), lead, (kind, zone))
+                self.assertEqual(hc.shift_tail_min(kind, zone), tail, (kind, zone))
+
+    def test_no_handover_constants_left(self):
+        # The fuel stop (U14) and evening report (U16) are gone from Stage 1; Stage 3 brings
+        # the handover settings (K7-K8) instead.
+        self.assertFalse(hasattr(hc, "HANDOVER_FUEL_MIN"))
+        self.assertFalse(hasattr(hc, "EVENING_REPORT_LEAD_MIN"))
+
+    def test_shipped_chain_unchanged(self):
+        # The shipped handoff bands still read the full wash-fuel-base chain.
+        self.assertEqual(round(hc.car_ready_min("MCO Terminal")[1]), 61)
+        self.assertEqual(hc.clear_to_pickup_min("MCO Terminal", "MCO Terminal"),
+                         (79.0, 83.0, 87.0))
