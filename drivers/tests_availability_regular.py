@@ -400,9 +400,18 @@ class PickupWindowTests(_Fixture):
         tue = resolve_effective_availability(d, TUE)
         self.assertEqual(is_pickup_within_window(tue, time(23, 30)), (True, ""))
         self.assertEqual(is_pickup_within_window(tue, time(14, 14)), (
-            False, "Pickup at 2:14 PM is outside the driver's regular shift (2:15 PM–2:15 AM)."))
-        # Tuesday 01:00 is the early hours of Tuesday, not the end of Tuesday's shift.
-        self.assertFalse(is_pickup_within_window(tue, time(1))[0])
+            False, "Pickup at 2:14 PM is outside the driver's regular shift "
+                   "(2:15 PM–2:15 AM next day)."))
+        # Tuesday 01:00 is the early hours of Tuesday, not the end of Tuesday's shift,
+        # and the warning says so rather than read as inside "2:15 PM–2:15 AM".
+        self.assertEqual(is_pickup_within_window(tue, time(1)), (
+            False, "Pickup at 1 AM is before the driver's regular shift starts "
+                   "(2:15 PM–2:15 AM next day). It falls in the shift that starts the day "
+                   "before."))
+        # 02:15 and after is past even the day before's shift.
+        self.assertEqual(is_pickup_within_window(tue, time(2, 15)), (
+            False, "Pickup at 2:15 AM is outside the driver's regular shift "
+                   "(2:15 PM–2:15 AM next day)."))
         self.assertEqual(is_pickup_within_window(resolve_effective_availability(d, WED),
                                                  time(9)), (False, "Driver is off this date."))
         # Switch off: today's reading (an open, flexible day) — no warning.

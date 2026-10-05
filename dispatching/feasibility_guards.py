@@ -403,6 +403,23 @@ def regular_window_keys(eff):
     return keys
 
 
+def held_leg_window(window):
+    """The window for a leg a driver ALREADY holds, when a manual plan (a swap, a
+    farm-out apply) re-checks his whole resulting day.
+
+    A regular window (start_min / end_min) judges only the legs the plan puts on
+    him; a leg already on his board is judged on turnaround alone (None). A
+    dispatcher may place a trip outside the regular shift by hand, which warns and
+    never blocks (07 §6.5), and an evening driver's after-midnight tail sits before
+    that date's start (S14), so neither may veto the next plan onto him. Pre-existing
+    problems never veto, as in validate_post_move_board. An hour window (every
+    window with the switch off) still checks every leg, as it always has.
+    """
+    if window is not None and window.get("start_min") is not None:
+        return None
+    return window
+
+
 def legacy_hours(start_min, end_min):
     """(start_hour, end_hour) for code that still reads hour windows.
 

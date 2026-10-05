@@ -507,8 +507,10 @@ def revalidate_moves_against_db(valid_moves, target_date):
 
     Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
     remaining legs infeasible). A receiver whose car fleet has HARD-booked across
-    the trip fails too, with the booking's own sentence as the reason. Read-only;
-    mutates only in-memory copies."""
+    the trip fails too, with the booking's own sentence as the reason. A regular
+    window judges only the legs the moves put on him; legs he already held get
+    turnaround only (feasibility_guards.held_leg_window). Read-only; mutates only
+    in-memory copies."""
     from reservations.models import Leg as _Leg
     from drivers.models import Driver
     from dispatching.scheduler import (
@@ -529,6 +531,9 @@ def revalidate_moves_against_db(valid_moves, target_date):
     for leg_id in move_map:
         if leg_id not in legs_by_id:
             return False, f"leg {leg_id} not found on {target_date}"
+    # Who held each leg before the moves: a leg already on its receiver is judged
+    # against his regular window only if the plan puts it there (held_leg_window).
+    held_by = {l.id: l.driver_id for l in legs}
 
     # Apply the moves in memory.
     drv_objs = {d.id: d for d in Driver.objects.filter(id__in=receiving_driver_ids)}
@@ -592,10 +597,13 @@ def revalidate_moves_against_db(valid_moves, target_date):
         # duty-span cap (Span Governor) must never hard-block an intentional manual move,
         # nor may a regular shift's 12h base-to-base ceiling (it only warns, S20).
         window = fg.get_effective_window(did, configured=_cfg_window(did), enforce_cap=False)
+        held_window = fg.held_leg_window(window)
         for L in drv_legs:
             others = [l for l in drv_legs if l.id != L.id]
             sched = build_driver_schedules(others, [drv_objs[did]], target_date).get(did)
-            feas = check_feasibility(sched, L, target_date, driver_window=window)
+            feas = check_feasibility(
+                sched, L, target_date,
+                driver_window=held_window if held_by[L.id] == did else window)
             if not feas.feasible:
                 return False, f"leg {L.id} on driver {did} would be infeasible: {feas.reason}"
             # One physical car: reject if this leg overlaps a car-share partner's jobs.

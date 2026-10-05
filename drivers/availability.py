@@ -475,6 +475,31 @@ def format_availability_tooltip(eff):
     return f"Driver works {fmt_hour_long(eff['start_hour'])} – {fmt_hour_long(eff['end_hour'])} today."
 
 
+def typed_hours_skip_stub_when_off(driver, eff, target_date):
+    """True when hours typed in the Auto-Assign modal for a confirmed driver
+    whose day reads as off skip the stub, as typed hours do on a working day
+    (S4, S9): his regular Off day, or approved time off on a working day.
+
+    Not when his limits leave that working day no time, or its shift can't be
+    read: the limits are hard, and typed hours would plan work outside them.
+    A flexible exception keeps today's reading (S4). `eff` is
+    resolve_effective_availability(driver, target_date). The caller reads
+    the switch; for a driver with no regular shift this costs no query."""
+    et = eff.get("exception_type")
+    if et == "flexible":
+        return False
+    if eff.get("regular_day_off"):
+        return True
+    if et != "off":
+        return False
+    regular = _regular_day(driver, target_date)
+    if regular is None:
+        return False
+    from drivers import regular_shifts as rs
+    hard_lo, hard_hi = driver.hard_window_minutes()
+    return rs.regular_window(*regular, hard_lo=hard_lo, hard_hi=hard_hi) is not None
+
+
 # ----- Window check (for warnings on assignment) -----
 
 def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
@@ -526,8 +551,17 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
     if start_min is not None and end_min is not None:
         p = pickup_time.hour * 60 + pickup_time.minute
         if p < start_min or p >= end_min:
-            return (False, f"Pickup at {fmt_time_long(pickup_time)} is outside the driver's regular shift "
-                           f"({_fmt_minutes(start_min)}–{_fmt_minutes(end_min)}).")
+            # A shift past midnight says so ("2:15 PM–2:15 AM next day"); an early
+            # pickup inside its after-midnight hours is the day before's shift, not
+            # this date's — said plainly, since 1 AM reads as inside "2:15 PM–2:15 AM".
+            shift = (f"{_fmt_minutes(start_min)}–{_fmt_minutes(end_min)}"
+                     + (" next day" if end_min >= 1440 else ""))
+            pickup = fmt_time_long(pickup_time)
+            if p < start_min and p + 1440 < end_min:
+                return (False, f"Pickup at {pickup} is before the driver's regular shift "
+                               f"starts ({shift}). It falls in the shift that starts the "
+                               f"day before.")
+            return (False, f"Pickup at {pickup} is outside the driver's regular shift ({shift}).")
 
     return (True, "")
 

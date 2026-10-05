@@ -14729,11 +14729,13 @@ def auto_assign_drivers(request):
     # regular day carries its window to the minute, base to base (regular_window_keys).
     # In the modal, hours left as they opened carry it too; hours the dispatcher retyped
     # (or a Flexible tick) win as typed hours (S9) and only skip the stub. So do hours
-    # typed for a driver on his regular Off day (the dispatcher unticked Off): that day
-    # has no window, but the driver is still confirmed (S4). With the switch off no driver
-    # has the keys and no Off day is applied, so this stays empty and nothing below
-    # changes.
+    # typed for a driver on his regular Off day or on approved time off (the dispatcher
+    # unticked Off): that day has no window, but the driver is still confirmed (S4). A
+    # working day his limits leave no time keeps the stub: the limits are hard. With the
+    # switch off no driver has the keys and no Off day is applied, so this stays empty
+    # and nothing below changes.
     from dispatching import feasibility_guards as fg
+    from drivers.availability import typed_hours_skip_stub_when_off
     from drivers.regular_shifts import regular_windows_on
     regular_keys = {}
     for d in inhouse_drivers:
@@ -14747,13 +14749,14 @@ def auto_assign_drivers(request):
             or driver_hours[d.id] != (full_avail["start_hour"], full_avail["end_hour"]))
         if _regular:
             regular_keys[d.id] = {"source": "regular"} if _retyped else _regular
-        elif (raw_driver_hours and full_avail.get("regular_day_off")
-              and full_avail.get("exception_type") != "flexible"
+        elif (raw_driver_hours
               and (_retyped or not full_avail["is_available"])
+              and typed_hours_skip_stub_when_off(d, full_avail, target_date)
               and regular_windows_on()):
-            # Put to work on his regular Off day from the modal. regular_day_off is set
-            # only for a confirmed driver, so nobody else reads the switch here. A
-            # flexible exception keeps today's reading (S4), as it does on a working day.
+            # Put to work from the modal on his regular Off day or on approved time
+            # off. Only a confirmed driver passes, so nobody else reads the switch
+            # here. A flexible exception keeps today's reading (S4), as it does on a
+            # working day.
             regular_keys[d.id] = {"source": "regular"}
 
     # ── The assignment build ──

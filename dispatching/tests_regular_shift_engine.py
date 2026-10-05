@@ -357,6 +357,64 @@ class AutoAssignRegularShiftTests(_EngineFixture):
         self.assertNotIn("start_min", window)
         self.assertEqual(window["max_hours"], fg.SPAN_HARD_HOURS_DEFAULT)   # not the stub's 14
 
+    def modal_window(self, hours):
+        """The window the pipeline gets for driver 46 from this modal payload."""
+        seen = {}
+        real = ap.run_assignment_pipeline
+
+        def spy(*args, **kwargs):
+            seen["result"] = real(*args, **kwargs)
+            return seen["result"]
+
+        with mock.patch.object(ap, "run_assignment_pipeline", side_effect=spy):
+            self.preview(hours)
+        return seen["result"].capped_windows[46]
+
+    def test_modal_hours_typed_on_approved_time_off_skip_stub(self):
+        # A Morning working day with approved time off. The dispatcher unticks Off and
+        # types 4-22: his typed hours win and skip the stub (S4, S9), as on his regular
+        # Off day — and a 04:45 job he can now take goes to him.
+        from drivers.models import DriverDateOverride
+        early = self.leg(4, 45)
+        self.confirm(MORNING)
+        DriverDateOverride.objects.create(driver=self.d46, date=DAY, exception_type="off",
+                                          status="approved")
+        # Switch off: the stub tightens 4-22 to 6-20.
+        window = self.modal_window({46: (4, 22)})
+        self.assertEqual((window["start"], window["end"]), (6, 20))
+        self.assertNotIn("source", window)
+        self.switch_on()
+        eff = Driver.objects.get(pk=46).get_effective_availability(DAY)
+        self.assertEqual((eff["is_available"], eff["regular_day_off"], eff["window_start_min"]),
+                         (False, False, None))
+        window = self.modal_window({46: (4, 22)})
+        self.assertEqual((window["start"], window["end"], window["source"]), (4, 22, "regular"))
+        self.assertNotIn("start_min", window)
+        self.assertEqual(window["max_hours"], fg.SPAN_HARD_HOURS_DEFAULT)   # not the stub's 14
+        self.assertEqual(self.assigned(self.preview({46: (4, 22)})), {early.id: 46})
+
+    def test_modal_hours_typed_on_a_day_the_limits_cut_keep_stub(self):
+        # His limits (never starts before 5 PM, saved later in admin) leave his Morning
+        # day no time, so it reads as unavailable. They are hard: hours typed for him
+        # don't skip the stub there — with or without approved time off on top.
+        from drivers.models import DriverDateOverride
+        self.leg(9, 0)
+        self.confirm(MORNING)
+        Driver.objects.filter(pk=46).update(hard_earliest_start=time(17, 0))
+        self.switch_on()
+        with self.assertLogs("drivers.availability", "WARNING"):
+            eff = Driver.objects.get(pk=46).get_effective_availability(DAY)
+        self.assertFalse(eff["is_available"])
+        with self.assertLogs("drivers.availability", "WARNING"):
+            window = self.modal_window({46: (4, 22)})
+        self.assertEqual((window["start"], window["end"]), (6, 20))
+        self.assertNotIn("source", window)
+        DriverDateOverride.objects.create(driver=self.d46, date=DAY, exception_type="off",
+                                          status="approved")
+        window = self.modal_window({46: (4, 22)})
+        self.assertEqual((window["start"], window["end"]), (6, 20))
+        self.assertNotIn("source", window)
+
     def test_float_driver_takes_morning_and_evening_work_within_12h(self):
         self.confirm(FLOAT)
         self.switch_on()
@@ -546,3 +604,62 @@ class OverrunRegularDayTests(_EngineFixture):
         self.assertFalse(result.feasible)
         self.assertEqual(result.reason,
                          "Outside driver window: day already over 12h 0m base to base")
+
+
+class HeldLegsNeverVetoTests(_EngineFixture):
+    """A swap or farm-out apply re-checks the receiver's whole day, but with the switch
+    on his regular window judges only the legs the plan puts on him (07 §6.5, S14). A
+    00:30 MCO pickup he already holds (leaves base 00:08, before Evening's 14:15 start)
+    was placed by hand and only warned; it must not refuse the next trip onto him."""
+
+    def setUp(self):
+        super().setUp()
+        self.tail = self.leg(0, 30, driver=self.d46)    # last night's tail, held
+        self.evening = self.leg(20, 0)                 # leaves base 19:38, back 22:05
+        self.d46 = self.confirm(EVENING)
+        self.switch_on()
+
+    def farm_plan(self, leg):
+        from dispatching.farmout_actions import _MOVE, _Plan
+        return _Plan(kind="opportunity_swap", day=DAY, target_leg_id=leg.id,
+                     writes=[(leg.id, 46, _MOVE)], expected={leg.id: None})
+
+    def test_swap_onto_evening_driver_holding_an_after_midnight_leg(self):
+        from dispatching.board_validation import revalidate_moves_against_db
+        self.assertEqual(revalidate_moves_against_db([(self.evening.id, 46)], DAY), (True, ""))
+
+    def test_farm_out_apply_onto_evening_driver_holding_an_after_midnight_leg(self):
+        from dispatching.farmout_actions import _revalidate_inhouse
+        self.assertEqual(_revalidate_inhouse(self.farm_plan(self.evening), {46: self.d46}),
+                         (True, ""))
+
+    def test_a_moved_leg_outside_the_regular_window_is_still_refused(self):
+        # The window still judges what the plan moves: leaving base 12:38 for a 13:00
+        # pickup is before 14:15, and the reason names that leg, not the held one.
+        from dispatching.board_validation import revalidate_moves_against_db
+        from dispatching.farmout_actions import _revalidate_inhouse
+        early = self.leg(13, 0)
+        ok, reason = revalidate_moves_against_db([(early.id, 46)], DAY)
+        self.assertFalse(ok)
+        self.assertIn(f"leg {early.id} on driver 46", reason)
+        self.assertIn("before start 14:15", reason)
+        ok, reason = _revalidate_inhouse(self.farm_plan(early), {46: self.d46})
+        self.assertFalse(ok)
+        self.assertIn(f"leg {early.id} on ", reason)
+        self.assertIn("before start 14:15", reason)
+
+    def test_switch_off_hour_window_still_checks_every_leg(self):
+        # Parity: with the switch off the stub (06-20) still judges a held 05:00 leg,
+        # exactly as before, and the refusal names it.
+        from dispatching.board_validation import revalidate_moves_against_db
+        from dispatching.farmout_actions import _revalidate_inhouse
+        self.switch_off()
+        self.tail.delete()
+        held = self.leg(5, 0, driver=self.d46)
+        nine = self.leg(9, 0)
+        ok, reason = revalidate_moves_against_db([(nine.id, 46)], DAY)
+        self.assertFalse(ok)
+        self.assertIn(f"leg {held.id} on driver 46 would be infeasible", reason)
+        ok, reason = _revalidate_inhouse(self.farm_plan(nine), {46: self.d46})
+        self.assertFalse(ok)
+        self.assertIn(f"leg {held.id} on ", reason)

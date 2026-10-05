@@ -350,7 +350,9 @@ def _revalidate_inhouse(plan: _Plan, inhouse: dict) -> Tuple[bool, str]:
     """Re-run the FULL feasibility check (Guard B turnaround + Guard C window) on the board that
     WOULD result from this plan — mirror of ``views._revalidate_swap_feasibility``, extended to
     REMOVE legs that leave the in-house board (farmed / unassigned). Read-only: mutates only
-    in-memory copies. Only drivers that GAIN a leg need checking."""
+    in-memory copies. Only drivers that GAIN a leg need checking. A regular window judges only
+    the legs the plan puts on him; legs he already held get turnaround only
+    (feasibility_guards.held_leg_window)."""
     from reservations.models import Leg
     from dispatching import feasibility_guards as fg
     from dispatching.scheduler import (build_driver_schedules, check_feasibility,
@@ -369,6 +371,9 @@ def _revalidate_inhouse(plan: _Plan, inhouse: dict) -> Tuple[bool, str]:
     for leg_id in new_driver_by_leg:
         if leg_id not in legs_by_id:
             return False, f"leg {leg_id} not found on {plan.day}"
+    # Who held each leg before the plan: a leg already on its receiver is judged
+    # against his regular window only if the plan puts it there (held_leg_window).
+    held_by = {l.id: l.driver_id for l in legs}
 
     # Apply the plan in memory: keeps/moves land on their in-house receiver; farmed/unassigned
     # legs leave the in-house board entirely.
@@ -406,10 +411,13 @@ def _revalidate_inhouse(plan: _Plan, inhouse: dict) -> Tuple[bool, str]:
         # cap must never hard-block an intentional manual move (same stance as execute_swap),
         # and a regular shift's 12h base-to-base ceiling only warns (S20).
         window = fg.get_effective_window(did, configured=_cfg_window(drv), enforce_cap=False)
+        held_window = fg.held_leg_window(window)
         for L in drv_legs:
             others = [l for l in drv_legs if l.id != L.id]
             sched = build_driver_schedules(others, [drv], plan.day).get(did)
-            feas = check_feasibility(sched, L, plan.day, driver_window=window)
+            feas = check_feasibility(
+                sched, L, plan.day,
+                driver_window=held_window if held_by[L.id] == did else window)
             if not feas.feasible:
                 return False, f"leg {L.id} on {drv} would be infeasible: {feas.reason}"
     return True, ""
