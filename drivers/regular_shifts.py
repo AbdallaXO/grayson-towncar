@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 LOOKBACK_DAYS = 56              # pre-fill reads the 8 weeks before today (C8)
 REGULAR_DAY_MIN_WEEKS = 4       # a weekday worked in >= 4 of those 8 weeks is regular
 ROUND_MIN = 5                   # suggested start rounds down, end rounds up, to 5 min
-NIGHT_TAIL_END = time(2, 0)     # a pickup before 02:00 belongs to the previous day's shift
+NIGHT_TAIL_END = time(2, 0)     # a pickup before 02:00 finishes the day before, when that day was worked
 DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 FLOAT_KIND = "float"            # ShiftTemplate.kind of "any shape" (S16)
 
