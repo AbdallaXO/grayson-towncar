@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.contrib.auth.models import User
 from django.utils import timezone
 from reservations.models import Leg
@@ -2875,3 +2876,156 @@ class VehicleInspectionPhoto(models.Model):
 
     def __str__(self):
         return f"{self.inspection} · {self.item_key or 'general'}"
+
+
+# ── Driver knowledge (structured shifts, Stage 1, S19) ──────────────────────
+# What the desk knows about each driver, for people to read: the engine does
+# not use it yet. Staff-only — never on a driver-facing page or API. The logic
+# lives in drivers/driver_knowledge.py.
+
+class DriverTag(models.Model):
+    """One word the desk uses about a driver: a strength ("Airport pro"), a
+    habit ("Always early", "Runs late"), a language, or an area they know.
+
+    Caution tags are the habits to plan around. A retired tag (is_active off)
+    stays on the drivers who have it but is no longer offered. Names are unique
+    regardless of case: driver_knowledge.create_tag checks first, and the
+    database index on lower(name) settles two saves at the same moment.
+    Seeded by drivers 0067.
+    """
+    CATEGORY_CHOICES = [
+        ("strength", "Strength"),
+        ("habit", "Habit"),
+        ("language", "Language"),
+        ("area", "Area"),
+    ]
+    POLARITY_CHOICES = [
+        ("positive", "Positive"),
+        ("caution", "Caution"),
+    ]
+
+    name = models.CharField(max_length=60, unique=True)
+    category = models.CharField(max_length=12, choices=CATEGORY_CHOICES)
+    polarity = models.CharField(
+        max_length=10, choices=POLARITY_CHOICES, default="positive",
+        help_text="Caution = something to plan around, e.g. Runs late.",
+    )
+    description = models.CharField(max_length=200, blank=True, default="")
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Untick to stop offering this tag. Drivers who have it keep it.",
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["category", "sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"), name="drivertag_name_ci_unique",
+                violation_error_message="That tag already exists.",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class DriverTagAssignment(models.Model):
+    """A tag on one driver, with an optional note ("knows every MCO terminal")
+    and who added it. One per driver and tag: adding it again updates the note."""
+
+    driver = models.ForeignKey(
+        Driver, on_delete=models.CASCADE, related_name="tag_assignments",
+    )
+    tag = models.ForeignKey(
+        DriverTag, on_delete=models.PROTECT, related_name="assignments",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+    added_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("driver", "tag")
+
+    def __str__(self):
+        return f"{self.driver} · {self.tag}"
+
+
+#: Strikes count for this many days: one occurred_on more than a year ago
+#: no longer counts (driver_knowledge.strike_count).
+STRIKE_WINDOW_DAYS = 365
+
+
+class DriverLogEntry(models.Model):
+    """One dated line in a driver's log: a compliment, a complaint, an incident
+    or a plain note, optionally tied to the trip it was about.
+
+    A manager can mark a complaint or an incident as a strike; strikes from the
+    last STRIKE_WINDOW_DAYS show on the profile. Any staff user logs an entry;
+    only managers mark strikes, edit or delete (drivers/driver_knowledge_views.py).
+    """
+    KIND_CHOICES = [
+        ("compliment", "Compliment"),
+        ("complaint", "Complaint"),
+        ("incident", "Incident"),
+        ("note", "Note"),
+    ]
+    #: The kinds a strike (and a severity) belongs to.
+    STRIKE_KINDS = ("complaint", "incident")
+    SEVERITY_CHOICES = [
+        ("", "Not set"),
+        ("minor", "Minor"),
+        ("serious", "Serious"),
+    ]
+
+    driver = models.ForeignKey(
+        Driver, on_delete=models.CASCADE, related_name="log_entries",
+    )
+    occurred_on = models.DateField()
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    is_strike = models.BooleanField(default=False)
+    severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES, blank=True, default="")
+    leg = models.ForeignKey(
+        Leg, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    summary = models.CharField(max_length=140)
+    details = models.TextField(blank=True, default="")
+    logged_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    logged_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-occurred_on", "-logged_at"]
+        verbose_name_plural = "driver log entries"
+        constraints = [
+            # A strike is only on STRIKE_KINDS. The log form says so too; this
+            # keeps an admin, shell or import write from putting a strike on a
+            # compliment or a note, where strike_count would count it.
+            models.CheckConstraint(
+                condition=Q(is_strike=False) | Q(kind__in=("complaint", "incident")),
+                name="driverlog_strike_is_complaint_or_incident",
+                violation_error_message="A strike must be a complaint or an incident.",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.driver} · {self.occurred_on} · {self.get_kind_display()}"
+
+    @property
+    def trip_label(self):
+        """The trip as the log shows it, e.g. "Oct 3 · 5:00 AM · MCO → Disney's
+        Polynesian Village Resort"; blank when the entry has no trip."""
+        if not self.leg_id:
+            return ""
+        from drivers.driver_knowledge import trip_label
+        return trip_label(self.leg)

@@ -6,12 +6,15 @@ from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.core.files.uploadedfile import UploadedFile
 from django.db.models import Q
+from django.utils import timezone
 
 from rates.models import Vehicle
+from reservations.models import Leg
 
 from . import phones, regular_shifts
 from .document_uploads import prepare_document_upload, sniff_and_validate
-from .models import Driver, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
+from .driver_knowledge import recent_legs_for, trip_label
+from .models import Driver, DriverLogEntry, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
 
 
 class _RegularCarField(forms.ModelMultipleChoiceField):
@@ -751,3 +754,81 @@ class DriverMyDetailsForm(forms.ModelForm):
             user.save(update_fields=["first_name", "last_name", "email"])
             driver.save()
         return driver
+
+
+class _TripChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, leg):
+        return trip_label(leg)
+
+
+class DriverLogEntryForm(forms.ModelForm):
+    """One entry in a driver's log, on the staff profile (structured shifts,
+    Stage 1, S19). Staff-only.
+
+    The trip picker offers this driver's trips from the last 60 days (plus the
+    entry's own trip when editing). Only a manager sees the strike box: for
+    anyone else it is not on the form at all, so posting it does nothing.
+    A severity is kept only on a complaint or an incident.
+    """
+    FUTURE_DATE = "That date is in the future."
+    STRIKE_KIND = "A strike must be a complaint or an incident."
+
+    leg = _TripChoiceField(queryset=None, required=False, label="Trip (optional)",
+                           empty_label="No trip")
+
+    class Meta:
+        model = DriverLogEntry
+        fields = ["kind", "occurred_on", "severity", "leg", "summary", "details", "is_strike"]
+        labels = {
+            "kind": "What kind",
+            "occurred_on": "When it happened",
+            "severity": "How serious",
+            "summary": "What happened",
+            "details": "Details (optional)",
+            "is_strike": "Mark as a strike",
+        }
+        widgets = {
+            "occurred_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "summary": forms.TextInput(attrs={"placeholder": "One line, e.g. Guest wrote in to thank him"}),
+            "details": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, driver, user, *args, **kwargs):
+        kwargs.setdefault("auto_id", "log_%s")      # ids apart from the profile edit form's
+        super().__init__(*args, **kwargs)
+        self.driver = driver
+        self.today = today = timezone.localdate()
+        if self.instance.pk is None:
+            self.instance.driver = driver
+            self.fields["occurred_on"].initial = today
+        self.fields["occurred_on"].widget.attrs["max"] = today.isoformat()
+
+        legs = recent_legs_for(driver, today)
+        if self.instance.leg_id:            # an older trip stays on its own entry
+            legs = (Leg.objects.filter(Q(pk__in=legs.values("pk")) | Q(pk=self.instance.leg_id))
+                    .order_by("-pickup_date", "-pickup_time", "-id"))
+        self.fields["leg"].queryset = legs
+
+        # A kind must be picked: no silent default between a compliment and a complaint.
+        self.fields["kind"].choices = [("", "Pick one")] + list(self.fields["kind"].choices)[1:]
+        if not user.is_superuser:
+            del self.fields["is_strike"]
+
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs.setdefault("class", "gt-checkbox")
+            else:
+                field.widget.attrs.setdefault("class", "gt-field")
+            field.help_text = ""
+
+    def clean(self):
+        cleaned = super().clean()
+        occurred_on = cleaned.get("occurred_on")
+        if occurred_on and occurred_on > self.today:
+            self.add_error("occurred_on", self.FUTURE_DATE)
+        kind = cleaned.get("kind")
+        if cleaned.get("is_strike") and kind not in DriverLogEntry.STRIKE_KINDS:
+            self.add_error("is_strike", self.STRIKE_KIND)
+        if kind and kind not in DriverLogEntry.STRIKE_KINDS:
+            cleaned["severity"] = ""        # a compliment or a note has no severity
+        return cleaned

@@ -322,9 +322,11 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
 
     @staticmethod
     def _card(html):
-        """The read-only card: it sits straight above the Weekly Schedule card."""
+        """The read-only card, up to the next profile card (the Strengths & habits
+        card when it is there, else the Weekly Schedule card)."""
         start = html.index('id="shift-facts"')
-        return html[start:html.index("Weekly Schedule", start)]
+        end = html.index('class="profile-card', start + 1)
+        return html[start:end]
 
     @staticmethod
     def _input(html, name, value=None):

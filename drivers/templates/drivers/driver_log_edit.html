@@ -1,0 +1,108 @@
+{% extends "main.html" %}
+{% load static %}
+{% comment %}
+  One entry in a driver's log (structured shifts, Stage 1, S19). Staff-only.
+  Managers edit or delete an entry here. It also catches an entry added from
+  the profile's Log card that didn't pass its checks (entry is None then), so
+  nothing typed is lost. Context: driver, form, entry, can_edit.
+{% endcomment %}
+{% block title %}{% if entry %}Edit log entry{% else %}Add to the log{% endif %}{% endblock %}
+
+{% block extra_css %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+  <style>
+    {% include "drivers/_comms_admin_palette.html" %}
+    body { background: var(--gt-bg) !important; }
+    .log-page { background: radial-gradient(900px 340px at 12% -8%, rgba(201,162,39,0.10), transparent 62%), var(--gt-bg);
+      color: var(--gt-text); min-height: calc(100vh - 80px); padding: 2rem 0 4rem;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .log-page .container-fluid { max-width: 780px; }
+    .dir-eyebrow { font-size: .66rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--gt-gold); margin-bottom: .45rem; }
+    .dir-title { font-family: 'Playfair Display', Georgia, serif; font-size: 2.1rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; margin: 0; color: var(--gt-text); }
+    .dir-lede { font-size: .86rem; color: var(--gt-muted); margin-top: .5rem; max-width: 40rem; line-height: 1.55; }
+    .dir-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; padding: .5rem .95rem; border-radius: 8px; text-decoration: none; border: 1px solid var(--gt-border); background: var(--gt-surface-2); color: var(--gt-text); white-space: nowrap; cursor: pointer; transition: color .15s ease, border-color .15s ease, background-color .15s ease; }
+    .dir-btn:hover { color: var(--gt-gold); border-color: rgba(201,162,39,.45); background: rgba(201,162,39,.08); }
+    .dir-btn.gold { background: var(--gt-gold); border-color: var(--gt-gold); color: #0d1117; font-size: .86rem; padding: .7rem 1.2rem; }
+    .dir-btn.gold:hover { background: #d9b33a; border-color: #d9b33a; color: #0d1117; }
+    .dir-btn.danger:hover { color: #f87171; border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.1); }
+
+    .profile-card { background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 12px; color: var(--gt-text); box-shadow: 0 18px 40px -28px rgba(0,0,0,.8); }
+    .profile-card .card-header { background: var(--gt-surface-2); border-bottom: 1px solid var(--gt-border); color: var(--gt-text); padding: 0.75rem 1.1rem; font-weight: 600; font-size: .9rem; display: flex; justify-content: space-between; align-items: center; border-radius: 12px 12px 0 0; }
+    .profile-card .card-body { padding: 1.1rem; }
+    .kb-private { display: inline-flex; align-items: center; gap: .35rem; font-size: .68rem; font-weight: 600; letter-spacing: .03em; color: var(--gt-muted); }
+    .field-group { margin-bottom: 1rem; }
+    .field-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; margin-bottom: 0.35rem; }
+    .gt-field { width: 100%; background: var(--gt-surface-2); border: 1px solid var(--gt-border); color: var(--gt-text); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.92rem; }
+    .gt-field:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px rgba(201,162,39,.18); }
+    select.gt-field { appearance: auto; }
+    textarea.gt-field { min-height: 110px; resize: vertical; }
+    .gt-checkbox { width: 1.1rem; height: 1.1rem; accent-color: var(--gt-gold); }
+    .field-error { color: #f87171; font-size: 0.75rem; margin-top: 0.3rem; }
+    .form-error-banner { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.4); color: #f87171; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
+    .log-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .log-delete { border-top: 1px solid var(--gt-border); margin-top: 1.75rem; padding-top: 1.25rem; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
+    .log-delete p { font-size: .78rem; color: var(--gt-muted); margin: 0; }
+    .log-delete form { margin: 0; }
+  </style>
+{% endblock extra_css %}
+
+{% block footer %}{% endblock footer %}
+{% block newsletter %}{% endblock newsletter %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="log-page">
+    <div class="container-fluid">
+      <header class="d-flex align-items-end justify-content-between gap-3 flex-wrap mb-4">
+        <div>
+          <div class="dir-eyebrow">{% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %} &middot; the log</div>
+          <h1 class="dir-title">{% if entry %}Edit log entry{% else %}Add to the log{% endif %}</h1>
+          <p class="dir-lede">
+            {% if entry %}
+              Logged{% if entry.logged_by %} by {{ entry.logged_by.first_name|default:entry.logged_by.username }}{% endif %} on {{ entry.logged_at|date:"M j, Y" }}{% if entry.updated_by %}, last edited by {{ entry.updated_by.first_name|default:entry.updated_by.username }} on {{ entry.updated_at|date:"M j, Y" }}{% endif %}.
+              Drivers never see the log.
+            {% else %}
+              Almost there. Fix what is marked below, then add it. Drivers never see the log.
+            {% endif %}
+          </p>
+        </div>
+        <a href="{% url 'driver_profile' driver.id %}#driver-log" class="dir-btn"><i class="bi bi-arrow-left"></i>Back to profile</a>
+      </header>
+
+      <form method="post" action="{% if entry %}{% url 'driver_log_edit' driver.id entry.id %}{% else %}{% url 'driver_log_add' driver.id %}{% endif %}">
+        {% csrf_token %}
+        {% if form.errors %}
+          <div class="form-error-banner">Please fix what is marked below.</div>
+        {% endif %}
+        <div class="profile-card mb-3">
+          <div class="card-header">
+            <span><i class="bi bi-journal-text me-2"></i>The entry</span>
+            <span class="kb-private" title="Drivers never see this"><i class="bi bi-eye-slash"></i>Office only</span>
+          </div>
+          <div class="card-body">
+            {% include "drivers/_driver_log_fields.html" %}
+          </div>
+        </div>
+        <div class="log-actions">
+          <button type="submit" class="dir-btn gold"><i class="bi bi-check-lg"></i>{% if entry %}Save changes{% else %}Add to the log{% endif %}</button>
+          <a href="{% url 'driver_profile' driver.id %}#driver-log" class="dir-btn">Cancel</a>
+        </div>
+      </form>
+
+      {% if entry and can_edit %}
+        <div class="log-delete">
+          <p>Logged by mistake? Deleting takes it off the profile for good.</p>
+          <form method="post" action="{% url 'driver_log_delete' driver.id entry.id %}" onsubmit="return confirm('Delete this entry from the log? This cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="dir-btn danger"><i class="bi bi-trash3"></i>Delete this entry</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

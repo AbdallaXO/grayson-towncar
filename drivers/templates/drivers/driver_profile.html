@@ -6,6 +6,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     {% include "drivers/_comms_admin_palette.html" %}
+    {% include "drivers/_driver_strike_pill_styles.html" %}
     body { background: var(--gt-bg) !important; }
     .profile-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
     .profile-page .container-fluid { max-width: 1400px; }
@@ -279,6 +280,7 @@
                 </span>
               {% endif %}
             {% endwith %}
+            {% if strike_count %}{% include "drivers/_driver_strike_pill.html" %}{% endif %}
           </h1>
           <div class="subtitle">
             {% if driver.profile.username %}@{{ driver.profile.username }} &middot; {% endif %}
@@ -899,6 +901,12 @@
 
           {# Shift facts: read-only, every staff user, in both modes #}
           {% include "drivers/_shift_facts_card.html" %}
+
+          {# Strengths & habits: staff-only, both modes; its forms stand alone, outside the edit form #}
+          {% include "drivers/_driver_tags_card.html" %}
+
+          {# The Log: staff-only, both modes; its forms stand alone, outside the edit form #}
+          {% include "drivers/_driver_log_card.html" %}
 
           {# Weekly schedule #}
           <div class="profile-card mb-3">
