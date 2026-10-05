@@ -21,7 +21,7 @@
 **Goal:** Store each driver's regular shift and hard limits to the minute, including shifts that cross midnight. Add a switch that lets those regular shifts replace the hard-coded "observed-history" driver windows.
 
 **Architecture:**
-- The rules door (`dispatching/feasibility_guards.py`) learns minute-precision windows that can cross midnight. These ride as optional `start_min`/`end_min`/`kind` keys and are checked base → base: the drive to the pickup, the pickup buffer, the fuel stop, the wash and the report time all come from `handoff_chain`. Hour windows behave exactly as before.
+- The rules door (`dispatching/feasibility_guards.py`) learns minute-precision windows that can cross midnight. These ride as optional `start_min`/`end_min`/`kind` keys and are checked base → base: the drive from base plus the pickup buffer, and the drive back to base (drive-only in Stage 1, §13 K10), all come from `handoff_chain`. Hour windows behave exactly as before.
 - Driver facts live on `Driver`. Regular shifts live in new fields on `DriverWeeklySchedule` that point at a new `ShiftTemplate`. Their logic lives in a new module, `drivers/regular_shifts.py`.
 - The availability door (`drivers/availability.py`) turns a confirmed regular shift into a 12-hour window only when `SchedulerSettings.regular_shift_windows` is on. The engine's window builders pass that window through.
 - A profile card and three staff pages let managers set it all up.
@@ -115,7 +115,7 @@
 
 | File | Responsibility |
 |---|---|
-| `dispatching/feasibility_guards.py` | Minute path in `window_check` (lead/tail); regular windows bypass the stub; `regular_window_keys(eff)`; `legacy_hours()` |
+| `dispatching/feasibility_guards.py` | Minute path in `window_check` (lead/tail); regular windows bypass the stub; `regular_window_keys(eff)`; `legacy_hours()`; manual-sovereign regular windows get a warn-only base→base span (Task 5) |
 | `dispatching/handoff_chain.py` | `base_drive_min`, `shift_lead_min`, `shift_tail_min` (drive-only after Task 4b) |
 | `drivers/models.py` + `drivers/migrations/0062_shift_facts.py`, `0063_seed_shift_templates.py` | `ShiftTemplate`; `Driver` facts; regular-shift fields on `DriverWeeklySchedule`; `SHIFT_TEMPLATES_CACHE_KEY` |
 | `dispatching/models.py` + `dispatching/migrations/0022_schedulersettings_regular_shift_windows.py` | The switch, `GUARDED_FIELDS`, `REGULAR_WINDOWS_CACHE_KEY` |
@@ -719,6 +719,10 @@ Each site below only merges the regular keys. With the switch off those keys are
   - `farmout_actions.py:399-406`
   - `views.py:4356` (`check_driver_feasibility`)
   - `conflict_advisor.py:425-434`, which also tags `"stub"` only when there are no regular keys
+- **A dispatcher's own moves still only warn (S20, §13 K10, §6.5).** Four of the sites above resolve with `enforce_cap=False`: `board_validation.py:592`, `conflict_advisor_actions.py:450`, `farmout_actions.py:406` and `views.py:4356`. `get_effective_window(enforce_cap=False)` passes `max_span_min` through, and `check_feasibility` computes the base→base span whenever a window has `start_min` and `max_span_min`. Once the regular keys reach these sites, S20 would hard-refuse a dispatcher's own move onto a regular day already over 12h base→base, which only warns today. Fix it in the rules door:
+  - In `get_effective_window`, when `enforce_cap` is False and `configured["source"] == "regular"`, rename `max_span_min` to `span_warn_min`, keeping the same value.
+  - `check_feasibility` computes the base→base span for `span_warn_min` the same way it does for `max_span_min`. It adds the S20 reason (`"day already over 12h 0m base to base"`, or `"base to base … > 12h 0m"`) to `warnings` and does not refuse.
+  - The engine's sites (`enforce_cap=True`, including `swap_optimizer.py:222` and the conflict advisor's generation windows) keep `max_span_min` and still refuse.
 - **`dispatching/views.py` `auto_assign_drivers` (:14674-14720).** Build `regular_keys` from each working driver's eff (`d.get_effective_availability(target_date)`):
   - In the modal path, a driver whose eff has window keys gets the full `fg.regular_window_keys(eff)` when the payload is not flexible and `(sh, eh) == (eff["start_hour"], eff["end_hour"])`. Otherwise (typed hours win, S9) they get `{"source": "regular"}`.
   - In the fallback path, use the full keys.
@@ -744,9 +748,11 @@ Each site below only merges the regular keys. With the switch off those keys are
   - `test_day_roster_returns_regular_keys_when_on`
   - `test_capacity_planner_suggestions_use_regular_window`
   - `test_float_driver_takes_morning_and_evening_work_within_12h`: Float driver 46 takes a 05:00 MCO arrival and a 16:30 departure only if the base-to-base day stays ≤ 12h. Otherwise the later one goes to someone else or to the farm list.
+  - `test_manual_move_onto_overrun_regular_day_only_warns`: switch on. Driver 46's confirmed regular day is already over 720 min base→base. `check_driver_feasibility` for a leg that fits inside the day returns `feasible` true, with `"day already over 12h 0m base to base"` in `warnings`. A manual swap revalidated through `board_validation` is allowed too.
+  - `test_engine_refuses_same_leg_on_overrun_regular_day`: the same board and leg through `build_smart_schedule` or `suggest_assignments` is not seated, with the reason `"day already over 12h 0m base to base"`.
 - [ ] **Step 2: Run the tests and confirm they fail.** Run: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_regular_shift_engine`.
 - [ ] **Step 3: Implement the wiring listed under Files.**
-- [ ] **Step 4: Run the full suite.** Run: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers --parallel 4`. Expected: no new failures. The known environment failures listed in commit 86d34115 are acceptable. Re-run any other failure 3 times on this commit before calling it real.
+- [ ] **Step 4: Run the full suite.** Run it serially: `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers`. Don't use `--parallel`: `tblib` is not installed, so the first known environment failure aborts a parallel run with `TypeError: cannot pickle traceback object` and nothing gets reported. Don't add `tblib` as a dependency on this branch. Expected: no new failures. The known environment failures listed in commit 86d34115 are acceptable. Re-run any other failure 3 times on this commit before calling it real.
 - [ ] **Step 5: Run the parity gate.** It must pass before you commit:
 
 ```bash
@@ -1060,7 +1066,7 @@ mv docs/scheduling-redesign/analysis/out/14_pipeline_parity_stage1_after.json $S
 
 ### Task 11: Whole-branch verification (controller)
 
-- [ ] **Full suite.** Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers --parallel 4`. Record N tests and the failures. Each failure must be either a known environment failure or shown to be flaky by 3 reruns.
+- [ ] **Full suite.** Run `ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching drivers` serially (no `--parallel`; see Task 5, Step 4). Record N tests and the failures. Each failure must be either a known environment failure or shown to be flaky by 3 reruns.
 - [ ] **Parity gate.** Re-run it (Task 5, Step 5) on the final commit and record `differences : 0`.
 - [ ] **Switch-on smoke test.** Use a throwaway migrated copy of the snapshot.
   - Confirm three drivers (Morning, Midday, Evening) and turn the switch on.
