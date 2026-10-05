@@ -214,7 +214,8 @@ def _limits(driver) -> list[tuple[str, str]]:
 @login_required(login_url="login")
 def regular_shift_edit(request, driver_id):
     if not request.user.is_staff:
-        return redirect("home")
+        # Only a manager saves: anyone else's POST is forbidden, not sent home.
+        return HttpResponseForbidden() if request.method == "POST" else redirect("home")
     driver = get_object_or_404(
         Driver.objects.select_related("profile", "regular_shift_confirmed_by"),
         pk=driver_id, driver_type="inhouse", portal_role="driver")
@@ -235,7 +236,9 @@ def regular_shift_edit(request, driver_id):
     if request.method == "POST":
         shift_form = RegularShiftForm(request.POST, templates=templates)
         formset = RegularDayFormSet(request.POST, week_form=shift_form, **formset_kwargs)
-        # Both, so a page with a missing usual shift still shows the days' errors.
+        # Both, so a page with a missing usual shift still shows the days'
+        # errors: their fields', and the week's checks on every day that has
+        # a shift of its own (BaseRegularDayFormSet.clean).
         shift_ok, days_ok = shift_form.is_valid(), formset.is_valid()
         if shift_ok and days_ok:
             try:

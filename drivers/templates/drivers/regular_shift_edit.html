@@ -32,20 +32,27 @@
   /* Step 1: the usual shift, four large choices */
   .rs-page .role-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
   .rs-page .role-card {
-    position: relative; display: flex; flex-direction: column; gap: .4rem; margin: 0;
+    position: relative; isolation: isolate; display: flex; flex-direction: column; gap: .4rem; margin: 0;
     padding: 1rem 1rem 1.05rem; border-radius: 12px; cursor: pointer;
     background: var(--gt-surface-2); border: 1px solid var(--gt-border);
-    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    transition: border-color .2s ease, transform .2s ease;
   }
   .rs-page .role-card:hover { border-color: rgba(201,162,39,0.55); transform: translateY(-1px); }
   .rs-page .role-card input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
-  .rs-page .role-card:has(input:checked) {
+  /* The chosen card is drawn by .role-face, a sibling after the hidden radio,
+     so it shows in every browser, older ones included (sibling selectors only). */
+  .rs-page .role-face {
+    position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; z-index: -1;
+    border-radius: inherit; border: 1px solid transparent; pointer-events: none;
+    transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+  }
+  .rs-page .role-card input:checked ~ .role-face {
     border-color: var(--gt-gold); background: linear-gradient(160deg, rgba(201,162,39,0.12), rgba(201,162,39,0.02));
     box-shadow: 0 0 0 1px var(--gt-gold) inset, 0 10px 26px rgba(201,162,39,0.12);
   }
-  .rs-page .role-card:has(input:focus-visible) { outline: 2px solid var(--gt-gold); outline-offset: 2px; }
+  .rs-page .role-card input:focus-visible ~ .role-face { outline: 2px solid var(--gt-gold); outline-offset: 2px; }
   .rs-page .role-tick { position: absolute; top: .75rem; right: .8rem; color: var(--gt-gold); opacity: 0; transition: opacity .2s ease; }
-  .rs-page .role-card:has(input:checked) .role-tick { opacity: 1; }
+  .rs-page .role-card input:checked ~ .role-tick { opacity: 1; }
   .rs-page .role-name { font-size: 1.05rem; font-weight: 700; color: var(--gt-text); }
   .rs-page .role-hint { font-size: .74rem; color: var(--gt-muted); line-height: 1.5; }
   .rs-page fieldset[disabled] .role-card { cursor: default; transform: none; }
@@ -118,7 +125,7 @@
     .rs-page .day-toggle span { min-width: 3.1rem; padding: 0 .7rem; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .rs-page .role-card, .rs-page .day-toggle span { transition: none; }
+    .rs-page .role-card, .rs-page .role-face, .rs-page .role-tick, .rs-page .day-toggle span { transition: none; }
   }
 </style>
 {% endblock %}
@@ -202,6 +209,7 @@
               {% for card in cards %}
                 <label class="role-card">
                   <input type="radio" name="{{ shift_form.role.html_name }}" value="{{ card.id }}"{% if card.checked %} checked{% endif %} required>
+                  <span class="role-face" aria-hidden="true"></span>
                   <span class="role-tick" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
                   <span class="role-name">{{ card.name }}</span>
                   <span class="role-hint">{{ card.hint }}</span>
@@ -333,10 +341,31 @@
       return !!(box && box.checked);
     }
     function field(row, name) { return row.querySelector('[name$="-' + name + '"]'); }
+    function shapeId(row) { return field(row, 'template').value || role(); }
+
+    // Typed times belong to the shift they were typed for. When a day's shift
+    // changes (its own Shift, or the usual shift it follows) they are put
+    // away, so blank means the new shift's usual times; going back to the
+    // earlier shift brings its times back. Times typed before any shift was
+    // picked go with the first one picked.
+    rows.forEach(function (row) { row.rsTimesFor = shapeId(row); row.rsKept = {}; row.rsCleared = false; });
+    function retime(row) {
+      var now = shapeId(row);
+      if (now === row.rsTimesFor) return;
+      if (!row.rsTimesFor) { row.rsTimesFor = now; return; }
+      var start = field(row, 'start'), end = field(row, 'end');
+      var back = row.rsKept[now] || ['', ''];
+      row.rsKept[row.rsTimesFor] = [start.value, end.value];
+      row.rsCleared = !!(start.value || end.value) && !(back[0] || back[1]);
+      start.value = back[0];
+      end.value = back[1];
+      row.rsTimesFor = now;
+    }
 
     function refresh(row) {
+      retime(row);
       var on = works(row);
-      var shape = shapes[field(row, 'template').value || role()];
+      var shape = shapes[shapeId(row)];
       var altId = field(row, 'alt_template').value;
       var alt = altId && shapes[altId] && shapes[altId] !== shape ? shapes[altId] : null;
       var start = field(row, 'start'), end = field(row, 'end');
@@ -358,9 +387,10 @@
       row.classList.toggle('is-off', !on);
       start.placeholder = shape && !open ? shape.start : '';
       end.placeholder = shape && !open ? shape.end : '';
-      row.querySelector('[data-hint]').textContent = !shape ? 'Leave both blank for the usual times of his shift.'
-        : open ? 'This day goes wherever the day needs him, within 12 hours, so times here are only a note.'
-        : 'Leave both blank for the usual times, ' + shape.usual + '.';
+      row.querySelector('[data-hint]').textContent = (row.rsCleared ? 'Times cleared for the new shift. ' : '')
+        + (!shape ? 'Leave both blank for the usual times of his shift.'
+          : open ? 'This day goes wherever the day needs him, within 12 hours, so times here are only a note.'
+          : 'Leave both blank for the usual times, ' + shape.usual + '.');
     }
     function refreshAll() {
       rows.forEach(refresh);
@@ -369,7 +399,9 @@
     form.addEventListener('change', refreshAll);
     form.addEventListener('input', function (event) {
       var row = event.target.closest('.day-row');
-      if (row) refresh(row);
+      if (!row) return;
+      if (event.target === field(row, 'start') || event.target === field(row, 'end')) row.rsCleared = false;
+      refresh(row);
     });
     refreshAll();
   })();

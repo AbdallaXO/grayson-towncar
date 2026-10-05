@@ -86,7 +86,7 @@
           <div class="switch-cap">Auto-assign uses</div>
           <div class="switch-value">{% if switch_on %}Regular shifts{% else %}Today's hours{% endif %}</div>
           {% if still_need %}
-            <div class="switch-count" id="switch-why">{{ still_need }}{% if switch_on %} — auto-assign uses today's hours for them until one is confirmed.{% endif %}</div>
+            <div class="switch-count" id="switch-why">{{ still_need }}{% if switch_on %} — dispatch uses today's hours for them until one is confirmed.{% endif %}</div>
           {% else %}
             <div class="switch-count done"><i class="bi bi-check2-circle me-1"></i>Every driver has a regular shift.</div>
           {% endif %}
@@ -108,12 +108,13 @@
           {% endif %}
         </form>
       {% endif %}
-      <p class="switch-note">
-        Switching changes only the hours auto-assign plans each driver's day around:
-        today's hours, or his regular shift, held to 12 hours from leaving base to getting
-        back. It can be switched over once every driver has a regular shift, and back at any
-        time. Nothing is sent to drivers, and the board, Day Setup and the driver app stay
-        the same.
+      <p class="switch-note" id="switch-note">
+        Switching moves every driver with a regular shift from today's hours to his regular
+        shift: auto-assign plans his day around it, held to 12 hours from leaving base to getting
+        back; the schedule board shows his hours and checks moves against them; and Day
+        Setup follows his regular days on and off. It can be switched over once every
+        driver has a regular shift, and back at any time. Nothing is sent to drivers, and
+        the driver app stays the same.
       </p>
     </section>
 

@@ -281,7 +281,13 @@ class BaseRegularDayFormSet(forms.BaseFormSet):
     with the usual shift and the working days (``week_form``) via
     regular_week() and refuses the week with every message
     regular_shifts.validate_regular_shift has, in day order. A week that
-    passes is left on ``.days`` for the view to save."""
+    passes is left on ``.days`` for the view to save.
+
+    With no usual shift picked (``week_form`` invalid), the days that have a
+    shift of their own are still checked, so their problems show in the same
+    pass; a "Same as usual" day reads as Off until the usual shift is picked.
+    Never more than seven forms (absolute_max): a page that sends more is
+    refused with Django's own "at most 7" message."""
 
     def __init__(self, *args, week_form, driver, templates, rest_min, **kwargs):
         self.week_form, self.driver = week_form, driver
@@ -293,10 +299,13 @@ class BaseRegularDayFormSet(forms.BaseFormSet):
         super().__init__(*args, **kwargs)
 
     def clean(self):
-        if any(self.errors) or not self.week_form.is_valid():
+        if any(self.errors):
             return
         if self.total_form_count() != 7:
             raise forms.ValidationError("The page lost a day — reload it and try again.")
+        week_ok = self.week_form.is_valid()
+        # An invalid week form keeps the fields that did clean: works_on, and
+        # no role, so "Same as usual" days come out Off and are not checked.
         week = regular_week(self.week_form.cleaned_data, [f.cleaned_data for f in self.forms])
         problems = regular_shifts.validate_regular_shift(
             week, templates=self.templates,
@@ -307,11 +316,13 @@ class BaseRegularDayFormSet(forms.BaseFormSet):
             rest_min=self.rest_min)
         if problems:
             raise forms.ValidationError(problems)
-        self.days = week
+        if week_ok:
+            self.days = week
 
 
 RegularDayFormSet = forms.formset_factory(
-    RegularDayForm, formset=BaseRegularDayFormSet, extra=0, max_num=7, validate_max=True)
+    RegularDayForm, formset=BaseRegularDayFormSet, extra=0,
+    max_num=7, validate_max=True, absolute_max=7)
 
 
 class DriverLicenseDetailsForm(forms.ModelForm):

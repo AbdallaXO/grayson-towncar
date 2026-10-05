@@ -1436,6 +1436,91 @@ class RegularShiftPageTests(_Fixture):
         d.refresh_from_db()
         self.assertFalse(d.has_regular_shift)
 
+    def test_editor_without_usual_shift_still_checks_days_with_their_own(self):
+        # One round trip: with no usual shift picked, a day that has a shift of
+        # its own is still checked. A "Same as usual" day waits for the usual
+        # shift, so its 13 hours raise nothing yet.
+        d = _driver()
+        self.client.force_login(self.manager)
+        thirteen = {"start": "04:00", "end": "17:00"}
+        resp = self.client.post(self.edit_url(d), self.payload(
+            None, works_on=[0, 1], mon={"template": "morning", **thirteen}, tue=thirteen))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("role", resp.context["shift_form"].errors)
+        self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                         ["Monday: a shift longer than 12 hours isn't allowed."])
+        self.assertIsNone(resp.context["day_formset"].days)
+        self.assertTrue(resp.context["rows"][0]["open"])
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+        # Nothing wrong with the days: only the usual shift is asked for.
+        resp = self.client.post(self.edit_url(d), self.payload(
+            None, works_on=[0], mon={"template": "morning"}))
+        self.assertIn("role", resp.context["shift_form"].errors)
+        self.assertEqual(resp.context["day_formset"].non_form_errors(), [])
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+
+    def test_editor_refuses_more_than_seven_days(self):
+        # A page that sends an eighth day gets the editor back with a message,
+        # never a crash, and nothing is saved.
+        d = _driver()
+        self.client.force_login(self.manager)
+        for total in ("8", "1007"):
+            with self.subTest(total=total):
+                data = self.payload("morning", works_on=[0])
+                data["days-TOTAL_FORMS"] = total
+                data.update({f"days-7-{name}": "" for name in _EDITOR_FIELDS})
+                resp = self.client.post(self.edit_url(d), data)
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(len(resp.context["day_formset"].forms), 7)
+                self.assertEqual(len(resp.context["rows"]), 7)
+                self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                                 ["Please submit at most 7 forms."])
+                self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+                d.refresh_from_db()
+                self.assertFalse(d.has_regular_shift)
+        # One short is refused too.
+        data = self.payload("morning", works_on=[0])
+        data["days-TOTAL_FORMS"] = "6"
+        resp = self.client.post(self.edit_url(d), data)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                         ["The page lost a day — reload it and try again."])
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+
+    def test_editor_role_cards_show_the_choice_without_has(self):
+        # The chosen usual shift is drawn by siblings of its radio, so a browser
+        # without :has() still shows it.
+        d = _driver()
+        self.confirm(d, self.week(mon=("evening", time(14, 15), time(2, 15))), role="evening")
+        self.client.force_login(self.manager)
+        html = self.client.get(self.edit_url(d)).content.decode()
+        self.assertNotRegex(html, r"\.role-(card|face|tick)[^{]*:has\(")
+        self.assertIn(".role-card input:checked ~ .role-face", html)
+        self.assertIn(".role-card input:checked ~ .role-tick", html)
+        cards = re.findall(r'<label class="role-card">\s*(<input[^>]*>)\s*'
+                           r'<span class="role-face" aria-hidden="true"></span>\s*'
+                           r'<span class="role-tick"', html)
+        self.assertEqual(len(cards), 4)
+        self.assertEqual([c for c in cards if " checked" in c],
+                         [f'<input type="radio" name="role" value="{self.t["evening"].id}"'
+                          f' checked required>'])
+
+    def test_editor_script_puts_typed_times_away_for_a_new_shift(self):
+        # Picking another usual shift (or a day's own) must not carry the old
+        # shift's typed times over: the script clears them, so blank means the
+        # new shift's usual times, and says so.
+        d = _driver()
+        self.confirm(d, self.week(mon=("morning", time(4, 10), time(15, 30))))
+        self.client.force_login(self.manager)
+        html = self.client.get(self.edit_url(d)).content.decode()
+        self.assertIn("function retime(row)", html)
+        self.assertIn("retime(row);", html)
+        self.assertIn("Times cleared for the new shift.", html)
+
     def test_editor_blank_times_mean_usual(self):
         d = _driver()
         self.client.force_login(self.manager)
@@ -1527,6 +1612,12 @@ class RegularShiftPageTests(_Fixture):
         self.client.force_login(User.objects.create_user("rs_guest", password="x"))
         self.assertEqual(self.client.get(self.edit_url(d)).status_code, 302)
         self.assertEqual(self.client.get(reverse("regular_shifts")).status_code, 302)
+        # A POST from anyone but a manager is forbidden, not sent home (403).
+        resp = self.client.post(self.edit_url(d), self.payload("morning", works_on=[0]))
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
         self.client.force_login(self.manager)
         for other in (_driver("Aff", "Iliate", driver_type="affiliate"),
                       _driver("Op", "Erator", portal_role="operator")):
@@ -1613,6 +1704,31 @@ class RegularShiftPageTests(_Fixture):
                 self.assertEqual(eff, resolve_effective_availability(fresh, day,
                                                                      regular_windows=False))
                 self.assertIsNone(eff["window_start_min"])
+
+    def test_switch_note_says_what_switching_changes(self):
+        # The line a manager reads before flipping the switch names everything
+        # the switch moves, and claims no more than is true: Day Setup does
+        # follow a regular day off once it is on.
+        amy = _driver("Amy", "Alpha")          # no weekly rows: the old defaults say available
+        self.confirm(amy, self.week(), role="morning")              # Off every day
+        note = re.search(r'<p class="switch-note" id="switch-note">(.*?)</p>',
+                         self.list_page().content.decode(), re.S).group(1)
+        note = " ".join(note.split())
+        for text in ("from today's hours to his regular shift",
+                     "auto-assign plans his day around it",
+                     "the schedule board shows his hours and checks moves against them",
+                     "Day Setup follows his regular days on and off",
+                     "Nothing is sent to drivers, and the driver app stays the same."):
+            self.assertIn(text, note)
+        self.assertNotIn("Day Setup and the driver app stay the same", note)
+
+        def day_setup_group():
+            rows = day_setup.suggest_day_setup(TODAY)["rows"]
+            return next(r["group"] for r in rows if r["driver_id"] == amy.pk)
+
+        self.assertNotEqual(day_setup_group(), "off")
+        self.assertEqual(rs.set_regular_windows(True, self.manager), (True, ""))
+        self.assertEqual(day_setup_group(), "off")
 
     # ── the way in: the navbar and the profile card ──
     def test_navbar_link(self):
