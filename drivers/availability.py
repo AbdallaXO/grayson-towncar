@@ -10,7 +10,13 @@ Resolution priority for a given date:
     2. Range exception (start_date <= date <= end_date); most recently updated wins.
     3. Recurring DriverWeeklySchedule for that day_of_week.
     4. Driver.default_* fields.
+
+A confirmed regular shift (structured shifts, Stage 1 — drivers/regular_shifts.py)
+always adds keys that describe it. Only with SchedulerSettings.regular_shift_windows
+on does it replace 3 and 4: a working day becomes a fixed window to the minute, an
+Off day is unavailable. A driver without a confirmed regular shift reads as before.
 """
+from dataclasses import replace
 from datetime import datetime, time, timedelta
 
 
@@ -110,10 +116,95 @@ def _weekly_or_defaults(driver, target_date):
     }
 
 
-def resolve_effective_availability(driver, target_date):
+def _minutes_time(minutes):
+    """Minutes after midnight (maybe past 1440) -> time of day. 1575 -> 02:15."""
+    m = int(minutes) % 1440
+    return time(m // 60, m % 60)
+
+
+def _regular_day(driver, target_date):
+    """(DayShift, templates) of a confirmed regular shift for target_date's
+    weekday, or None when the driver has no confirmed regular shift — checked
+    first, so an unconfirmed driver costs no query. A weekday with no row, or
+    a row with no shape, is Off. Reads weekly_schedule.all() (a prefetch
+    holds) and the shapes cached by regular_shifts.templates_by_id()."""
+    if driver.regular_shift_confirmed_at is None:
+        return None
+    from drivers import regular_shifts as rs
+    return rs.current_days(driver)[target_date.weekday()], rs.templates_by_id()
+
+
+def _regular_shift_info(day, templates):
+    """A confirmed working day in words and minutes, for the result's
+    regular_shift key: {'kind', 'name', 'start_min', 'end_min', 'label'}.
+    start_min / end_min are the shift's own hours: its typed times, or the
+    shape's usual times when blank; a Float or two-shape day (kind 'float')
+    covers what its shapes cover, its typed times being labels only. The
+    hard and day limits are not applied here (the window applies them); the
+    label names the day's own. None for an Off day or a shape that doesn't
+    exist."""
+    from drivers import regular_shifts as rs
+    shapes = rs._shapes(day, templates)
+    if not shapes:
+        return None
+    if rs._open_day(day, templates):
+        kind = rs.FLOAT_KIND
+        span = rs.regular_window(replace(day, day_earliest=None, day_latest=None,
+                                         day_latest_next_day=False),
+                                 templates, hard_lo=None, hard_hi=None)
+        start, end = (span.start_min, span.end_min) if span else (None, None)
+    else:
+        kind = shapes[0].kind
+        start, end = rs.effective_minutes(day, templates) or (None, None)
+    return {"kind": kind, "name": " or ".join(t.name for t in shapes),
+            "start_min": start, "end_min": end, "label": rs.day_label(day, templates)}
+
+
+def _apply_regular(base, driver, day, templates):
+    """Switch on: the confirmed regular shift replaces the weekly/default layer,
+    before any exception is applied. Returns the day's RegularWindow, or None.
+
+    A working day becomes available, non-flexible, its shift_type the shape's
+    kind ('full_day' for a Float or two-shape day — an existing shift type, so
+    shift-type readers keep working), its hours the window's in whole hours
+    for code that still reads hours. The window itself is built in one place,
+    regular_shifts.regular_window, clipped to the driver's hard limits and the
+    day's own. An Off day is unavailable: save_regular_shift makes no row for
+    one, so a missing row never falls back to the default_* hours."""
+    from dispatching.feasibility_guards import legacy_hours
+    from drivers import regular_shifts as rs
+    if day.template_id is None:
+        base["is_available"] = False
+        return None
+    hard_lo, hard_hi = driver.hard_window_minutes()
+    window = rs.regular_window(day, templates, hard_lo=hard_lo, hard_hi=hard_hi)
+    if window is None:
+        # A shape that can't be read, or limits edited later (outside the
+        # editor) that leave no time — validation refuses both, so keep
+        # today's reading rather than guess.
+        return None
+    base["is_available"] = True
+    base["flexible"] = False
+    base["shift_type"] = "full_day" if window.kind == rs.FLOAT_KIND else window.kind
+    base["start_hour"], base["end_hour"] = legacy_hours(window.start_min, window.end_min)
+    return window
+
+
+def resolve_effective_availability(driver, target_date, *, regular_windows=None):
     """Combine weekly/default availability with any active exception for target_date.
 
-    Returns a dict (see plan or callers for keys). Always returns a dict — never None."""
+    Returns a dict (see plan or callers for keys). Always returns a dict — never None.
+
+    Every result also carries the driver's hard limits, and, for a confirmed
+    regular shift, regular_shift (that weekday's working day, or None),
+    regular_day_off and shift_role_label ('Morning driver'; '' when not
+    confirmed). With the switch off nothing else moves. ``regular_windows`` is
+    the switch (SchedulerSettings.regular_shift_windows); None reads it, and
+    only for a confirmed driver. With it on, a confirmed working day is a
+    fixed window to the minute — window_start_min / window_end_min /
+    window_kind / window_max_span_min, None otherwise — and an Off day is
+    unavailable. Approved time off still wins; a flexible exception falls back
+    to today's reading; a partial-day exception sits on top of the window."""
     base = _weekly_or_defaults(driver, target_date)
     # Only approved overrides affect the schedule. Pending driver-submitted
     # requests must be explicitly approved (or auto-approved by dispatcher
@@ -125,6 +216,27 @@ def resolve_effective_availability(driver, target_date):
         [o for o in driver.date_overrides.all() if o.status == "approved"],
         target_date,
     )
+
+    regular = _regular_day(driver, target_date)
+    window = None
+    # Time off needs no window, and a flexible exception falls back to today's
+    # reading (S4): neither reads the switch nor the regular shift's hours.
+    if regular is not None and (exception is None
+                                or exception.exception_type not in ("off", "flexible")):
+        if regular_windows is None:
+            from drivers.regular_shifts import regular_windows_on
+            regular_windows = regular_windows_on()
+        if regular_windows:
+            window = _apply_regular(base, driver, *regular)
+
+    if regular is None:
+        regular_shift, regular_day_off, role = None, False, ""
+    else:
+        from drivers.regular_shifts import role_label
+        day, templates = regular
+        regular_shift = _regular_shift_info(day, templates)
+        regular_day_off = day.template_id is None
+        role = role_label(driver, templates)
 
     eff = {
         "is_available":    base["is_available"],
@@ -143,6 +255,18 @@ def resolve_effective_availability(driver, target_date):
         "exception_end_time":   None,
         "exception_notes":      "",
         "exception_reason":     "",
+        # Regular shift (structured shifts, Stage 1). The window keys are set
+        # only with the switch on; regular_window_keys() reads them.
+        "regular_shift":        regular_shift,
+        "regular_day_off":      regular_day_off,
+        "shift_role_label":     role,
+        "hard_earliest_start":  driver.hard_earliest_start,
+        "hard_latest_finish":   driver.hard_latest_finish,
+        "hard_latest_finish_next_day": driver.hard_latest_finish_next_day,
+        "window_start_min":     window.start_min if window else None,
+        "window_end_min":       window.end_min if window else None,
+        "window_kind":          window.kind if window else None,
+        "window_max_span_min":  window.max_span_min if window else None,
     }
 
     if exception is not None:
@@ -193,6 +317,7 @@ def _classify_status(eff):
     et = eff.get("exception_type")
     if et in ("available_until", "available_after", "available_window", "unavailable_window"):
         return "limited"
+    # A Float or two-shape regular day is full_day but never flexible: fixed_window.
     if eff.get("shift_type") == "full_day" and eff.get("flexible"):
         return "flexible"
     return "fixed_window"
@@ -252,6 +377,8 @@ def format_availability_label(eff):
 
 def _underlying_label(eff):
     """Label ignoring partial-day exception (used when overlaying a window)."""
+    if eff.get("window_start_min") is not None and eff.get("regular_shift"):
+        return eff["regular_shift"]["label"]        # 'Morning 4:10 AM – 3:30 PM'
     if eff.get("shift_type") == "full_day" and eff.get("flexible"):
         return "Flexible"
     sh = eff.get("start_hour", 0)
@@ -285,6 +412,13 @@ def format_availability_tooltip(eff):
             return f"{base_msg} Note: {notes}"
         return base_msg
     # fixed_window
+    regular = eff.get("regular_shift")
+    if (eff.get("window_start_min") is not None and regular
+            and regular["start_min"] is not None and regular["end_min"] is not None):
+        next_day = " (ends next day)" if regular["end_min"] >= 1440 else ""
+        return (f"Regular {regular['name']} shift, "
+                f"{fmt_time_long(_minutes_time(regular['start_min']))} – "
+                f"{fmt_time_long(_minutes_time(regular['end_min']))}{next_day}.")
     return f"Driver works {fmt_hour_long(eff['start_hour'])} – {fmt_hour_long(eff['end_hour'])} today."
 
 
@@ -300,6 +434,12 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
 
     `dropoff_dt` (optional) is the estimated end datetime; if provided, an
     `available_until` window also flags pickups that would finish past that time.
+
+    A regular shift with the switch on (window_start_min set) is checked to the
+    minute instead of the whole-hour working hours, and on top of any partial-day
+    exception: a pickup is outside when it is before the window's start or at or
+    after its end. The window counts minutes from 00:00 of the date, so an early
+    pickup (01:00) is outside an evening shift that started the day before.
     """
     if not eff.get("is_available"):
         return (False, "Driver is off this date.")
@@ -324,10 +464,17 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
     elif et == "unavailable_window" and st is not None and en is not None:
         if st <= pickup_time < en:
             return (False, f"Pickup at {fmt_time_long(pickup_time)} is inside the driver's blocked window ({fmt_time_long(st)}–{fmt_time_long(en)}).")
-    elif eff.get("status") == "fixed_window":
+    elif eff.get("status") == "fixed_window" and eff.get("window_start_min") is None:
         sh, eh = eff.get("start_hour"), eff.get("end_hour")
         if sh is not None and eh is not None and (pickup_time.hour < sh or pickup_time.hour >= eh):
             return (False, f"Pickup at {fmt_time_long(pickup_time)} is outside the driver's working hours ({fmt_hour_long(sh)}–{fmt_hour_long(eh)}).")
+
+    start_min, end_min = eff.get("window_start_min"), eff.get("window_end_min")
+    if start_min is not None and end_min is not None:
+        p = pickup_time.hour * 60 + pickup_time.minute
+        if p < start_min or p >= end_min:
+            return (False, f"Pickup at {fmt_time_long(pickup_time)} is outside the driver's regular shift "
+                           f"({fmt_time_long(_minutes_time(start_min))}–{fmt_time_long(_minutes_time(end_min))}).")
 
     return (True, "")
 
