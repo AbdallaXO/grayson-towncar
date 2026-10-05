@@ -583,12 +583,14 @@ def revalidate_moves_against_db(valid_moves, target_date):
         eff = d.get_effective_availability(target_date)
         mh = eff.get("max_hours")
         return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible")),
+                **fg.regular_window_keys(eff)}
 
     for did in receiving_driver_ids:
         drv_legs = [l for l in legs if l.driver_id == did]
         # enforce_cap=False: this validates a swap the DISPATCHER explicitly chose — the
-        # duty-span cap (Span Governor) must never hard-block an intentional manual move.
+        # duty-span cap (Span Governor) must never hard-block an intentional manual move,
+        # nor may a regular shift's 12h base-to-base ceiling (it only warns, S20).
         window = fg.get_effective_window(did, configured=_cfg_window(did), enforce_cap=False)
         for L in drv_legs:
             others = [l for l in drv_legs if l.id != L.id]

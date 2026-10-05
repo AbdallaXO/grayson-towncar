@@ -158,7 +158,9 @@ class DayPlanResult:
 
 def _day_roster(target_date):
     """DVA-eligible in-house, active, saved availability — exactly the roster
-    ``views.auto_assign_drivers`` derives with no modal payload."""
+    ``views.auto_assign_drivers`` derives with no modal payload, including its
+    regular_keys ({driver_id: regular_window_keys}; empty with the switch off)."""
+    from dispatching import feasibility_guards as fg
     from drivers.models import Driver, DriverVehicleAssignment
     eligible = set(DriverVehicleAssignment.objects.filter(
         date=target_date, driver__driver_type="inhouse")
@@ -175,12 +177,15 @@ def _day_roster(target_date):
             if flex:
                 flexible.add(d.id)
     drivers = [d for d in drivers if d.id in driver_hours]
-    driver_max_hours = {}
+    driver_max_hours, regular_keys = {}, {}
     for d in drivers:
         fa = d.get_full_availability(target_date)
         if fa.get("max_hours"):
             driver_max_hours.setdefault(d.id, float(fa["max_hours"]))
-    return drivers, driver_hours, flexible, driver_max_hours
+        keys = fg.regular_window_keys(fa)
+        if keys:
+            regular_keys[d.id] = keys
+    return drivers, driver_hours, flexible, driver_max_hours, regular_keys
 
 
 def _load_day_legs(target_date):
@@ -259,7 +264,8 @@ def _evaluate_inner(label, dva_rows, ctx, t0, run_assignment_pipeline,
                         flexible_drivers=ctx["flexible"],
                         driver_max_hours=ctx["driver_max_hours"],
                         run_min_buffer=ctx["run_min_buffer"],
-                        driver_min_buffers=ctx["driver_min_buffers"]),
+                        driver_min_buffers=ctx["driver_min_buffers"],
+                        regular_keys=ctx.get("regular_keys") or {}),
         PipelineLocks(), dva_rows=dva_rows)
 
     # Full post-plan board: existing assignments + this run's placements.
@@ -452,7 +458,7 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
             f"The builder never plans against a day someone is reviewing — "
             f"publish or discard the draft first.")
 
-    drivers, driver_hours, flexible, driver_max_hours = _day_roster(target_date)
+    drivers, driver_hours, flexible, driver_max_hours, regular_keys = _day_roster(target_date)
     if not drivers:
         raise PlanRefused(
             "No roster for this date yet — run Day Setup (tick the drivers, "
@@ -497,7 +503,7 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
         "date": target_date, "cfg": cfg, "legs": legs, "drivers": drivers,
         "legs_by_id": legs_by_id, "drivers_by_id": drivers_by_id,
         "driver_hours": driver_hours, "flexible": flexible,
-        "driver_max_hours": driver_max_hours,
+        "driver_max_hours": driver_max_hours, "regular_keys": regular_keys,
         "run_min_buffer": resolve_run_min_buffer(None),
         "driver_min_buffers": load_driver_min_buffers(list(ids)),
         "existing_assign": existing_assign,
@@ -789,6 +795,12 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
                 fa = d.get_full_availability(target_date)
                 if fa.get("max_hours"):
                     ctx2["driver_max_hours"].setdefault(d.id, float(fa["max_hours"]))
+                # The bench driver's regular shift, to the minute (switch on), as the
+                # roster's own drivers have theirs.
+                ctx2["regular_keys"] = dict(ctx.get("regular_keys") or {})
+                bench_keys = fg.regular_window_keys(fa)
+                if bench_keys:
+                    ctx2["regular_keys"][d.id] = bench_keys
                 if flex:
                     ctx2["flexible"] = set(ctx["flexible"]) | {d.id}
                 ev = _evaluate(f"+ {d} on {_unit_label(unit)}", rows2, ctx2)
@@ -825,6 +837,7 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
                 ctx["drivers_by_id"] = ctx2["drivers_by_id"]
                 ctx["driver_hours"] = ctx2["driver_hours"]
                 ctx["driver_max_hours"] = ctx2["driver_max_hours"]
+                ctx["regular_keys"] = ctx2["regular_keys"]
                 ctx["flexible"] = ctx2["flexible"] if flex else ctx["flexible"]
                 current = ev
 

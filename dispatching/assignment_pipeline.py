@@ -87,6 +87,11 @@ class PipelineWindows:
     run_min_buffer     turn buffer for this run (already resolved through
                        ``scheduler.resolve_run_min_buffer``).
     driver_min_buffers {driver_id: minutes} per-driver overrides.
+    regular_keys       {driver_id: dict merged into that driver's configured
+                       window} — a confirmed regular shift to the minute
+                       (``feasibility_guards.regular_window_keys``), or just
+                       {"source": "regular"} when the modal hours were retyped
+                       (S9). Either bypasses the stub. Empty with the switch off.
     """
     driver_hours: Dict[int, tuple] = field(default_factory=dict)
     flexible_drivers: Set[int] = field(default_factory=set)
@@ -95,6 +100,7 @@ class PipelineWindows:
     preferences: Dict[int, str] = field(default_factory=dict)
     run_min_buffer: Optional[int] = None
     driver_min_buffers: Dict[int, int] = field(default_factory=dict)
+    regular_keys: Dict[int, dict] = field(default_factory=dict)
 
 
 @dataclass
@@ -221,6 +227,7 @@ def run_assignment_pipeline(legs, drivers, target_date, windows, locked,
             "end": _sh_eh[1] if _sh_eh else None,
             "max_hours": driver_max_hours.get(d.id),
             "flexible": d.id in flexible_drivers,
+            **windows.regular_keys.get(d.id, {}),
         })
 
     # Shared-car partner map: two WORKING drivers on one physical unit (Day Setup planned
@@ -292,6 +299,8 @@ def run_assignment_pipeline(legs, drivers, target_date, windows, locked,
                 # turn buffer as the general pass (build_smart_schedule applies this
                 # driver's own typed override on top).
                 min_buffer=run_min_buffer,
+                # A regular shift is the seeded day's window too, to the minute.
+                regular_keys=windows.regular_keys.get(did),
             )
             for s in res.get('schedule', []):
                 if s.leg_id not in existing_ids and s.leg_id not in seeded_assignments:
@@ -346,7 +355,8 @@ def run_assignment_pipeline(legs, drivers, target_date, windows, locked,
                                                 sharer_partners=sharer_partners or None,
                                                 prev_end_by_driver=prev_end_by_driver or None,
                                                 min_buffer=run_min_buffer,
-                                                driver_min_buffers=driver_min_buffers) if auto_unassigned else []
+                                                driver_min_buffers=driver_min_buffers,
+                                                regular_keys=windows.regular_keys or None) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -458,6 +468,7 @@ def run_assignment_pipeline(legs, drivers, target_date, windows, locked,
         flexible_drivers=flexible_drivers or None,
         sharer_partners=sharer_partners or None,
         min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
+        regular_keys=windows.regular_keys or None,
     )
 
     # ── Final free-insertion sweep (founder brain) ──

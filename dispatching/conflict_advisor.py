@@ -419,18 +419,22 @@ def build_board_state(target_date, now=None):
     # and must not auto-build 18-hour days. The APPLY stage re-resolves with
     # enforce_cap=False (manual-sovereign); that split is the caller's, per the
     # plan. Sources are tagged so a stub-window rejection can say so honestly:
-    # "observed-history window (provisional), not a configured shift".
+    # "observed-history window (provisional), not a configured shift". A confirmed
+    # regular shift (switch on) bypasses the stub, so it is never tagged "stub".
     windows, window_sources = {}, {}
     for d in deployable:
         eff = d.get_effective_availability(target_date)
         mh = eff.get("max_hours")
+        regular = fg.regular_window_keys(eff)
         cfg = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
                "max_hours": (float(mh) if mh else None),
-               "flexible": bool(eff.get("flexible"))}
+               "flexible": bool(eff.get("flexible")),
+               **regular}
         windows[d.id] = fg.get_effective_window(d.id, configured=cfg,
                                                 enforce_cap=True)
         window_sources[d.id] = (
-            "stub" if (fg.USE_STUB_WINDOWS and d.id in fg.STUB_DRIVER_WINDOWS)
+            "stub" if (fg.USE_STUB_WINDOWS and d.id in fg.STUB_DRIVER_WINDOWS
+                       and not regular)
             else "configured")
 
     # Earliest picked-up tap per leg, naive local (the board's convention):

@@ -444,9 +444,11 @@ def _revalidate_board(plan: _AdvisorPlan, inhouse: dict):
         mh = eff.get("max_hours")
         cfg = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
                "max_hours": (float(mh) if mh else None),
-               "flexible": bool(eff.get("flexible"))}
-        # enforce_cap=False: manual-sovereign — the duty-span cap never
-        # hard-blocks a plan the dispatcher explicitly chose.
+               "flexible": bool(eff.get("flexible")),
+               **fg.regular_window_keys(eff)}
+        # enforce_cap=False: manual-sovereign — the duty-span cap (and a regular
+        # shift's 12h base-to-base ceiling, S20) never hard-blocks a plan the
+        # dispatcher explicitly chose.
         windows[d.id] = fg.get_effective_window(d.id, configured=cfg, enforce_cap=False)
 
     # Vehicle-class compatibility for gaining placements (check_feasibility has

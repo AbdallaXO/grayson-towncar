@@ -1165,7 +1165,8 @@ def check_feasibility(
     3b. Guard B' — minimum turn buffer, when the caller passes `min_buffer`.
     4. Guard C — per-driver window (start / clear-by end / max-hours span) and, for a
        regular window with max_span_min, the base -> base day span
-       (feasibility_guards.base_span_min).
+       (feasibility_guards.base_span_min). A manual-sovereign regular window carries
+       span_warn_min instead: the same span check, added to `warnings`, never refused.
 
     Guard B' (`min_buffer`, minutes) is the PLANNING floor: how much spare time the engine
     must leave when it seats a job on its own initiative. It answers the founder's
@@ -1233,6 +1234,7 @@ def check_feasibility(
                 new_leg.pickup_time, new_pickup_cat, new_dropoff_cat, target_date))
 
     # ── Guard C: per-driver window (start / clear-by / max-hours span) ──
+    span_warnings = []
     if driver_window is not None:
         if driver_schedule.slots:
             first_pickup_dt = datetime.combine(
@@ -1246,16 +1248,24 @@ def check_feasibility(
             span_after = (new_end_dt - new_pickup_dt).total_seconds() / 3600
             span_before = 0.0
         # A regular window with a ceiling (max_span_min) is also held base -> base: the
-        # day's span with and without the new leg. Hour windows never carry it, so the
-        # hour path computes nothing new.
+        # day's span with and without the new leg. On a manual-sovereign path the ceiling
+        # rides as span_warn_min (get_effective_window, enforce_cap=False): the same span,
+        # the same S20 reason, but as a warning — a dispatcher's own move is never refused
+        # for it (07 §6.5). Hour windows carry neither, so the hour path computes nothing new.
         base_after = base_before = None
-        if (driver_window.get("start_min") is not None
-                and driver_window.get("max_span_min") is not None):
+        span_ceiling = driver_window.get("max_span_min")
+        if span_ceiling is None:
+            span_ceiling = driver_window.get("span_warn_min")
+        if driver_window.get("start_min") is not None and span_ceiling is not None:
             day_legs = _base_span_legs(driver_schedule.slots, target_date)
             kind = driver_window.get("kind")
             base_before = fg.base_span_min(day_legs, kind)
             base_after = fg.base_span_min(
                 day_legs + [(new_pickup_dt, new_pickup_cat, new_end_dt, new_dropoff_cat)], kind)
+            if driver_window.get("max_span_min") is None:
+                breach = fg.base_span_breach(span_ceiling, base_before, base_after)
+                if breach:
+                    span_warnings.append(breach)
         ok, reason = fg.window_check(driver_window, new_leg.pickup_time, new_end_dt, span_after,
                                      target_date=target_date, span_hours_before=span_before,
                                      pickup_category=new_pickup_cat,
@@ -1267,9 +1277,10 @@ def check_feasibility(
                                      reason=f"Outside driver window: {reason}")
 
     if not driver_schedule.slots:
-        return FeasibilityResult(feasible=True, buffer_minutes=999, reason="Available - no jobs yet")
+        return FeasibilityResult(feasible=True, buffer_minutes=999, warnings=span_warnings,
+                                 reason="Available - no jobs yet")
 
-    warnings = []
+    warnings = span_warnings
     sorted_slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
 
     # Find preceding and following slots.
@@ -1709,6 +1720,7 @@ def suggest_assignments_clustered(
     prev_end_by_driver: Dict[int, datetime] = None,
     min_buffer: int = None,
     driver_min_buffers: Dict[int, int] = None,
+    regular_keys: Dict[int, dict] = None,
 ) -> List[AssignmentSuggestion]:
     """Cluster-aware assignment wrapper.
 
@@ -1734,6 +1746,7 @@ def suggest_assignments_clustered(
             driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
             prev_end_by_driver=prev_end_by_driver,
             min_buffer=min_buffer, driver_min_buffers=driver_min_buffers,
+            regular_keys=regular_keys,
         )
 
     if driver_vtypes is None:
@@ -1758,6 +1771,7 @@ def suggest_assignments_clustered(
         driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
         prev_end_by_driver=prev_end_by_driver,
         min_buffer=min_buffer, driver_min_buffers=driver_min_buffers,
+        regular_keys=regular_keys,
     )
 
 
@@ -1776,6 +1790,7 @@ def suggest_assignments(
     prev_end_by_driver: Dict[int, datetime] = None,
     min_buffer: int = None,
     driver_min_buffers: Dict[int, int] = None,
+    regular_keys: Dict[int, dict] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -1789,6 +1804,11 @@ def suggest_assignments(
     Optional flexible_drivers: set of driver IDs that skip the hard time
     window filter. Their schedules are kept compact via scoring penalties
     (idle gap, span) rather than hard cutoffs.
+
+    Optional regular_keys: {driver_id: dict merged into that driver's configured
+    window} — feasibility_guards.regular_window_keys of a confirmed regular shift
+    (switch on), or {"source": "regular"} alone for retyped modal hours (S9). Either
+    bypasses the stub for that driver. Empty with the switch off.
     """
     from dispatching.analytics import categorize_location
     from dispatching.models import SchedulerSettings
@@ -1798,12 +1818,19 @@ def suggest_assignments(
 
     # Guard C — pass the REAL configured window as a fallback so flipping
     # USE_STUB_WINDOWS=False switches to live windows instead of silently disabling the guard.
+    # A regular shift rides along to the minute; a caller with no hours for the driver (the
+    # capacity planner) gets the shift's whole hours, not a None that would mean the stub.
     def _configured_window(did):
+        rk = (regular_keys or {}).get(did) or {}
         if driver_hours and did in driver_hours:
             s, e = driver_hours[did]
             return {"start": s, "end": e,
                     "max_hours": (driver_max_hours or {}).get(did),
-                    "flexible": bool(flexible_drivers and did in flexible_drivers)}
+                    "flexible": bool(flexible_drivers and did in flexible_drivers),
+                    **rk}
+        if rk.get("start_min") is not None:
+            s, e = fg.legacy_hours(rk["start_min"], rk["end_min"])
+            return {"start": s, "end": e, "max_hours": None, "flexible": False, **rk}
         return None
     _driver_windows = {did: fg.get_effective_window(did, configured=_configured_window(did))
                        for did in inhouse_schedules}
@@ -2624,7 +2651,8 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                             locked_leg_ids=None, driver_windows=None,
                             driver_hours=None, flexible_drivers=None,
                             sharer_partners=None, free_insert_only=False,
-                            min_buffer=None, driver_min_buffers=None):
+                            min_buffer=None, driver_min_buffers=None,
+                            regular_keys=None):
     """Evict-to-farm value pass (founder brain, rules R1+R2 —
     docs/scheduler-automation/founder-brain-implementation.md).
 
@@ -2657,6 +2685,11 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
     evictions) — used as a FINAL sweep after the trim/gap passes, whose relocations can
     open seats that did not exist when coverage was settled ("leave no leg farmed that
     fits the final board as-is" — the answer key's missed-free-insertion flaw).
+
+    regular_keys ({driver_id: dict}, see suggest_assignments) only reaches the
+    saved-availability fallback windows; without it each driver's own regular
+    shift is read there (feasibility_guards.regular_window_keys — {} with the
+    switch off).
     """
     if not AUTO_EVICT_TO_FARM_PASS:
         return final_assignments, []
@@ -2697,7 +2730,9 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                 mh = eff.get("max_hours")
                 cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
                         "max_hours": (float(mh) if mh else None),
-                        "flexible": bool(eff.get("flexible"))}
+                        "flexible": bool(eff.get("flexible")),
+                        **(regular_keys.get(dr.id, {}) if regular_keys is not None
+                           else fg.regular_window_keys(eff))}
             except Exception:
                 cfgw = None
             windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
@@ -3087,7 +3122,8 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
                               target_date, dvtypes, locked_leg_ids=None,
                               driver_hours=None, flexible_drivers=None, capped_windows=None,
                               sharer_partners=None,
-                              min_buffer=None, driver_min_buffers=None):
+                              min_buffer=None, driver_min_buffers=None,
+                              regular_keys=None):
     """Span-trim pass (Span Governor Phase 3). For each driver whose built day runs over the
     soft target (effective span > SPAN_SOFT_EFFECTIVE_HOURS) or is simply too long raw
     (> SPAN_TRIM_RAW_MAX_HOURS), try to relocate his FIRST or LAST leg — the only legs whose
@@ -3110,6 +3146,8 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
     gap compaction). Donors peel <= SPAN_TRIM_MAX_PER_DONOR, receivers gain <=
     SPAN_TRIM_MAX_RECEIVE, <= SPAN_TRIM_MAX_MOVES total. Farms nothing by construction —
     the assignment keyset cannot change. Returns (final_assignments, moves).
+
+    regular_keys: as evict_to_farm_for_value — read only when capped_windows is None.
     """
     if not AUTO_SPAN_TRIM_PASS:
         return final_assignments, []
@@ -3134,7 +3172,9 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
                 eff = dr.get_effective_availability(target_date)
                 mh = eff.get("max_hours")
                 cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                        "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+                        "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible")),
+                        **(regular_keys.get(dr.id, {}) if regular_keys is not None
+                           else fg.regular_window_keys(eff))}
             except Exception:
                 cfgw = None
             windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
@@ -3267,7 +3307,8 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
                                 target_date, dvtypes, locked_leg_ids=None,
                                 driver_hours=None, flexible_drivers=None,
                                 sharer_partners=None,
-                                min_buffer=None, driver_min_buffers=None):
+                                min_buffer=None, driver_min_buffers=None,
+                                regular_keys=None):
     """Gap-compaction pass. Relocate an ALREADY-COVERED leg from a donor driver to a driver
     with a large internal gap, when doing so heals more gap than it opens — the founder's
     manual "give David the job sitting in his hole; the other driver just starts later" move.
@@ -3294,6 +3335,10 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
     Deadhead is NOT a gate (per the founder: fill the hole, any deadhead) — it only breaks ties
     so an on-route fill is preferred. Each round applies the single best move and recomputes;
     bounded by GAP_COMPACT_MAX_MOVES. Returns (final_assignments, moves) — moves for logging.
+
+    regular_keys ({driver_id: dict}, see suggest_assignments) is merged into each
+    receiver's window; without it each driver's own regular shift is read
+    (feasibility_guards.regular_window_keys — {} with the switch off).
     """
     if not AUTO_GAP_COMPACT_PASS:
         return final_assignments, []
@@ -3322,7 +3367,9 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
             eff = dr.get_effective_availability(target_date)
             mh = eff.get("max_hours")
             cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                    "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+                    "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible")),
+                    **(regular_keys.get(dr.id, {}) if regular_keys is not None
+                       else fg.regular_window_keys(eff))}
         except Exception:
             cfgw = None
         windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
@@ -3522,6 +3569,7 @@ def build_smart_schedule(
     preferred_vehicle_types: List[str] = None,
     max_hours: float = None,
     min_buffer: int = None,
+    regular_keys: dict = None,
 ) -> dict:
     """
     Build an optimal schedule for a single driver within a time window.
@@ -3536,6 +3584,8 @@ def build_smart_schedule(
         pinned_leg_ids: Leg IDs that MUST be included (e.g., a cruise the dispatcher wants this driver to have)
         preferred_trip_type: If set, prefer legs of this type ('arrival', 'return', 'cruise', 'other')
         existing_schedule: If the driver already has assigned jobs, pass them here
+        regular_keys: merged into the driver window — a confirmed regular shift to the
+            minute (feasibility_guards.regular_window_keys, switch on), or None
 
     Returns:
         {
@@ -3568,7 +3618,8 @@ def build_smart_schedule(
     _is_flexible = bool(_eff and _eff.get("status") == "flexible")
     # max_hours: per-driver hard duty-span cap (Span Governor). None was a hole — Build-1st
     # seeding had NO span bound at all, so a wide dispatcher window built 15-18h days.
-    _dwindow = {"start": start_hour, "end": end_hour, "max_hours": max_hours, "flexible": _is_flexible}
+    _dwindow = {"start": start_hour, "end": end_hour, "max_hours": max_hours, "flexible": _is_flexible,
+                **(regular_keys or {})}
 
     # Turn buffer for THIS build (Guard B'). The dispatcher's choice in the builder control
     # is the run value; this driver's own typed number beats it in both directions, so a

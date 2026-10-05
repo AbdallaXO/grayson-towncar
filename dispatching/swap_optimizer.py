@@ -204,7 +204,8 @@ def _get_conflicting_slots(
 
 def receiver_windows(driver_ids, target_date: date) -> Dict[int, dict]:
     """Guard C windows for each receiving driver: their saved availability for the day,
-    run through feasibility_guards.get_effective_window (the observed-history stub)."""
+    run through feasibility_guards.get_effective_window (the observed-history stub, or a
+    confirmed regular shift to the minute when the switch is on)."""
     from dispatching import feasibility_guards as fg
     from drivers.models import Driver as _Driver
 
@@ -219,7 +220,8 @@ def receiver_windows(driver_ids, target_date: date) -> Dict[int, dict]:
             mh = eff.get("max_hours")
             configured = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
                           "max_hours": (float(mh) if mh else None),
-                          "flexible": bool(eff.get("flexible"))}
+                          "flexible": bool(eff.get("flexible")),
+                          **fg.regular_window_keys(eff)}
         windows[did] = fg.get_effective_window(did, configured=configured)
     return windows
 

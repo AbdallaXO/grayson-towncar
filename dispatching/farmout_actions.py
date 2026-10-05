@@ -396,13 +396,15 @@ def _revalidate_inhouse(plan: _Plan, inhouse: dict) -> Tuple[bool, str]:
         eff = d.get_effective_availability(plan.day)
         mh = eff.get("max_hours")
         return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible")),
+                **fg.regular_window_keys(eff)}
 
     for did in receiving:
         drv = inhouse[did]
         drv_legs = [l for l in legs if l.driver_id == did]
         # enforce_cap=False: this validates a plan the FOUNDER explicitly chose — the duty-span
-        # cap must never hard-block an intentional manual move (same stance as execute_swap).
+        # cap must never hard-block an intentional manual move (same stance as execute_swap),
+        # and a regular shift's 12h base-to-base ceiling only warns (S20).
         window = fg.get_effective_window(did, configured=_cfg_window(drv), enforce_cap=False)
         for L in drv_legs:
             others = [l for l in drv_legs if l.id != L.id]

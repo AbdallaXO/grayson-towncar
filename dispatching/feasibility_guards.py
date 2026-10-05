@@ -15,7 +15,8 @@ Design goals:
   * Window dicts are hour-based ({"start", "end", ...}) unless they carry start_min /
     end_min (minutes after 00:00 of the target date; over 1440 = next day). Those are
     checked base -> base via handoff_chain.shift_lead_min / shift_tail_min, and one that
-    carries max_span_min also caps the whole day base -> base (base_span_min, 12h); hour
+    carries max_span_min also caps the whole day base -> base (base_span_min, 12h) — on a
+    manual-sovereign path the ceiling rides as span_warn_min and only warns; hour
     windows take the original hour path unchanged.
 """
 from datetime import datetime, time as dt_time, timedelta
@@ -322,7 +323,10 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
     A `configured` window with source="regular" is a confirmed regular shift (or the
     dispatcher's retyped modal hours for such a driver): it is the driver's real hours, so
     it skips the stub branch and takes the configured-window logic below, keeping every
-    key (start_min / end_min / kind ride through to window_check).
+    key (start_min / end_min / kind ride through to window_check). On a manual-sovereign
+    path (enforce_cap=False) its 12h base -> base ceiling rides as span_warn_min instead
+    of max_span_min: check_feasibility warns on it and never refuses (S20, 07 §6.5 — a
+    dispatcher's own move onto a long regular day is flagged, not blocked).
     """
     cap_on = ENFORCE_SPAN_CAPS and enforce_cap
     # enforce_cap=False marks the MANUAL-SOVEREIGN callers (manual swap revalidation,
@@ -365,7 +369,10 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
                 "flexible": flexible, "night_exempt": night_exempt}
     if not cap_on:
         if configured is not None and night_exempt:
-            return dict(configured, night_exempt=True)
+            manual = dict(configured, night_exempt=True)
+            if regular and "max_span_min" in manual:
+                manual["span_warn_min"] = manual.pop("max_span_min")
+            return manual
         return configured
     if configured is None:
         return {"start": None, "end": None, "max_hours": _capped_max_hours(),
@@ -439,6 +446,21 @@ def base_span_min(legs, kind):
     return int((back - leave).total_seconds() // 60)
 
 
+def base_span_breach(max_span_min, before, after):
+    """Why a day breaks its base -> base ceiling, or "" when it doesn't (S20).
+
+    before / after: base_span_min without and with the leg (None = unknown). A day
+    already over the ceiling before the leg is the strict case — no further planned leg,
+    even one that fits inside it; otherwise a leg that takes the day over it. The engine
+    refuses on this reason; a manual-sovereign window (span_warn_min) only warns with it.
+    """
+    if before is not None and before > int(max_span_min):
+        return f"day already over {_hm(max_span_min)} base to base"
+    if after is not None and after > int(max_span_min):
+        return f"base to base {_hm(after)} > {_hm(max_span_min)}"
+    return ""
+
+
 def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
                          target_date, mode, frcb, span_hours_before,
                          pickup_category, dropoff_category,
@@ -505,13 +527,13 @@ def _minute_window_check(window, pickup_time, clear_dt, span_hours_after,
     # whose window runs from the earliest start to the latest end. Strict (S20, 07 §13
     # K9-K10): a day already over before this leg takes no further planned leg, even one
     # that fits inside it — unlike the max-hours delta rule below, which stays as it is
-    # for parity. A dispatcher's own move only warns; that is the caller's business.
+    # for parity. A dispatcher's own move only warns: its window carries the ceiling as
+    # span_warn_min (get_effective_window, enforce_cap=False), never read here.
     max_span = window.get("max_span_min")
     if max_span is not None:
-        if base_span_min_before is not None and base_span_min_before > int(max_span):
-            return False, f"day already over {_hm(max_span)} base to base"
-        if base_span_min_after is not None and base_span_min_after > int(max_span):
-            return False, f"base to base {_hm(base_span_min_after)} > {_hm(max_span)}"
+        breach = base_span_breach(max_span, base_span_min_before, base_span_min_after)
+        if breach:
+            return False, breach
 
     # MAX HOURS — run the hour path's own block on a cap-only window (no start / end /
     # flexible, so nothing else in it can fire): one rule, no copy to drift.

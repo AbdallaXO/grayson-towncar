@@ -4351,13 +4351,17 @@ def check_driver_feasibility(request):
         # SchedulerSettings.arrival_grace_minutes (15) — that field is the PASSENGER-ready
         # time, and using it here quietly judged manual assignments against a looser
         # deadline than the 10-minute meet rule auto-assign enforces.
+        #
+        # A confirmed regular shift (switch on) is checked to the minute, base to base; its
+        # 12h base-to-base ceiling comes back as a warning here, never a refusal (S20).
         _mw_eff = driver.get_effective_availability(target_date)
         _mw_max = _mw_eff.get("max_hours")
         manual_window = fg.get_effective_window(
             driver.id,
             configured={"start": _mw_eff.get("start_hour"), "end": _mw_eff.get("end_hour"),
                         "max_hours": (float(_mw_max) if _mw_max else None),
-                        "flexible": bool(_mw_eff.get("flexible"))},
+                        "flexible": bool(_mw_eff.get("flexible")),
+                        **fg.regular_window_keys(_mw_eff)},
             enforce_cap=False,
         )
         result = check_feasibility(
@@ -13525,12 +13529,22 @@ def capacity_planner(request):
         # it the page suggested a driver at zero slack that Auto-Assign would then decline —
         # the inline hint and the button disagreeing about the same leg.
         from dispatching.scheduler import resolve_run_min_buffer, load_driver_min_buffers
+        from dispatching import feasibility_guards as _fg
         _sugg_buffer = resolve_run_min_buffer(None)
+        # A confirmed regular shift (switch on) is the driver's window here too, to the
+        # minute — the same one Auto-Assign reads. Empty with the switch off.
+        _cp_regular_keys = {}
+        for _d in inhouse_drivers:
+            if _d.id in _inhouse_for_suggestions:
+                _rk = _fg.regular_window_keys(_cp_get_eff(_d))
+                if _rk:
+                    _cp_regular_keys[_d.id] = _rk
         suggestions = suggest_assignments_clustered(
             _unassigned_legs, _inhouse_for_suggestions, selected_date,
             sharer_partners=_sharer_partners,
             min_buffer=_sugg_buffer,
-            driver_min_buffers=load_driver_min_buffers(list(_inhouse_for_suggestions)))
+            driver_min_buffers=load_driver_min_buffers(list(_inhouse_for_suggestions)),
+            regular_keys=_cp_regular_keys or None)
         coverage = get_coverage_stats(legs_list)
         if not _is_held:
             cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
@@ -14710,11 +14724,26 @@ def auto_assign_drivers(request):
                     flexible_drivers.add(d.id)
         inhouse_drivers = [d for d in inhouse_drivers if d.id in driver_hours]  # data-off excluded
 
+    # Regular shifts (structured shifts, Stage 1): {driver_id: keys merged into that
+    # driver's window}. With SchedulerSettings.regular_shift_windows on, a confirmed
+    # regular day carries its window to the minute, base to base (regular_window_keys).
+    # In the modal, hours left as they opened carry it too; hours the dispatcher retyped
+    # (or a Flexible tick) win as typed hours (S9) and only skip the stub. With the switch
+    # off no driver has the keys, so this stays empty and nothing below changes.
+    from dispatching import feasibility_guards as fg
+    regular_keys = {}
     for d in inhouse_drivers:
         full_avail = d.get_full_availability(target_date)
         if full_avail.get("max_hours"):
             # Modal-typed Max hrs wins over the saved-availability value.
             driver_max_hours.setdefault(d.id, float(full_avail["max_hours"]))
+        _regular = fg.regular_window_keys(full_avail)
+        if _regular:
+            if raw_driver_hours and (
+                    d.id in flexible_drivers
+                    or driver_hours[d.id] != (full_avail["start_hour"], full_avail["end_hour"])):
+                _regular = {"source": "regular"}
+            regular_keys[d.id] = _regular
 
     # ── The assignment build ──
     # Every pass — build-first seeding, greedy placement, pre-farm swap recovery,
@@ -14726,7 +14755,6 @@ def auto_assign_drivers(request):
     # render. The build itself is unchanged — analysis/14_pipeline_parity.py
     # captures this view's whole JSON response before and after and fails on any
     # difference.
-    from dispatching import feasibility_guards as fg
     from dispatching.assignment_pipeline import (
         PipelineLocks, PipelineWindows, run_assignment_pipeline,
     )
@@ -14759,6 +14787,7 @@ def auto_assign_drivers(request):
             preferences=preference_overrides,
             run_min_buffer=run_min_buffer,
             driver_min_buffers=driver_min_buffers,
+            regular_keys=regular_keys,
         ),
         PipelineLocks(
             manual_assignments=manual_assignments,
@@ -19195,9 +19224,20 @@ def swap_tester(request):
     unassigned_legs = [l for l in legs if not l.driver]
     # Shared-car gate: don't offer a split-unit driver a job overlapping his partner's.
     sharer_partners = build_sharer_partners({d.id for d in inhouse_drivers}, selected_date)
+    # A confirmed regular shift (switch on) is the driver's window, to the minute. Only a
+    # confirmed driver is resolved, so a day with none costs no query.
+    from dispatching import feasibility_guards as _fg
+    from drivers.regular_shifts import regular_windows_on
+    regular_keys = {}
+    _confirmed = [d for d in inhouse_drivers if d.regular_shift_confirmed_at is not None]
+    if _confirmed and regular_windows_on():
+        for _d in _confirmed:
+            _rk = _fg.regular_window_keys(_d.get_effective_availability(selected_date))
+            if _rk:
+                regular_keys[_d.id] = _rk
     suggestions = suggest_assignments_clustered(
         unassigned_legs, schedules, selected_date, driver_vtypes=driver_vtypes,
-        sharer_partners=sharer_partners,
+        sharer_partners=sharer_partners, regular_keys=regular_keys or None,
     ) if unassigned_legs else []
     suggestion_map = {s.leg_id: s for s in suggestions}
 
