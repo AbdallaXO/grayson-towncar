@@ -1431,7 +1431,9 @@ def _shift_facts_context(driver):
     week on one line, both from the confirmed regular shift; [] and "" until a
     manager confirms one. shift_facts holds the rest, as words: the usual shift,
     who confirmed it, the hard limits, the extra-shift days and the regular
-    car(s) — blank where nothing is set (the card prints "—")."""
+    car(s) — blank where nothing is set (the card prints "—") — plus car_hint,
+    which car Day Setup offers first ("" when it offers none of them)."""
+    from dispatching.day_setup import _unit_sort_key
     from drivers import regular_shifts as rs
     from drivers.availability import fmt_time_long
 
@@ -1448,6 +1450,14 @@ def _shift_facts_context(driver):
     # A JSON list edited in admin could hold anything; show only real weekdays.
     extra = sorted({d for d in (driver.extra_shift_days or [])
                     if isinstance(d, int) and 0 <= d < 7})
+    # In Day Setup's order: it locks the first of these by this same key, and
+    # only when that unit is still in service (it proposes active units only).
+    cars = sorted(driver.preferred_vehicles.all(), key=_unit_sort_key)
+    if cars and cars[0].is_active:
+        offered = ("Day Setup offers this car first." if len(cars) == 1
+                   else f"Day Setup offers #{cars[0].vehicle_number} first.")
+    else:
+        offered = ""
     return {
         "regular_rows": rows,
         "regular_summary": summary,
@@ -1457,7 +1467,8 @@ def _shift_facts_context(driver):
             "earliest": fmt_time_long(driver.hard_earliest_start),
             "latest": latest,
             "extra_days": ", ".join(rs.DAY_NAMES[d][:3] for d in extra),
-            "cars": list(driver.preferred_vehicles.order_by("vehicle_number")),
+            "cars": cars,
+            "car_hint": offered,
         },
     }
 

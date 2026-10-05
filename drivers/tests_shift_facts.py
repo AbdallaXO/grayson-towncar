@@ -380,6 +380,31 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
         self.assertNotIn("Day Setup offers this car first.", card)
         self.assertEqual(card.count("—"), 5)                 # each fact, blank
 
+    def test_card_names_the_car_day_setup_offers(self):
+        # Day Setup locks the first unit by number (5 before 008) and offers
+        # only units still in service.
+        five = FleetVehicle.objects.create(vehicle_number="5", year=2020, make="Ford",
+                                           model="Expedition")
+        self.driver.preferred_vehicles.add(self.unit, five)
+        self.client.force_login(self.dispatcher)
+        card = self._card(self.client.get(self._url()).content.decode())
+        self.assertLess(card.index("#5 "), card.index("#008 "))
+        self.assertIn("Day Setup offers #5 first.", card)
+        self.assertNotIn("this car", card)
+        self.assertNotIn("(inactive)", card)
+        # His first unit is retired: it is marked, and Day Setup offers neither.
+        FleetVehicle.objects.filter(pk=five.pk).update(is_active=False)
+        card = self._card(self.client.get(self._url()).content.decode())
+        self.assertIn("Expedition (inactive)", card)
+        self.assertNotIn("Suburban (inactive)", card)
+        self.assertNotIn("Day Setup offers", card)
+        # Only the retired unit: marked, and nothing offered.
+        self.driver.preferred_vehicles.remove(self.unit)
+        card = self._card(self.client.get(self._url()).content.decode())
+        self.assertIn("#5 ", card)
+        self.assertIn("(inactive)", card)
+        self.assertNotIn("Day Setup offers", card)
+
     def test_float_driver_off_every_day(self):
         self._confirm([], role="float")                      # extra shifts only (S2)
         self.client.force_login(self.dispatcher)
@@ -482,6 +507,38 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
         self.driver.refresh_from_db()
         self.assertIsNone(self.driver.max_days_per_week)
         self.assertEqual(self.driver.hard_latest_finish, time(1))
+
+    def test_day_past_midnight_against_a_next_day_finish(self):
+        self._confirm([DayShift(4, self.shapes["evening"], time(16), time(2, 15))],
+                      role="evening")
+        self.client.force_login(self.manager)
+        resp = self._post(hard_latest_finish="02:00", hard_latest_finish_next_day="on")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["driver_form"].non_field_errors(),
+                         ["Friday: ends at 2:15 AM — after this driver's latest finish "
+                          "(2 AM)."])
+        resp = self._post(hard_latest_finish="03:00", hard_latest_finish_next_day="on")
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual((self.driver.hard_latest_finish, self.driver.hard_latest_finish_next_day),
+                         (time(3), True))
+
+    def test_conflict_already_there_does_not_block_other_fields(self):
+        # Monday was confirmed at 4:10 AM; then a 5 AM earliest start was set in admin.
+        self._confirm([DayShift(0, self.shapes["morning"], time(4, 10), time(15, 30))])
+        Driver.objects.filter(pk=self.driver.pk).update(hard_earliest_start=time(5))
+        self.client.force_login(self.manager)
+        # The edit form sends the limit back unchanged with a new phone number.
+        resp = self._post(phone_number="4075559999", hard_earliest_start="05:00")
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.phone_number, "+14075559999")
+        self.assertEqual(self.driver.hard_earliest_start, time(5))
+        # Editing that limit is still judged against the week.
+        resp = self._post(hard_earliest_start="05:30")
+        self.assertEqual(resp.context["driver_form"].non_field_errors(),
+                         ["Monday: starts at 4:10 AM — before this driver's earliest start "
+                          "(5:30 AM)."])
 
     def test_limits_not_checked_without_a_confirmed_regular_shift(self):
         DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=0,

@@ -3,7 +3,7 @@
   Context from drivers.views._shift_facts_context: regular_rows [(day name,
   label)] and regular_summary from the confirmed regular shift (empty until a
   manager confirms one), and shift_facts {role, confirmed_by, earliest, latest,
-  extra_days, cars}. Styles live in driver_profile.html. Managers edit the
+  extra_days, cars, car_hint}. Styles live in driver_profile.html. Managers edit the
   limits, days a week, extra days and regular car in the profile's edit mode.
 {% endcomment %}
 <div class="profile-card mb-3" id="shift-facts">
@@ -46,8 +46,8 @@
     <div class="info-row">
       <span class="info-label">Regular car</span>
       <span class="info-value">
-        {% for car in shift_facts.cars %}#{{ car.vehicle_number }} <span class="text-muted-dark">{{ car.make }} {{ car.model }}</span>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
-        {% if shift_facts.cars %}<span class="shift-hint">Day Setup offers this car first.</span>{% endif %}
+        {% for car in shift_facts.cars %}#{{ car.vehicle_number }} <span class="text-muted-dark">{{ car.make }} {{ car.model }}{% if not car.is_active %} (inactive){% endif %}</span>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+        {% if shift_facts.car_hint %}<span class="shift-hint">{{ shift_facts.car_hint }}</span>{% endif %}
       </span>
     </div>
   </div>

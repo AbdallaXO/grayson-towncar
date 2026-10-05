@@ -134,6 +134,10 @@ class DriverProfileForm(forms.ModelForm):
         for field in self.fields.values():
             field.help_text = ""
 
+    # The fields a confirmed regular week is judged against (clean()).
+    LIMIT_FIELDS = frozenset({"hard_earliest_start", "hard_latest_finish",
+                              "hard_latest_finish_next_day", "max_days_per_week"})
+
     def clean_phone_number(self):
         return clean_phone(self.cleaned_data.get("phone_number"), required=False)
 
@@ -147,8 +151,11 @@ class DriverProfileForm(forms.ModelForm):
             cleaned["hard_latest_finish_next_day"] = False
         # Limits edited later must not break a confirmed regular shift (Review
         # Focus 5): each day they cut, and a days-a-week limit below the
-        # working days, is an error on the form, so nothing saves.
-        if self.instance.pk and self.instance.has_regular_shift:
+        # working days, is an error on the form, so nothing saves. Judged only
+        # when a limit is edited, so a conflict already there (a limit set in
+        # admin, say) never blocks saving a phone number or a license date.
+        if (self.instance.pk and self.instance.has_regular_shift
+                and not self.LIMIT_FIELDS.isdisjoint(self.changed_data)):
             for message in regular_shifts.limit_messages(
                     regular_shifts.current_days(self.instance),
                     hard_earliest_start=cleaned.get("hard_earliest_start"),

@@ -33,6 +33,9 @@ title: Every driver's profile shows their regular shift, their limits and their 
 
 **Expect to be asked:**
 - *"The card says No regular shift yet."* — Nobody has confirmed one for that driver. A manager does it on Regular Shifts.
+- *"It says No regular shift yet for an affiliate (or an operator), and Regular Shifts doesn't list them."* — Right: regular shifts are for our in-house chauffeurs only. Affiliates and operators never get one.
+- *"Shift facts says Friday Evening, but Weekly Schedule right below says Full Day."* — Weekly Schedule is the old schedule. Auto-assign keeps using it, and the old hours, until a manager switches it over to regular shifts, so the two can disagree until then. Nothing on Weekly Schedule changed.
+- *"The regular car says (inactive)."* — That car is out of service, so Day Setup won't offer it. Pick his new car under Edit Driver → Shift facts.
 - *"I changed a driver's earliest start and it won't save."* — One of their confirmed days starts before it. The message names the day: change that day on Regular Shifts first, or pick a limit that fits.
 - *"Does this change who gets trips today?"* — No. Auto-assign only reads regular shifts after a manager switches it over on Regular Shifts, and that can't happen until every driver has one.
 - *"What's Float?"* — A driver who goes wherever the day needs them, any shift, still within 12 hours and their limits.
