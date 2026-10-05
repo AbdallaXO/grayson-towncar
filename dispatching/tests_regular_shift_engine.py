@@ -11,8 +11,11 @@ over 12h takes no further planned leg, even one that fits inside it (S20).
 Task 5: every engine path carries the regular window. With the switch off nothing does
 (no "source" ever reaches the rules door); with it on, auto-assign (modal and saved
 hours), the capacity planner, the conflict advisor and the day planner all read a
-confirmed regular shift to the minute, base to base, and bypass the stub. A dispatcher's
-own moves onto a regular day already over 12h only warn (S20, §6.5).
+confirmed regular shift to the minute, base to base, and bypass the stub — and so do the
+swap receivers, board validation, the farm-out and advisor applies, the Swap Tester and
+the day planner's bench (RegularKeysReachEverySiteTests). Hours typed in the modal for a
+regular Off day skip the stub too. A dispatcher's own moves onto a regular day already
+over 12h only warn (S20, §6.5).
 
 Driver 46 is in the observed-history stub (06-20, 14h, non-flexible here), so a late job
 is refused unless his regular shift bypasses it. Trip ends are pinned to pickup + 90
@@ -325,6 +328,35 @@ class AutoAssignRegularShiftTests(_EngineFixture):
         self.assertEqual((window["start_min"], window["end_min"], window["max_span_min"]),
                          (250, 970, 720))
 
+    def test_modal_hours_typed_on_a_regular_off_day_skip_stub(self):
+        # Every day Off. The dispatcher unticks Off in the modal and types 4-22: his typed
+        # hours win and skip the stub (S4, S9), as on a working day.
+        self.leg(9, 0)
+        rs.save_regular_shift(self.d46, [DayShift(i, None, None, None) for i in range(7)],
+                              self.manager)
+        seen = {}
+
+        def spy(*args, **kwargs):
+            seen["result"] = real(*args, **kwargs)
+            return seen["result"]
+
+        real = ap.run_assignment_pipeline
+        # Switch off: the Off day isn't applied, and the stub tightens 4-22 to 6-20.
+        with mock.patch.object(ap, "run_assignment_pipeline", side_effect=spy):
+            self.preview({46: (4, 22)})
+        window = seen["result"].capped_windows[46]
+        self.assertEqual((window["start"], window["end"]), (6, 20))
+        self.assertNotIn("source", window)
+        self.switch_on()
+        self.assertFalse(Driver.objects.get(pk=46).get_effective_availability(DAY)
+                         ["is_available"])
+        with mock.patch.object(ap, "run_assignment_pipeline", side_effect=spy):
+            self.preview({46: (4, 22)})
+        window = seen["result"].capped_windows[46]
+        self.assertEqual((window["start"], window["end"], window["source"]), (4, 22, "regular"))
+        self.assertNotIn("start_min", window)
+        self.assertEqual(window["max_hours"], fg.SPAN_HARD_HOURS_DEFAULT)   # not the stub's 14
+
     def test_float_driver_takes_morning_and_evening_work_within_12h(self):
         self.confirm(FLOAT)
         self.switch_on()
@@ -392,6 +424,85 @@ class OtherEngineSitesTests(_EngineFixture):
         self.assertIsNone(suggested())          # the stub's 20:00 clear-by
         self.switch_on()
         self.assertEqual(suggested(), 46)
+
+
+class RegularKeysReachEverySiteTests(_EngineFixture):
+    """Each remaining site reads the regular shift with the switch on, shown by a job the
+    stub refuses and the shift allows: a 22:30 Disney pickup clearing 00:00 at MCO, back
+    at base 00:12, against the stub's 20:00 clear-by and Evening 14:15-02:15."""
+
+    def setUp(self):
+        super().setUp()
+        self.late = self.leg(22, 30, pickup=DISNEY, dropoff=MCO)
+        self.d46 = self.confirm(EVENING)
+
+    def test_swap_receiver_windows(self):
+        from dispatching.swap_optimizer import receiver_windows
+        self.assertNotIn("start_min", receiver_windows([46], DAY)[46])
+        self.switch_on()
+        w = receiver_windows([46], DAY)[46]
+        self.assertEqual((w["start_min"], w["end_min"], w["max_span_min"]), (855, 1575, 720))
+
+    def test_board_validation(self):
+        from dispatching.board_validation import revalidate_moves_against_db
+        ok, reason = revalidate_moves_against_db([(self.late.id, 46)], DAY)
+        self.assertFalse(ok)
+        self.assertIn("after clear-by 20:00", reason)
+        self.switch_on()
+        self.assertEqual(revalidate_moves_against_db([(self.late.id, 46)], DAY), (True, ""))
+
+    def test_farm_out_apply(self):
+        from dispatching.farmout_actions import _MOVE, _Plan, _revalidate_inhouse
+        plan = _Plan(kind="opportunity_swap", day=DAY, target_leg_id=self.late.id,
+                     writes=[(self.late.id, 46, _MOVE)], expected={self.late.id: None})
+        ok, reason = _revalidate_inhouse(plan, {46: self.d46})
+        self.assertFalse(ok)
+        self.assertIn("after clear-by 20:00", reason)
+        self.switch_on()
+        self.assertEqual(_revalidate_inhouse(plan, {46: Driver.objects.get(pk=46)}),
+                         (True, ""))
+
+    def test_conflict_advisor_apply(self):
+        from dispatching.conflict_advisor_actions import (
+            PlanRejected, _Action, _AdvisorPlan, _revalidate_board)
+        plan = _AdvisorPlan(day=DAY, disruption_id="d", plan_id="p", task_id=None,
+                            actions=[_Action(op="reassign", leg_id=self.late.id,
+                                             to_driver_id=46)],
+                            expected={self.late.id: None})
+        with self.assertRaisesMessage(PlanRejected, "after clear-by 20:00"):
+            _revalidate_board(plan, {46: self.d46})
+        self.switch_on()
+        self.assertTrue(_revalidate_board(plan, {46: Driver.objects.get(pk=46)}).ok)
+
+    def test_swap_tester(self):
+        def no_fit():
+            resp = self.client.get(reverse("swap_tester"), {"date": DAY.isoformat()})
+            self.assertEqual(resp.status_code, 200)
+            return [leg["id"] for leg in json.loads(resp.context["nofit_legs"])]
+
+        self.assertEqual(no_fit(), [self.late.id])
+        self.switch_on()
+        self.assertEqual(no_fit(), [])
+
+    def test_day_planner_evaluation(self):
+        from dispatching.day_planner import build_day_plan
+        self.assertNotIn(self.late.id, build_day_plan(DAY).assignments)
+        self.switch_on()
+        self.assertEqual(build_day_plan(DAY).assignments.get(self.late.id), 46)
+
+    def test_day_planner_bench_driver(self):
+        # Pass C: 46 is on the bench (no car today); Mesfin (stub 04-19, regular Morning)
+        # is the roster and can't take the job. Only 46's Evening shift catches it.
+        from dispatching.day_planner import build_day_plan
+        DriverVehicleAssignment.objects.filter(driver=self.d46, date=DAY).delete()
+        mesfin = self.driver(63, "Mesfin", default_flexible=False, default_start_hour=4,
+                             default_end_hour=19)
+        self.confirm(MORNING, driver=mesfin)
+        self.assertEqual(build_day_plan(DAY).additions, [])
+        self.switch_on()
+        additions = build_day_plan(DAY).additions
+        self.assertEqual([(a["driver_id"], a["captured_leg_ids"]) for a in additions],
+                         [(46, [self.late.id])])
 
 
 class OverrunRegularDayTests(_EngineFixture):
