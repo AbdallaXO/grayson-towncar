@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
+from django.forms.models import BaseInlineFormSet
 from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
@@ -10,16 +12,54 @@ from .models import (
     VehicleServiceRecord, VehicleServiceSchedule,
 )
 from .models import DriverTag
+from . import regular_shifts
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
 
 
+class DriverWeeklyScheduleFormSet(BaseInlineFormSet):
+    """A weekly row also holds that day's confirmed regular shift (structured
+    shifts, Stage 1), which this inline only shows and can never put back.
+    Deleting such a row would erase that day's shift, and moving it to another
+    weekday would move the shift with it, so both are refused here: a regular
+    day changes on Regular Shifts. Rows with no regular shift behave as before."""
+
+    def clean(self):
+        super().clean()
+        day_names = dict(DriverWeeklySchedule.DAY_CHOICES)
+        deleted = self.deleted_forms
+        problems = []
+        for form in self.forms:
+            row = form.instance
+            if row.pk is None or row.shift_template_id is None:
+                continue
+            day = day_names.get(form.initial.get("day_of_week"), "This day")
+            if form in deleted:
+                problems.append(f"{day} is part of this driver's regular shift. "
+                                "Set it to Off on Regular Shifts instead of deleting it.")
+            elif "day_of_week" in form.changed_data:
+                problems.append(f"{day} is part of this driver's regular shift, so it can't "
+                                "move to another day here. Change it on Regular Shifts.")
+        if problems:
+            raise ValidationError(problems)
+
+
 class DriverWeeklyScheduleInline(admin.TabularInline):
     model = DriverWeeklySchedule
+    formset = DriverWeeklyScheduleFormSet
     extra = 0
     max_num = 7
-    fields = ["day_of_week", "is_available", "shift_type", "start_hour", "end_hour", "flexible", "max_hours", "preferred_shift", "preference", "scheduling_notes"]
+    fields = ["day_of_week", "is_available", "shift_type", "start_hour", "end_hour", "flexible", "max_hours", "preferred_shift", "preference", "scheduling_notes", "regular_shift"]
+    readonly_fields = ["regular_shift"]
+
+    @admin.display(description="Regular shift")
+    def regular_shift(self, row):
+        """This day's regular shift in words, set on Regular Shifts; blank when none."""
+        if row.pk is None or row.shift_template_id is None:
+            return "—"
+        return regular_shifts.day_label(regular_shifts.row_day(row),
+                                        regular_shifts.templates_by_id())
 
 
 class DriverDateOverrideInline(admin.TabularInline):

@@ -19,17 +19,19 @@ from datetime import datetime, time
 from unittest import mock
 
 from django.apps import apps as django_apps
+from django.contrib import admin as django_admin
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from dispatching.models import REGULAR_WINDOWS_CACHE_KEY, SchedulerSettings
 from drivers import regular_shifts as rs
+from drivers.admin import DriverWeeklyScheduleInline
 from drivers.models import Driver, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
 from drivers.regular_shifts import DayShift
 from drivers.test_support import RegularShiftCacheMixin
@@ -603,3 +605,84 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
         self.assertEqual((self.driver.hard_earliest_start, self.driver.max_days_per_week,
                           self.driver.extra_shift_days), (None, None, []))
         self.assertFalse(self.driver.preferred_vehicles.exists())
+
+
+class DriverAdminWeeklyRowTests(RegularShiftCacheMixin, TestCase):
+    """The Driver admin's old weekly-schedule rows also hold each day's
+    confirmed regular shift, which that inline can't put back: deleting the
+    row, or moving it to another weekday, is refused for a regular day."""
+
+    def setUp(self):
+        super().setUp()
+        self.manager = User.objects.create_user("boss", password="x", is_staff=True,
+                                                is_superuser=True)
+        self.driver = _driver()
+        morning = ShiftTemplate.objects.get(kind="morning").id
+        rs.save_regular_shift(self.driver, [DayShift(i, morning, time(5), time(15))
+                                            for i in range(5)],
+                              self.manager, role_template_id=morning)
+        # Saturday has no row, so a row can move there; Sunday is an old-style row.
+        DriverWeeklySchedule.objects.filter(driver=self.driver, day_of_week__gte=5).delete()
+        DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=6,
+                                            is_available=False)
+        request = RequestFactory().get("/")
+        request.user = self.manager
+        inline = DriverWeeklyScheduleInline(Driver, django_admin.site)
+        self.FormSet = inline.get_formset(request, self.driver)
+
+    def _post(self, changes=None):
+        """The inline as the admin page sends it back, with ``changes`` keyed by
+        weekday: {0: {"DELETE": "on"}} ticks Delete on Monday's row."""
+        blank = self.FormSet(instance=self.driver)
+        data = {f"{blank.prefix}-TOTAL_FORMS": str(len(blank.forms)),
+                f"{blank.prefix}-INITIAL_FORMS": str(blank.initial_form_count()),
+                f"{blank.prefix}-MIN_NUM_FORMS": "0", f"{blank.prefix}-MAX_NUM_FORMS": "7"}
+        for form in blank.forms:
+            for name in form.fields:
+                value = form[name].value()
+                if value is not None and value is not False:
+                    data[form.add_prefix(name)] = "on" if value is True else str(value)
+            for name, value in (changes or {}).get(form.instance.day_of_week, {}).items():
+                data[form.add_prefix(name)] = value
+        return self.FormSet(data, instance=self.driver)
+
+    def _working_days(self):
+        return [d.day for d in rs.current_days(self.driver) if d.template_id is not None]
+
+    def test_deleting_a_regular_day_is_refused(self):
+        formset = self._post({0: {"DELETE": "on"}, 2: {"DELETE": "on"}})
+        self.assertFalse(formset.is_valid())
+        self.assertEqual(formset.non_form_errors(), [
+            "Monday is part of this driver's regular shift. "
+            "Set it to Off on Regular Shifts instead of deleting it.",
+            "Wednesday is part of this driver's regular shift. "
+            "Set it to Off on Regular Shifts instead of deleting it."])
+        self.assertEqual(self._working_days(), [0, 1, 2, 3, 4])
+
+    def test_moving_a_regular_day_is_refused(self):
+        formset = self._post({0: {"day_of_week": "5"}})
+        self.assertFalse(formset.is_valid())
+        self.assertEqual(formset.non_form_errors(), [
+            "Monday is part of this driver's regular shift, so it can't move to another "
+            "day here. Change it on Regular Shifts."])
+        self.assertEqual(self._working_days(), [0, 1, 2, 3, 4])
+
+    def test_old_style_rows_and_old_fields_save_as_before(self):
+        # Sunday has no regular shift: deleting it still works. Monday's old
+        # fields still save, and its regular shift stays.
+        formset = self._post({6: {"DELETE": "on"}, 0: {"scheduling_notes": "Late Mondays"}})
+        self.assertTrue(formset.is_valid(), formset.non_form_errors())
+        formset.save()
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=self.driver,
+                                                             day_of_week=6).exists())
+        monday = DriverWeeklySchedule.objects.get(driver=self.driver, day_of_week=0)
+        self.assertEqual((monday.scheduling_notes, monday.shift_start, monday.shift_end),
+                         ("Late Mondays", time(5), time(15)))
+        self.assertEqual(self._working_days(), [0, 1, 2, 3, 4])
+
+    def test_change_page_shows_each_rows_regular_shift(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(reverse("admin:drivers_driver_change", args=[self.driver.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Regular shift")
+        self.assertContains(resp, "Morning 5 AM – 3 PM", count=5)

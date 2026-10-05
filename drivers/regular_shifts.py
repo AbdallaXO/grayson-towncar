@@ -250,18 +250,20 @@ def current_days(driver) -> list[DayShift]:
     options. A weekday with no row, or with no shape, is Off. Reads
     weekly_schedule.all(), so a prefetch holds."""
     rows = {r.day_of_week: r for r in driver.weekly_schedule.all()}
-    days = []
-    for i in range(7):
-        row = rows.get(i)
-        if row is None or row.shift_template_id is None:
-            days.append(DayShift(i, None, None, None))
-        else:
-            days.append(DayShift(i, row.shift_template_id, row.shift_start, row.shift_end,
-                                 alt_template_id=row.alt_template_id,
-                                 day_earliest=row.day_earliest_start,
-                                 day_latest=row.day_latest_finish,
-                                 day_latest_next_day=row.day_latest_finish_next_day))
-    return days
+    return [row_day(rows[i]) if i in rows else DayShift(i, None, None, None)
+            for i in range(7)]
+
+
+def row_day(row) -> DayShift:
+    """One stored weekly row as its day of the regular shift; Off when the row
+    has no shape. Never costs a query."""
+    if row.shift_template_id is None:
+        return DayShift(row.day_of_week, None, None, None)
+    return DayShift(row.day_of_week, row.shift_template_id, row.shift_start, row.shift_end,
+                    alt_template_id=row.alt_template_id,
+                    day_earliest=row.day_earliest_start,
+                    day_latest=row.day_latest_finish,
+                    day_latest_next_day=row.day_latest_finish_next_day)
 
 
 def _by_day(days) -> list:
