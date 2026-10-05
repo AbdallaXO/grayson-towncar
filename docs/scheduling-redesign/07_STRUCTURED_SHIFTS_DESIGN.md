@@ -373,6 +373,7 @@ These were recorded while Stage 1 was being built. They mostly steer Stages 2–
   - After-midnight work on an evening shift. Stage 1 judges each date's trips only against that date.
   - The end-of-night return: U19's 61-min wash chain versus K7's 40 min.
   - Rest across consecutive nights.
+  - *Found in the Stage 1 final review; deferred to Stage 3 by the founder on 2026-10-05.* With the switch on, a trip hand-placed after midnight that belongs to last night's shift (e.g. a 12:30 AM tail on today's board) is still counted in today's base-to-base span and day length. It can therefore shorten today's 12h, and through the day-length rule it can still block a swap onto that driver. Stage 3's cross-date shifts should drop such tails from today's count.
 - **O3. Not enough staff:** what happens when available drivers can't cover the day (U18, U25).
 - **O4. Roster sizing:** whether the roster and standby are still sized on projected demand (U8, C4, C5), given K2.
 - **O5. The 10-min takeover:** whose 12h carries it, and whether the incoming driver still reports before the car is ready (U16).
