@@ -16,8 +16,13 @@ always adds keys that describe it. Only with SchedulerSettings.regular_shift_win
 on does it replace 3 and 4: a working day becomes a fixed window to the minute, an
 Off day is unavailable. A driver without a confirmed regular shift reads as before.
 """
-from dataclasses import replace
+import logging
+from dataclasses import replace as _dc_replace
 from datetime import datetime, time, timedelta
+
+from django.db.models import prefetch_related_objects
+
+logger = logging.getLogger(__name__)
 
 
 # ----- Hour formatting -----
@@ -116,10 +121,17 @@ def _weekly_or_defaults(driver, target_date):
     }
 
 
-def _minutes_time(minutes):
-    """Minutes after midnight (maybe past 1440) -> time of day. 1575 -> 02:15."""
-    m = int(minutes) % 1440
-    return time(m // 60, m % 60)
+def _fmt_minutes(minutes):
+    """Minutes after midnight (maybe past 1440) -> '2:15 AM'."""
+    from drivers.regular_shifts import minutes_to_time
+    return fmt_time_long(minutes_to_time(minutes))
+
+
+def _fmt_span(minutes):
+    """720 -> '12 hours', 690 -> '11 hours 30 min'."""
+    h, m = divmod(int(minutes), 60)
+    hours = f"{h} hour" + ("" if h == 1 else "s")
+    return f"{hours} {m} min" if m else hours
 
 
 def _regular_day(driver, target_date):
@@ -134,6 +146,11 @@ def _regular_day(driver, target_date):
     return rs.current_days(driver)[target_date.weekday()], rs.templates_by_id()
 
 
+def _without_day_limits(day):
+    """The day with its own limits ('Thursday: done by 3 PM') taken off."""
+    return _dc_replace(day, day_earliest=None, day_latest=None, day_latest_next_day=False)
+
+
 def _regular_shift_info(day, templates):
     """A confirmed working day in words and minutes, for the result's
     regular_shift key: {'kind', 'name', 'start_min', 'end_min', 'label'}.
@@ -144,14 +161,13 @@ def _regular_shift_info(day, templates):
     label names the day's own. None for an Off day or a shape that doesn't
     exist."""
     from drivers import regular_shifts as rs
-    shapes = rs._shapes(day, templates)
+    shapes = rs.day_shapes(day, templates)
     if not shapes:
         return None
-    if rs._open_day(day, templates):
+    if rs.is_open_day(day, templates):
         kind = rs.FLOAT_KIND
-        span = rs.regular_window(replace(day, day_earliest=None, day_latest=None,
-                                         day_latest_next_day=False),
-                                 templates, hard_lo=None, hard_hi=None)
+        span = rs.regular_window(_without_day_limits(day), templates,
+                                 hard_lo=None, hard_hi=None)
         start, end = (span.start_min, span.end_min) if span else (None, None)
     else:
         kind = shapes[0].kind
@@ -170,7 +186,14 @@ def _apply_regular(base, driver, day, templates):
     for code that still reads hours. The window itself is built in one place,
     regular_shifts.regular_window, clipped to the driver's hard limits and the
     day's own. An Off day is unavailable: save_regular_shift makes no row for
-    one, so a missing row never falls back to the default_* hours."""
+    one, so a missing row never falls back to the default_* hours.
+
+    The editors refuse the two days that give no window, but admin can save
+    them; both are logged. When the limits — the driver's or the day's,
+    edited later — leave no time, the day is unavailable: they are hard, so
+    no work is planned outside them. A shape that can't be read (one typed
+    time, or a shape newer than the 60s shape cache) keeps today's reading
+    rather than guess."""
     from dispatching.feasibility_guards import legacy_hours
     from drivers import regular_shifts as rs
     if day.template_id is None:
@@ -179,9 +202,15 @@ def _apply_regular(base, driver, day, templates):
     hard_lo, hard_hi = driver.hard_window_minutes()
     window = rs.regular_window(day, templates, hard_lo=hard_lo, hard_hi=hard_hi)
     if window is None:
-        # A shape that can't be read, or limits edited later (outside the
-        # editor) that leave no time — validation refuses both, so keep
-        # today's reading rather than guess.
+        weekday = rs.DAY_NAMES[day.day]
+        if rs.regular_window(_without_day_limits(day), templates,
+                             hard_lo=None, hard_hi=None) is None:
+            logger.warning("Regular shift of driver %s (%s) on %s can't be read; "
+                           "using the weekly hours instead.", driver.pk, driver, weekday)
+            return None
+        logger.warning("Limits of driver %s (%s) leave no time for the regular shift "
+                       "on %s; the day reads as unavailable.", driver.pk, driver, weekday)
+        base["is_available"] = False
         return None
     base["is_available"] = True
     base["flexible"] = False
@@ -205,6 +234,21 @@ def resolve_effective_availability(driver, target_date, *, regular_windows=None)
     window_kind / window_max_span_min, None otherwise — and an Off day is
     unavailable. Approved time off still wins; a flexible exception falls back
     to today's reading; a partial-day exception sits on top of the window."""
+    if (driver.regular_shift_confirmed_at is not None
+            and "weekly_schedule" not in getattr(driver, "_prefetched_objects_cache", {})):
+        # A confirmed driver's weekly rows are read twice (the weekly layer and
+        # the regular shift): fetch them once, then hand the driver back as it
+        # came, so an edit made after this call is never read stale.
+        prefetch_related_objects([driver], "weekly_schedule")
+        try:
+            return _resolve(driver, target_date, regular_windows)
+        finally:
+            driver._prefetched_objects_cache.pop("weekly_schedule", None)
+    return _resolve(driver, target_date, regular_windows)
+
+
+def _resolve(driver, target_date, regular_windows):
+    """resolve_effective_availability, once the weekly rows are in hand."""
     base = _weekly_or_defaults(driver, target_date)
     # Only approved overrides affect the schedule. Pending driver-submitted
     # requests must be explicitly approved (or auto-approved by dispatcher
@@ -413,12 +457,21 @@ def format_availability_tooltip(eff):
         return base_msg
     # fixed_window
     regular = eff.get("regular_shift")
-    if (eff.get("window_start_min") is not None and regular
-            and regular["start_min"] is not None and regular["end_min"] is not None):
-        next_day = " (ends next day)" if regular["end_min"] >= 1440 else ""
-        return (f"Regular {regular['name']} shift, "
-                f"{fmt_time_long(_minutes_time(regular['start_min']))} – "
-                f"{fmt_time_long(_minutes_time(regular['end_min']))}{next_day}.")
+    start_min, end_min = eff.get("window_start_min"), eff.get("window_end_min")
+    if start_min is not None and regular:
+        from drivers.regular_shifts import FLOAT_KIND
+        if eff.get("window_kind") == FLOAT_KIND:
+            # A Float or two-shape day can sit anywhere in what its limits
+            # leave, held to its longest shift — not its shapes' full spread.
+            next_day = " the next day" if end_min >= 1440 else ""
+            return (f"Regular {regular['name']} shift, any time between "
+                    f"{_fmt_minutes(start_min)} and {_fmt_minutes(end_min)}{next_day}, "
+                    f"up to {_fmt_span(eff['window_max_span_min'])}.")
+        if regular["start_min"] is not None and regular["end_min"] is not None:
+            next_day = " (ends next day)" if regular["end_min"] >= 1440 else ""
+            return (f"Regular {regular['name']} shift, "
+                    f"{_fmt_minutes(regular['start_min'])} – "
+                    f"{_fmt_minutes(regular['end_min'])}{next_day}.")
     return f"Driver works {fmt_hour_long(eff['start_hour'])} – {fmt_hour_long(eff['end_hour'])} today."
 
 
@@ -474,7 +527,7 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
         p = pickup_time.hour * 60 + pickup_time.minute
         if p < start_min or p >= end_min:
             return (False, f"Pickup at {fmt_time_long(pickup_time)} is outside the driver's regular shift "
-                           f"({fmt_time_long(_minutes_time(start_min))}–{fmt_time_long(_minutes_time(end_min))}).")
+                           f"({_fmt_minutes(start_min)}–{_fmt_minutes(end_min)}).")
 
     return (True, "")
 

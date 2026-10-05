@@ -137,7 +137,7 @@ def _shift_minutes(day) -> Optional[tuple[int, int]]:
     return _span(day.start, day.end)
 
 
-def _shapes(day, templates) -> list:
+def day_shapes(day, templates) -> list:
     """The shapes a working day may take: its own, then its second one. A
     second shape that doesn't exist or repeats the first is left out here
     (validation refuses it). [] when Off or the shape doesn't exist. Reads a
@@ -150,14 +150,14 @@ def _shapes(day, templates) -> list:
     return [tpl] if alt is None else [tpl, alt]
 
 
-def _open_day(day, templates) -> bool:
+def is_open_day(day, templates) -> bool:
     """A Float day, or one with a second shape: it can be any of its shapes,
     so its typed times are labels only."""
-    shapes = _shapes(day, templates)
+    shapes = day_shapes(day, templates)
     return len(shapes) > 1 or any(t.kind == FLOAT_KIND for t in shapes)
 
 
-def _to_time(minutes) -> time:
+def minutes_to_time(minutes) -> time:
     """Minutes after midnight (any day) -> time of day. 1575 -> 02:15."""
     m = int(minutes) % 1440
     return time(m // 60, m % 60)
@@ -390,7 +390,8 @@ def suggest_regular_shifts(drivers, today: date) -> dict[int, list[DaySuggestion
             start = math.floor(statistics.median(s for s, _ in mine) / ROUND_MIN) * ROUND_MIN
             end = math.ceil(statistics.median(e for _, e in mine) / ROUND_MIN) * ROUND_MIN
             end = min(end, start + tpl.max_span_minutes)
-            days.append(DaySuggestion(wd, len(entries), tpl.id, _to_time(start), _to_time(end)))
+            days.append(DaySuggestion(wd, len(entries), tpl.id,
+                                      minutes_to_time(start), minutes_to_time(end)))
         result[driver_id] = days
     return result
 
@@ -454,11 +455,11 @@ def regular_window(day, templates, *, hard_lo: Optional[int],
     from Driver.hard_window_minutes()) and the day's own. None for an Off day,
     a shape that doesn't exist, only one typed time — or when the limits leave
     no time at all (validation refuses saving such a day)."""
-    shapes = _shapes(day, templates)
+    shapes = day_shapes(day, templates)
     if not shapes:
         return None
     max_span = min(t.max_span_minutes for t in shapes)
-    if _open_day(day, templates):
+    if is_open_day(day, templates):
         kind = FLOAT_KIND
         start = min(_time_minutes(t.start_earliest) for t in shapes)
         end = max(_latest_end(t) for t in shapes)
@@ -502,7 +503,7 @@ def _day_limit_messages(day, templates, earliest, latest, hard_lo, hard_hi) -> l
     (S18); band_warnings says what the clipping leaves."""
     name = DAY_NAMES[day.day]
     day_lo, day_hi = _hard_minutes(day.day_earliest, day.day_latest, day.day_latest_next_day)
-    mins = None if _open_day(day, templates) else _shift_minutes(day)
+    mins = None if is_open_day(day, templates) else _shift_minutes(day)
     out = []
     if mins is not None:
         if hard_lo is not None and mins[0] < hard_lo:
@@ -588,7 +589,7 @@ def validate_regular_shift(days, *, templates, hard_earliest_start, hard_latest_
 
     def fixed_window(day):
         """The day's switch-on window when it is a single fixed shape, else None."""
-        if day.template_id is None or _open_day(day, templates):
+        if day.template_id is None or is_open_day(day, templates):
             return None
         return regular_window(day, templates, hard_lo=hard_lo, hard_hi=hard_hi)
 
@@ -604,7 +605,7 @@ def validate_regular_shift(days, *, templates, hard_earliest_start, hard_latest_
         if _one_time_blank(day):
             out.append(f"{name}: pick a start and an end time, or set the day to Off.")
             continue
-        if not _open_day(day, templates):
+        if not is_open_day(day, templates):
             mins = effective_minutes(day, templates)
             max_span = templates[day.template_id].max_span_minutes
             if mins[1] - mins[0] > max_span:
@@ -675,10 +676,11 @@ def _limits_cut(day, templates, hard_earliest, hard_latest, hard_latest_next_day
         limits.append(limit + (" (next day)" if next_day else ""))
     if not limits:
         return None
-    shape = " or ".join(t.name for t in _shapes(day, templates))
+    shape = " or ".join(t.name for t in day_shapes(day, templates))
     return (f"{DAY_NAMES[day.day]}: {' and '.join(limits)} "
             f"{'limit' if len(limits) > 1 else 'limits'} {shape} to "
-            f"{fmt_time_long(_to_time(held.start_min))}–{fmt_time_long(_to_time(held.end_min))}.")
+            f"{fmt_time_long(minutes_to_time(held.start_min))}–"
+            f"{fmt_time_long(minutes_to_time(held.end_min))}.")
 
 
 def band_warnings(days, templates, *, hard_earliest_start=None, hard_latest_finish=None,
@@ -701,7 +703,7 @@ def band_warnings(days, templates, *, hard_earliest_start=None, hard_latest_fini
         if tpl is None or _one_time_blank(day):
             continue
         mins = _shift_minutes(day)
-        if mins is None or _open_day(day, templates):
+        if mins is None or is_open_day(day, templates):
             cut = _limits_cut(day, templates, hard_earliest_start, hard_latest_finish,
                               hard_latest_finish_next_day, hard_lo, hard_hi)
             if cut:
@@ -725,7 +727,7 @@ def band_fill(template) -> tuple[time, time]:
     end = template.end_band_minutes()[1]
     if end <= start:
         end += 1440                     # the end band sits after midnight
-    return _to_time(start), _to_time(min(end, start + template.max_span_minutes))
+    return minutes_to_time(start), minutes_to_time(min(end, start + template.max_span_minutes))
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -820,7 +822,7 @@ def _shift_text(day, templates, sep, option_sep) -> str:
     ('· not before 6 AM', '· done by 3 PM'). A Float or two-shape day shows its
     shapes only: its typed times are labels the engine doesn't use. Reads a
     DaySuggestion too (no options)."""
-    shapes = _shapes(day, templates)
+    shapes = day_shapes(day, templates)
     name = shapes[0].name if shapes else "Regular"
     if len(shapes) > 1:
         text = " or ".join(t.name for t in shapes)

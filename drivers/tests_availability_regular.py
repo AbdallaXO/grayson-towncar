@@ -298,14 +298,78 @@ class SwitchOnTests(_Fixture):
         self.assertEqual(mon["regular_shift"], {
             "kind": "float", "name": "Float", "start_min": 180, "end_min": 1575,
             "label": "Float"})
-        self.assertEqual(mon["tooltip"],
-                         "Regular Float shift, 3 AM – 2:15 AM (ends next day).")
+        self.assertEqual(mon["tooltip"], "Regular Float shift, any time between 3 AM and "
+                                         "2:15 AM the next day, up to 12 hours.")
         tue = resolve_effective_availability(d, TUE, regular_windows=True)
         self.assertEqual(self.window(tue), (180, 1575, "float", 720))
         self.assertEqual(tue["display_label"], "Morning or Evening")
         self.assertEqual(tue["shift_type"], "full_day")
         self.assertEqual(tue["status"], "fixed_window")
         self.assertEqual(tue["regular_shift"]["name"], "Morning or Evening")
+        self.assertEqual(tue["tooltip"], "Regular Morning or Evening shift, any time between "
+                                         "3 AM and 2:15 AM the next day, up to 12 hours.")
+
+    def test_switch_on_float_day_with_hard_limits(self):
+        # The hover text says what the limits leave, as the pickup warning does.
+        d = self.confirm(self.driver(hard_earliest_start=time(6), hard_latest_finish=time(22),
+                                     **_FLEX),
+                         mon=("float", None, None))
+        mon = resolve_effective_availability(d, MON, regular_windows=True)
+        self.assertEqual(self.window(mon), (360, 1320, "float", 720))
+        self.assertEqual(mon["tooltip"],
+                         "Regular Float shift, any time between 6 AM and 10 PM, up to 12 hours.")
+        self.assertEqual(is_pickup_within_window(mon, time(5, 59)), (
+            False, "Pickup at 5:59 AM is outside the driver's regular shift (6 AM–10 PM)."))
+        # The shift itself is still the Float shapes' own spread.
+        self.assertEqual((mon["regular_shift"]["start_min"], mon["regular_shift"]["end_min"]),
+                         (180, 1575))
+
+    def test_switch_on_limits_leave_no_time(self):
+        # Limits saved later in admin — "never finishes after 1 AM" without the
+        # next-day flag, or a day "done by 4 AM" — leave a 4:10 AM Morning no
+        # time. They are hard: the day is unavailable, not today's open day.
+        d = self.confirm(self.driver(**_FLEX), mon=("morning", time(4, 10), time(15, 30)))
+        Driver.objects.filter(pk=d.pk).update(hard_latest_finish=time(1))
+        d = Driver.objects.get(pk=d.pk)
+        w = self.confirm(self.driver("Wes", **_FLEX), wed=("morning", time(4, 10), time(15, 30)))
+        DriverWeeklySchedule.objects.filter(driver=w, day_of_week=2).update(
+            day_latest_finish=time(4))
+        w = Driver.objects.get(pk=w.pk)
+        for driver, day, weekday in ((d, MON, "Monday"), (w, WED, "Wednesday")):
+            with self.subTest(weekday=weekday):
+                with self.assertLogs("drivers.availability", "WARNING") as logs:
+                    eff = resolve_effective_availability(driver, day, regular_windows=True)
+                self.assertEqual(len(logs.output), 1)
+                self.assertIn(f"leave no time for the regular shift on {weekday}",
+                              logs.output[0])
+                self.assertIs(eff["is_available"], False)
+                self.assertEqual(eff["status"], "off")
+                self.assertEqual(eff["display_label"], "Off")
+                self.assertEqual(self.window(eff), (None, None, None, None))
+                self.assertFalse(eff["regular_day_off"])          # a working day, cut
+                self.assertEqual(eff["regular_shift"]["name"], "Morning")
+                self.assertEqual(is_pickup_within_window(eff, time(9)),
+                                 (False, "Driver is off this date."))
+                # Switch off: today's reading, and nothing logged.
+                with self.assertNoLogs("drivers.availability", "WARNING"):
+                    off = resolve_effective_availability(driver, day, regular_windows=False)
+                self.assertEqual(off["status"], "flexible")
+
+    def test_switch_on_unreadable_day_keeps_todays_reading(self):
+        # One typed time, saved in admin: the shift can't be read, so the day
+        # keeps the weekly hours rather than guess — and says so in the log.
+        d = self.confirm(self.driver(**_FIXED), mon=("morning", time(4, 10), time(15, 30)))
+        DriverWeeklySchedule.objects.filter(driver=d, day_of_week=0).update(shift_end=None)
+        d = Driver.objects.get(pk=d.pk)
+        with self.assertLogs("drivers.availability", "WARNING") as logs:
+            on = resolve_effective_availability(d, MON, regular_windows=True)
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn("on Monday can't be read", logs.output[0])
+        off = resolve_effective_availability(d, MON, regular_windows=False)
+        self.assertEqual(self.legacy(on), self.legacy(off))
+        self.assertEqual((on["start_hour"], on["end_hour"], on["status"]),
+                         (5, 19, "fixed_window"))
+        self.assertEqual(self.window(on), (None, None, None, None))
 
     def test_switch_on_day_limit_clips(self):
         d = self.confirm(self.driver(**_FLEX), mon=("morning", time(4, 10), time(14, 45)),
@@ -388,6 +452,26 @@ class QueryTests(_Fixture):
         with self.assertNumQueries(0):
             for day in WEEK:
                 resolve_effective_availability(fetched, day)
+
+    def test_confirmed_unprefetched_reads_weekly_rows_once(self):
+        # Without a prefetch a confirmed driver costs what an unconfirmed one
+        # does (weekly rows + overrides), and is handed back unprefetched, so a
+        # later edit is read fresh.
+        d = self.confirm(self.driver(**_FLEX), mon=("morning", time(4, 10), time(15, 30)))
+        u = self.driver("Una", **_FIXED)
+        rs.regular_windows_on()
+        rs.templates_by_id()
+        for driver in (d, u):
+            plain = Driver.objects.get(pk=driver.pk)
+            with self.subTest(driver=str(driver)), self.assertNumQueries(2):
+                resolve_effective_availability(plain, MON, regular_windows=True)
+        plain = Driver.objects.get(pk=d.pk)
+        before = resolve_effective_availability(plain, MON, regular_windows=True)
+        self.assertNotIn("weekly_schedule", getattr(plain, "_prefetched_objects_cache", {}))
+        DriverWeeklySchedule.objects.filter(driver=d, day_of_week=0).update(
+            shift_start=time(5), shift_end=time(16))
+        after = resolve_effective_availability(plain, MON, regular_windows=True)
+        self.assertEqual((before["window_start_min"], after["window_start_min"]), (250, 300))
 
     def test_confirmed_cold_cache_reads_switch_and_shapes_once(self):
         d = self.confirm(self.driver(**_FLEX), mon=("morning", time(4, 10), time(15, 30)))
