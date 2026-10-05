@@ -343,8 +343,10 @@ def _shape_card(form, stored, used_by) -> dict:
 def shift_templates(request):
     """The four shapes (Morning, Midday, Evening, Float): their usual leave and
     return times, the longest shift each may run and notes. Every staff user
-    may look; only a manager saves (S10). Saving drops the cached shapes so
-    every page and auto-assign read the new ones."""
+    may look; only a manager saves (S10). A change a confirmed regular week
+    would no longer pass is refused, naming the driver and the day
+    (BaseShiftTemplateFormSet). Saving drops the cached shapes so every page
+    and auto-assign read the new ones."""
     if not request.user.is_staff:
         return HttpResponseForbidden() if request.method == "POST" else redirect("home")
     can_manage = request.user.is_superuser

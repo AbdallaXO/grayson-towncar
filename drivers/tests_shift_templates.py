@@ -262,6 +262,100 @@ class ShiftTemplatePageTests(RegularShiftCacheMixin, TestCase):
         self.assertEqual(self.post(morning={"max_span_hours": "11.5"}).status_code, 302)
         self.assertEqual(self.stored("morning").max_span_minutes, 690)
 
+    def test_lowering_below_confirmed_overnight_shift_refused(self):
+        # 2:15 PM to 2:15 AM is 12 hours across midnight, not -12.
+        amy = _driver("Amy", "Alpha")
+        self.confirm(amy, [DayShift(0, self.t["evening"].id, time(14, 15), time(2, 15))],
+                     role="evening")
+        resp = self.post(evening={"max_span_hours": "11.5"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self.forms_by_kind(resp)["evening"].errors["max_span_hours"], [
+            "1 confirmed regular shift on Evening is longer than that — edit it first.",
+            "Longer than 11.5 hours: Amy Alpha on Monday.",
+        ])
+        self.assertEqual(self.stored("evening").max_span_minutes, 720)
+
+    def test_lowering_counts_only_drivers_on_regular_shifts(self):
+        # Regular Shifts lists active in-house chauffeurs only, so nobody else
+        # can block the change: the manager couldn't find them there.
+        gone = _driver("Gus", "Gone")
+        self.confirm(gone, [self.morning(0, time(4, 0), time(16, 0))])
+        Driver.objects.filter(pk=gone.pk).update(is_active=False)
+        partner = _driver("Pat", "Partner", driver_type="affiliate")
+        self.confirm(partner, [self.morning(1, time(4, 0), time(16, 0))])
+        self.assertEqual(self.post(morning={"max_span_hours": "11"}).status_code, 302)
+        self.assertEqual(self.stored("morning").max_span_minutes, 660)
+
+    def test_off_half_hour_value_from_admin_still_saves(self):
+        # 715 minutes (set in admin) shows as 12, the nearest half hour, so the
+        # page saves; 700 shows as 11.5.
+        ShiftTemplate.objects.filter(kind="midday").update(max_span_minutes=715)
+        ShiftTemplate.objects.filter(kind="evening").update(max_span_minutes=700)
+        self.client.force_login(self.manager)
+        forms = self.forms_by_kind(self.client.get(self.url))
+        self.assertEqual(forms["midday"]["max_span_hours"].initial, 12)
+        self.assertEqual(forms["evening"]["max_span_hours"].initial, 11.5)
+        shown = {"midday": {"max_span_hours": "12"}, "evening": {"max_span_hours": "11.5"}}
+        # A notes-only change on Morning saves; Midday, untouched, keeps 715.
+        resp = self.post(morning={"notes": "Only Morning changed."}, **shown)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.stored("morning").notes, "Only Morning changed.")
+        self.assertEqual(self.stored("midday").max_span_minutes, 715)
+        self.assertEqual(self.stored("evening").max_span_minutes, 700)
+        # A shape that is changed saves the hours it showed.
+        resp = self.post(midday={"max_span_hours": "12", "notes": "Midday changed."},
+                         evening=shown["evening"])
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.stored("midday").max_span_minutes, 720)
+
+    def test_longer_longest_shift_that_cuts_rest_refused(self):
+        # Morning runs from its start for its longest shift: at 12 hours,
+        # Monday's 12 PM start reaches midnight, 6h 30m before Tuesday's 6:30.
+        ShiftTemplate.objects.filter(kind="morning").update(max_span_minutes=600)
+        rs.clear_template_cache()
+        amy = _driver("Amy", "Alpha")
+        self.confirm(amy, [self.morning(0, time(12, 0), time(22, 0)),
+                           self.morning(1, time(6, 30), time(16, 30))])
+        resp = self.post(morning={"max_span_hours": "12"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["formset"].non_form_errors(), [
+            "1 driver's confirmed regular shift wouldn't fit this change — edit it on "
+            "Regular Shifts first.",
+            "Amy Alpha — Monday to Tuesday: only 6h 30m off between shifts; the minimum "
+            "is 8h 30m.",
+        ])
+        self.assertContains(resp, "Monday to Tuesday: only 6h 30m off between shifts")
+        self.assertEqual(self.stored("morning").max_span_minutes, 600)
+
+    def test_usual_times_that_leave_no_time_refused(self):
+        # Bob is done by 2 PM and his Monday takes Morning's usual times.
+        amy = _driver("Amy", "Alpha")
+        bob = _driver("Bob", "Bravo", hard_latest_finish=time(14, 0))
+        self.confirm(amy, [self.morning(0, None, None)])
+        self.confirm(bob, [self.morning(0, None, None), self.morning(2, None, None)])
+        resp = self.post(morning={"start_latest": "14:30"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["formset"].non_form_errors(), [
+            "1 driver's confirmed regular shift wouldn't fit this change — edit it on "
+            "Regular Shifts first.",
+            "Bob Bravo — Monday: the start and finish limits leave no time for a shift.",
+            "Bob Bravo — Wednesday: the start and finish limits leave no time for a shift.",
+        ])
+        self.assertEqual(self.stored("morning").start_latest, time(6, 0))
+        # Once his days have their own times, the change saves.
+        self.confirm(bob, [self.morning(0, time(5, 0), time(13, 0))])
+        self.assertEqual(self.post(morning={"start_latest": "14:30"}).status_code, 302)
+        self.assertEqual(self.stored("morning").start_latest, time(14, 30))
+
+    def test_problem_a_week_already_had_does_not_block(self):
+        # Bob's limit was cut in admin after he was confirmed: his blank Monday
+        # already has no time left. That isn't this change's doing.
+        bob = _driver("Bob", "Bravo")
+        self.confirm(bob, [self.morning(0, None, None)])
+        Driver.objects.filter(pk=bob.pk).update(hard_latest_finish=time(3, 0))
+        self.assertEqual(self.post(morning={"start_latest": "06:30"}).status_code, 302)
+        self.assertEqual(self.stored("morning").start_latest, time(6, 30))
+
     def test_confirmed_shift_on_another_shape_does_not_count(self):
         amy = _driver("Amy", "Alpha")
         self.confirm(amy, [self.morning(0, time(4, 0), time(15, 55))])

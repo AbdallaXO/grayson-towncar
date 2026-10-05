@@ -29,8 +29,9 @@ What lives here:
     days) and the softer warnings: typed times outside the bands (U11: the
     bands are targets, not limits), and what the limits leave of a day with
     blank times or an open day, which they clip rather than refuse (S18);
-  * which confirmed days a shorter longest shift would break
-    (confirmed_days_longer_than, for the Shift Templates page);
+  * which confirmed weeks a change on the Shift Templates page would break:
+    the days a shorter longest shift cuts (confirmed_days_longer_than), and
+    any other check a week would newly fail (weeks_broken_by);
   * save_regular_shift, which writes ONLY the new fields on an existing row so
     the legacy hour reading cannot move while the switch is off (S1);
   * the labels dispatcher pages show.
@@ -717,30 +718,65 @@ def band_warnings(days, templates, *, hard_earliest_start=None, hard_latest_fini
     return out
 
 
+def _confirmed_roster():
+    """Roster drivers with a confirmed regular shift, by name. Only these are
+    held to a change on Shift Templates: Regular Shifts lists no one else, so
+    a refusal could name no one else the manager can find there. Anyone else
+    (inactive, or no longer in-house) is checked when a manager next confirms
+    his week, and auto-assign holds every day to its shape's longest shift
+    meanwhile (the rules door, Task 3c)."""
+    return [d for d in roster_drivers() if d.regular_shift_confirmed_at is not None]
+
+
 def confirmed_days_longer_than(template, max_span_minutes) -> list[tuple[Driver, int]]:
     """(driver, weekday) for every confirmed regular day on this shape whose
     typed times run longer than ``max_span_minutes`` base to base — what
     lowering the shape's longest shift would break (Shift Templates, Task 8).
-    By driver name, then weekday.
+    Roster drivers only (_confirmed_roster). By driver name, then weekday.
 
     A day with blank times takes the shape's usual times, which never run past
     its longest shift (band_fill), and a Float or two-shape day's times are
     labels only (the rules door holds it to the longest shift), so neither
-    counts. Nor does a row of a driver whose regular shift isn't confirmed."""
+    counts."""
     templates = templates_by_id()
-    rows = (DriverWeeklySchedule.objects
-            .filter(shift_template_id=template.pk,
-                    driver__regular_shift_confirmed_at__isnull=False,
-                    shift_start__isnull=False, shift_end__isnull=False)
-            .select_related("driver__profile"))
     out = []
-    for row in rows:
-        day = DayShift(row.day_of_week, row.shift_template_id, row.shift_start, row.shift_end,
-                       alt_template_id=row.alt_template_id)
-        start, end = _span(row.shift_start, row.shift_end)
-        if not is_open_day(day, templates) and end - start > max_span_minutes:
-            out.append((row.driver, row.day_of_week))
+    for driver in _confirmed_roster():
+        for day in current_days(driver):
+            if (day.template_id != template.pk or day.start is None or day.end is None
+                    or is_open_day(day, templates)):
+                continue
+            start, end = _span(day.start, day.end)
+            if end - start > max_span_minutes:
+                out.append((driver, day.day))
     return sorted(out, key=lambda pair: (_name(pair[0]).casefold(), pair[0].pk, pair[1]))
+
+
+def weeks_broken_by(new_templates, old_templates) -> list[tuple[Driver, list[str]]]:
+    """(driver, reasons) for every confirmed roster driver whose week
+    validate_regular_shift refuses with ``new_templates`` (the shapes as a
+    manager is about to save them) for a reason it doesn't give with
+    ``old_templates`` (the shapes as stored) — what a change on Shift
+    Templates would break. By driver name.
+
+    The usual times reach a day with blank times (band_fill) and a Float or
+    two-shape day (regular_window); the longest shift sets how far a Morning
+    or Evening day reaches, and so the rest before the next day. A problem the
+    week already had is not this change's doing, so it never blocks one."""
+    rest_min = SchedulerSettings.get_settings().rest_min_gap_minutes
+    out = []
+    for driver in _confirmed_roster():
+        days = current_days(driver)
+        limits = {"hard_earliest_start": driver.hard_earliest_start,
+                  "hard_latest_finish": driver.hard_latest_finish,
+                  "hard_latest_finish_next_day": driver.hard_latest_finish_next_day,
+                  "max_days_per_week": driver.max_days_per_week,
+                  "rest_min": rest_min}
+        before = set(validate_regular_shift(days, templates=old_templates, **limits))
+        new = [m for m in validate_regular_shift(days, templates=new_templates, **limits)
+               if m not in before]
+        if new:
+            out.append((driver, new))
+    return out
 
 
 def band_fill(template) -> tuple[time, time]:

@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django import forms
 from django.contrib.auth.forms import SetPasswordForm
@@ -334,11 +334,12 @@ def _join_days(days) -> str:
 
 
 def _hours(minutes) -> Decimal:
-    """720 -> 12, 690 -> 11.5: the longest shift as the page shows it. A value
-    set in admin that isn't a tenth of an hour is rounded to one."""
-    hours = Decimal(minutes) / 60
-    tenth = hours.quantize(Decimal("0.1"))
-    return hours if hours == tenth else tenth
+    """720 -> 12, 690 -> 11.5: the longest shift as the page shows it, in the
+    half hours the field takes. A value set in admin that isn't on a half hour
+    (715) shows as the nearest one (12), so the page still saves: the browser
+    and the field would both refuse 11.9."""
+    halves = (Decimal(minutes) / 30).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    return max(Decimal(1), min(Decimal(12), halves / 2))
 
 
 class ShiftTemplateForm(forms.ModelForm):
@@ -388,13 +389,17 @@ class ShiftTemplateForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         hours = cleaned.get("max_span_hours")
-        if hours is None:
+        if hours is None or not self.has_changed():
+            # A shape nobody touched isn't saved (the formset skips it), so it
+            # keeps its stored minutes, even a value from admin off the half hour.
             return cleaned
-        minutes = int(hours * 60)
+        stored, minutes = self.instance.max_span_minutes, int(hours * 60)
+        # What the page shows is what saves: a shape whose times or notes
+        # change takes the hours as shown, so 715 (shown as 12) saves as 720.
         self.instance.max_span_minutes = minutes
-        # Judged only when the hours change, so a day made longer in admin
-        # never blocks saving this shape's times or notes.
-        if self.instance.pk and "max_span_hours" in self.changed_data:
+        # Judged only when the longest shift goes down, so a day made longer in
+        # admin never blocks saving this shape's times or notes.
+        if self.instance.pk and minutes < stored:
             longer = regular_shifts.confirmed_days_longer_than(self.instance, minutes)
             if longer:
                 n, name = len(longer), self.instance.name
@@ -412,10 +417,41 @@ class ShiftTemplateForm(forms.ModelForm):
         return cleaned
 
 
+class BaseShiftTemplateFormSet(forms.BaseModelFormSet):
+    """The four shapes together. Once every shape's own fields are fine,
+    clean() refuses the change if a confirmed regular week would no longer
+    pass the editor's checks with the shapes as posted, for a reason it
+    didn't already have: a blank-time day whose new usual times fall outside
+    the driver's limits, or a longer longest shift that leaves too little rest
+    before the next day, say (regular_shifts.weeks_broken_by). Each line
+    names the driver and the day."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        stored = {t.id: t for t in ShiftTemplate.objects.all()}
+        changed = {f.instance.pk: f.instance for f in self.forms
+                   if f.instance.pk in stored and f.has_changed()}
+        if not changed:
+            return
+        broken = regular_shifts.weeks_broken_by({**stored, **changed}, stored)
+        if broken:
+            n = len(broken)
+            head = ("1 driver's confirmed regular shift wouldn't fit this change — edit it "
+                    "on Regular Shifts first." if n == 1 else
+                    f"{n} drivers' confirmed regular shifts wouldn't fit this change — edit "
+                    "them on Regular Shifts first.")
+            raise forms.ValidationError(
+                [head, *(f"{driver} — {message}" for driver, messages in broken
+                         for message in messages)])
+
+
 # The shapes are edited in place: the page never adds one (edit_only), and a
 # shape can't be deleted (drivers' regular days point at it).
 ShiftTemplateFormSet = forms.modelformset_factory(
-    ShiftTemplate, form=ShiftTemplateForm, extra=0, can_delete=False, edit_only=True)
+    ShiftTemplate, form=ShiftTemplateForm, formset=BaseShiftTemplateFormSet,
+    extra=0, can_delete=False, edit_only=True)
 
 
 class DriverLicenseDetailsForm(forms.ModelForm):
