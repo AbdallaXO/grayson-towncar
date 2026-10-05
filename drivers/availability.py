@@ -219,6 +219,22 @@ def _apply_regular(base, driver, day, templates):
     return window
 
 
+def _day_before_window(driver, target_date):
+    """The RegularWindow of the regular day on the date before target_date,
+    clipped to the driver's hard limits and that day's own, as _apply_regular
+    clips it; None when that day is Off, can't be read or its limits leave no
+    time. Only the regular shift is read, not that date's exceptions: it tells
+    the pickup warning whether an early pickup falls in a shift that started
+    the day before. No query (as _regular_day), and nothing logged — resolving
+    that date logs its own."""
+    from drivers import regular_shifts as rs
+    regular = _regular_day(driver, target_date - timedelta(days=1))
+    if regular is None:
+        return None
+    hard_lo, hard_hi = driver.hard_window_minutes()
+    return rs.regular_window(*regular, hard_lo=hard_lo, hard_hi=hard_hi)
+
+
 def resolve_effective_availability(driver, target_date, *, regular_windows=None):
     """Combine weekly/default availability with any active exception for target_date.
 
@@ -233,7 +249,10 @@ def resolve_effective_availability(driver, target_date, *, regular_windows=None)
     fixed window to the minute — window_start_min / window_end_min /
     window_kind / window_max_span_min, None otherwise — and an Off day is
     unavailable. Approved time off still wins; a flexible exception falls back
-    to today's reading; a partial-day exception sits on top of the window."""
+    to today's reading; a partial-day exception sits on top of the window.
+    Alongside a window, day_before_window_start_min / _end_min are the date
+    before's regular window (minutes after 00:00 of that date), None when that
+    day gives none; is_pickup_within_window reads them."""
     if (driver.regular_shift_confirmed_at is not None
             and "weekly_schedule" not in getattr(driver, "_prefetched_objects_cache", {})):
         # A confirmed driver's weekly rows are read twice (the weekly layer and
@@ -272,6 +291,7 @@ def _resolve(driver, target_date, regular_windows):
             regular_windows = regular_windows_on()
         if regular_windows:
             window = _apply_regular(base, driver, *regular)
+    before = _day_before_window(driver, target_date) if window is not None else None
 
     if regular is None:
         regular_shift, regular_day_off, role = None, False, ""
@@ -311,6 +331,8 @@ def _resolve(driver, target_date, regular_windows):
         "window_end_min":       window.end_min if window else None,
         "window_kind":          window.kind if window else None,
         "window_max_span_min":  window.max_span_min if window else None,
+        "day_before_window_start_min": before.start_min if before else None,
+        "day_before_window_end_min":   before.end_min if before else None,
     }
 
     if exception is not None:
@@ -517,7 +539,9 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
     minute instead of the whole-hour working hours, and on top of any partial-day
     exception: a pickup is outside when it is before the window's start or at or
     after its end. The window counts minutes from 00:00 of the date, so an early
-    pickup (01:00) is outside an evening shift that started the day before.
+    pickup (01:00) is outside an evening shift that starts that afternoon. The
+    warning says it falls in the shift that starts the day before only when the
+    date before's regular window (day_before_window_*) runs past it.
     """
     if not eff.get("is_available"):
         return (False, "Driver is off this date.")
@@ -552,15 +576,20 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
         p = pickup_time.hour * 60 + pickup_time.minute
         if p < start_min or p >= end_min:
             # A shift past midnight says so ("2:15 PM–2:15 AM next day"); an early
-            # pickup inside its after-midnight hours is the day before's shift, not
-            # this date's — said plainly, since 1 AM reads as inside "2:15 PM–2:15 AM".
+            # pickup inside its after-midnight hours is before this date's shift
+            # starts — said plainly, since 1 AM reads as inside "2:15 PM–2:15 AM".
+            # It belongs to the day before's shift only when he works one that
+            # runs past it, so only then does the warning say so.
             shift = (f"{_fmt_minutes(start_min)}–{_fmt_minutes(end_min)}"
                      + (" next day" if end_min >= 1440 else ""))
             pickup = fmt_time_long(pickup_time)
             if p < start_min and p + 1440 < end_min:
-                return (False, f"Pickup at {pickup} is before the driver's regular shift "
-                               f"starts ({shift}). It falls in the shift that starts the "
-                               f"day before.")
+                reason = f"Pickup at {pickup} is before the driver's regular shift starts ({shift})."
+                b_start = eff.get("day_before_window_start_min")
+                b_end = eff.get("day_before_window_end_min")
+                if b_start is not None and b_end is not None and b_start <= p + 1440 < b_end:
+                    reason += " It falls in the shift that starts the day before."
+                return (False, reason)
             return (False, f"Pickup at {pickup} is outside the driver's regular shift ({shift}).")
 
     return (True, "")

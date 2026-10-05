@@ -408,11 +408,13 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
                                                    'id="driver-log"', "Weekly Schedule</span>")]
         self.assertEqual(order, sorted(order))
 
-    def test_weekly_schedule_says_it_is_not_used_once_switched_over(self):
+    def test_weekly_schedule_says_what_still_counts_once_switched_over(self):
         # With the switch on, a confirmed driver's weekly days and hours no
-        # longer count (availability._apply_regular); time off still does. His
-        # Weekly Schedule card says so, and only then.
-        note = "Not used now that auto-assign is on regular shifts"
+        # longer count (availability._apply_regular), but the row's max hours
+        # and trip preference still do, and so does time off. His Weekly
+        # Schedule card says so, and only then.
+        note = ("Now that auto-assign is on regular shifts, his days and start and "
+                "finish times here no longer count")
 
         def weekly_card(driver):
             html = self.client.get(reverse("driver_profile", args=[driver.id])).content.decode()
@@ -425,8 +427,10 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
         SchedulerSettings.objects.update_or_create(pk=1, defaults={"regular_shift_windows": True})
         SchedulerSettings.clear_cache()
         self.assertTrue(rs.regular_windows_on())
-        self.assertIn(note + ": dispatch follows his regular shift in Shift facts. Time off "
-                      "and one-day changes still count.", weekly_card(self.driver))
+        self.assertIn(note + ": dispatch follows his regular shift in Shift facts. His Max "
+                      "hours and trip preference here still do, and so do time off and "
+                      "one-day changes.", weekly_card(self.driver))
+        self.assertNotIn("Not used now", weekly_card(self.driver))
         self.assertNotIn(note, weekly_card(_driver("pat")))         # switch on, none
 
     def test_edit_mode_hints_say_what_blank_means(self):

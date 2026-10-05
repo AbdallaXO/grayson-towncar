@@ -404,10 +404,10 @@ class PickupWindowTests(_Fixture):
                    "(2:15 PM–2:15 AM next day)."))
         # Tuesday 01:00 is the early hours of Tuesday, not the end of Tuesday's shift,
         # and the warning says so rather than read as inside "2:15 PM–2:15 AM".
+        # Monday is a Morning, done long before, so it isn't sent to the day before.
         self.assertEqual(is_pickup_within_window(tue, time(1)), (
             False, "Pickup at 1 AM is before the driver's regular shift starts "
-                   "(2:15 PM–2:15 AM next day). It falls in the shift that starts the day "
-                   "before."))
+                   "(2:15 PM–2:15 AM next day)."))
         # 02:15 and after is past even the day before's shift.
         self.assertEqual(is_pickup_within_window(tue, time(2, 15)), (
             False, "Pickup at 2:15 AM is outside the driver's regular shift "
@@ -428,6 +428,32 @@ class PickupWindowTests(_Fixture):
         self.assertEqual(is_pickup_within_window(eff, time(12)), (True, ""))
         self.assertEqual(is_pickup_within_window(eff, time(17)), (
             False, "Pickup at 5 PM is outside the driver's regular shift (4:10 AM–4:10 PM)."))
+
+    def test_early_pickup_names_the_day_before_only_when_he_worked_it(self):
+        # A Monday-Friday Evening driver: Sunday is Off, so a Monday 01:00 pickup
+        # is only before Monday's shift; Monday's shift runs to 2:15 AM, so a
+        # Tuesday 01:00 pickup falls in it.
+        evening = ("evening", time(14, 15), time(2, 15))
+        d = self.confirm(self.driver(**_FLEX), mon=evening, tue=evening, wed=evening,
+                         thu=evening, fri=evening)
+        self.switch_on()
+        mon = resolve_effective_availability(d, MON)
+        self.assertEqual((mon["day_before_window_start_min"],
+                          mon["day_before_window_end_min"]), (None, None))
+        self.assertEqual(is_pickup_within_window(mon, time(1)), (
+            False, "Pickup at 1 AM is before the driver's regular shift starts "
+                   "(2:15 PM–2:15 AM next day)."))
+        tue = resolve_effective_availability(d, TUE)
+        self.assertEqual((tue["day_before_window_start_min"],
+                          tue["day_before_window_end_min"]), (855, 1575))
+        self.assertEqual(is_pickup_within_window(tue, time(1)), (
+            False, "Pickup at 1 AM is before the driver's regular shift starts "
+                   "(2:15 PM–2:15 AM next day). It falls in the shift that starts the day "
+                   "before."))
+        # Switch off: no window, so nothing about the day before either.
+        off = resolve_effective_availability(d, TUE, regular_windows=False)
+        self.assertEqual((off["day_before_window_start_min"],
+                          off["day_before_window_end_min"]), (None, None))
 
 
 # ════════════════════════════════════════════════════════════════════════════

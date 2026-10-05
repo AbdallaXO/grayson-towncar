@@ -916,7 +916,7 @@
             </div>
             <div class="card-body">
               {% if shift_facts.weekly_not_used %}
-                <div class="field-hint mt-0 mb-3" id="weekly-not-used"><i class="bi bi-info-circle me-1"></i>Not used now that auto-assign is on regular shifts: dispatch follows his regular shift in Shift facts. Time off and one-day changes still count.</div>
+                <div class="field-hint mt-0 mb-3" id="weekly-not-used"><i class="bi bi-info-circle me-1"></i>Now that auto-assign is on regular shifts, his days and start and finish times here no longer count: dispatch follows his regular shift in Shift facts. His Max hours and trip preference here still do, and so do time off and one-day changes.</div>
               {% endif %}
               {% if weekly_schedule %}
                 <div class="schedule-grid">

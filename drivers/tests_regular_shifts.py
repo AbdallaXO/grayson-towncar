@@ -510,7 +510,8 @@ _LEGACY_KEYS = ("is_available", "shift_type", "start_hour", "end_hour", "flexibl
 _REGULAR_EFF_KEYS = frozenset({
     "regular_shift", "regular_day_off", "hard_earliest_start", "hard_latest_finish",
     "hard_latest_finish_next_day", "window_start_min", "window_end_min", "window_kind",
-    "window_max_span_min", "shift_role_label"})
+    "window_max_span_min", "day_before_window_start_min", "day_before_window_end_min",
+    "shift_role_label"})
 
 
 class SaveTests(_Fixture):
