@@ -1,0 +1,54 @@
+{% comment %}
+  Shift facts (structured shifts, Stage 1) — read-only, for every staff user.
+  Context from drivers.views._shift_facts_context: regular_rows [(day name,
+  label)] and regular_summary from the confirmed regular shift (empty until a
+  manager confirms one), and shift_facts {role, confirmed_by, earliest, latest,
+  extra_days, cars}. Styles live in driver_profile.html. Managers edit the
+  limits, days a week, extra days and regular car in the profile's edit mode.
+{% endcomment %}
+<div class="profile-card mb-3" id="shift-facts">
+  <div class="card-header">
+    <span><i class="bi bi-clock-history me-2"></i>Shift facts</span>
+    {% if shift_facts.role %}<span class="role-pill">{{ shift_facts.role }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    {% if regular_rows %}
+      <div class="shift-summary">{{ regular_summary }}</div>
+      <ul class="shift-week" aria-label="Regular week">
+        {% for name, label in regular_rows %}
+          <li class="shift-day{% if label == 'Off' %} off{% endif %}">
+            <span class="shift-day-name" title="{{ name }}">{{ name|slice:":3" }}</span>
+            <span class="shift-day-label">{{ label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="shift-confirmed"><i class="bi bi-patch-check-fill me-1"></i>Confirmed{% if shift_facts.confirmed_by %} by {{ shift_facts.confirmed_by }}{% endif %} on {{ driver.regular_shift_confirmed_at|date:"M j" }}</div>
+    {% else %}
+      <div class="shift-none"><i class="bi bi-calendar2-x me-2"></i>No regular shift yet</div>
+    {% endif %}
+
+    <div class="info-row">
+      <span class="info-label">Never starts before</span>
+      <span class="info-value">{{ shift_facts.earliest|default:"—" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Never finishes after</span>
+      <span class="info-value">{{ shift_facts.latest|default:"—" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Days a week</span>
+      <span class="info-value">{{ driver.max_days_per_week|default:"—" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Open to extra shifts on</span>
+      <span class="info-value">{{ shift_facts.extra_days|default:"—" }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Regular car</span>
+      <span class="info-value">
+        {% for car in shift_facts.cars %}#{{ car.vehicle_number }} <span class="text-muted-dark">{{ car.make }} {{ car.model }}</span>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+        {% if shift_facts.cars %}<span class="shift-hint">Day Setup offers this car first.</span>{% endif %}
+      </span>
+    </div>
+  </div>
+</div>

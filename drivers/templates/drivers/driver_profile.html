@@ -111,6 +111,32 @@
     .schedule-day.excluded { opacity: 0.5; }
     .schedule-day.excluded .day-shift { color: #f87171; }
 
+    /* ── Shift facts (regular week, hard limits, regular car) ── */
+    .role-pill {
+      display: inline-flex; align-items: center; font-size: .7rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 999px; letter-spacing: .04em; white-space: nowrap;
+      background: rgba(201,162,39,0.15); color: var(--gt-gold); border: 1px solid rgba(201,162,39,0.4);
+    }
+    .shift-summary { font-size: .78rem; color: var(--gt-muted); line-height: 1.5; margin-bottom: .65rem; }
+    .shift-week { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .3rem; }
+    .shift-day {
+      display: grid; grid-template-columns: 2.6rem 1fr; gap: .5rem; align-items: baseline;
+      background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+      border-left: 3px solid var(--gt-gold); border-radius: 6px; padding: .4rem .65rem;
+    }
+    .shift-day.off { border-left-color: var(--gt-border); }
+    .shift-day-name { color: var(--gt-muted); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    .shift-day-label { color: var(--gt-text); font-size: .8rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+    .shift-day.off .shift-day-label { color: var(--gt-muted); font-weight: 500; }
+    .shift-confirmed { font-size: .74rem; color: var(--gt-muted); margin-bottom: .35rem; }
+    .shift-confirmed i { color: #4ade80; }
+    .shift-none { font-size: .85rem; color: var(--gt-muted); padding: .2rem 0 .6rem; }
+    .shift-hint { display: block; font-size: .7rem; font-weight: 400; color: var(--gt-muted); margin-top: .15rem; }
+    .day-checks > div { display: flex; flex-wrap: wrap; gap: .45rem 1.1rem; }
+    .day-checks label { margin-right: 0; }
+    legend.field-label { float: none; width: auto; padding: 0; line-height: inherit; }
+    .field-hint { font-size: .72rem; color: var(--gt-muted); margin-top: .35rem; }
+
     /* Upcoming legs list */
     .leg-item {
       display: flex; gap: 0.75rem; align-items: flex-start;
@@ -486,7 +512,7 @@
           {% endif %}
 
           {% if edit_mode %}
-          {# Edit-in-place: Contact & Vehicle + Licensing & Credentials + Notes become one form. #}
+          {# Edit-in-place: Contact & Vehicle + Licensing & Credentials + Shift facts + Notes become one form. #}
           <form method="post" enctype="multipart/form-data" action="{% url 'driver_profile' driver.id %}">
             {% csrf_token %}
             {% if driver_form.errors %}
@@ -678,6 +704,52 @@
 
             <div class="profile-card mb-3">
               <div class="card-header">
+                <span><i class="bi bi-clock-history me-2"></i>Shift facts</span>
+              </div>
+              <div class="card-body">
+                <div class="field-hint mt-0 mb-3">Leave any of these blank for no limit.</div>
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.hard_earliest_start.id_for_label }}">Never starts before</label>
+                      {{ driver_form.hard_earliest_start }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.hard_latest_finish.id_for_label }}">Never finishes after</label>
+                      {{ driver_form.hard_latest_finish }}
+                      <div class="form-check-inline mt-2">
+                        {{ driver_form.hard_latest_finish_next_day }}
+                        <label for="{{ driver_form.hard_latest_finish_next_day.id_for_label }}">Next day (after midnight)</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.max_days_per_week.id_for_label }}">Days a week</label>
+                      {{ driver_form.max_days_per_week }}
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <fieldset class="field-group">
+                      <legend class="field-label">Open to extra shifts on</legend>
+                      <div class="cert-checks day-checks">{{ driver_form.extra_shift_days }}</div>
+                    </fieldset>
+                  </div>
+                  <div class="col-12">
+                    <fieldset class="field-group mb-0">
+                      <legend class="field-label">Regular car</legend>
+                      <div class="cert-checks day-checks">{{ driver_form.preferred_vehicles }}</div>
+                      <div class="field-hint">Day Setup offers this car first.</div>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-card mb-3">
+              <div class="card-header">
                 <span><i class="bi bi-sticky me-2"></i>Dispatcher Notes</span>
               </div>
               <div class="card-body">
@@ -823,6 +895,9 @@
             </div>
           </div>
           {% endif %}
+
+          {# Shift facts: read-only, every staff user, in both modes #}
+          {% include "drivers/_shift_facts_card.html" %}
 
           {# Weekly schedule #}
           <div class="profile-card mb-3">

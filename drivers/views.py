@@ -1272,7 +1272,7 @@ def driver_profile(request, driver_id):
         return redirect("home")
 
     driver = get_object_or_404(
-        Driver.objects.select_related("profile"), id=driver_id
+        Driver.objects.select_related("profile", "regular_shift_confirmed_by"), id=driver_id
     )
 
     # Editing (payment method, night bonus, active status, license/permit/DOT-card
@@ -1419,8 +1419,47 @@ def driver_profile(request, driver_id):
             comms_metrics.recent_activity(days=7, driver=driver)
             if driver.driver_type == "inhouse" else None
         ),
+        **_shift_facts_context(driver),
     }
     return render(request, "drivers/driver_profile.html", context)
+
+
+def _shift_facts_context(driver):
+    """What the profile's Shift facts card shows (structured shifts, Stage 1).
+
+    regular_rows is [(day name, label)] Monday..Sunday and regular_summary the
+    week on one line, both from the confirmed regular shift; [] and "" until a
+    manager confirms one. shift_facts holds the rest, as words: the usual shift,
+    who confirmed it, the hard limits, the extra-shift days and the regular
+    car(s) — blank where nothing is set (the card prints "—")."""
+    from drivers import regular_shifts as rs
+    from drivers.availability import fmt_time_long
+
+    templates = rs.templates_by_id()
+    rows, summary = [], ""
+    if driver.has_regular_shift:
+        days = rs.current_days(driver)
+        rows = [(rs.DAY_NAMES[d.day], rs.day_label(d, templates)) for d in days]
+        summary = rs.summary_label(days, templates)
+    by = driver.regular_shift_confirmed_by
+    latest = fmt_time_long(driver.hard_latest_finish)
+    if latest and driver.hard_latest_finish_next_day:
+        latest += " (next day)"
+    # A JSON list edited in admin could hold anything; show only real weekdays.
+    extra = sorted({d for d in (driver.extra_shift_days or [])
+                    if isinstance(d, int) and 0 <= d < 7})
+    return {
+        "regular_rows": rows,
+        "regular_summary": summary,
+        "shift_facts": {
+            "role": rs.role_label(driver, templates),
+            "confirmed_by": (by.get_full_name() or by.username) if by else "",
+            "earliest": fmt_time_long(driver.hard_earliest_start),
+            "latest": latest,
+            "extra_days": ", ".join(rs.DAY_NAMES[d][:3] for d in extra),
+            "cars": list(driver.preferred_vehicles.order_by("vehicle_number")),
+        },
+    }
 
 
 @login_required(login_url="login")

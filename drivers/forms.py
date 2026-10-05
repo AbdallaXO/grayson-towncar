@@ -7,9 +7,18 @@ from django.db.models import Q
 
 from rates.models import Vehicle
 
-from . import phones
+from . import phones, regular_shifts
 from .document_uploads import prepare_document_upload, sniff_and_validate
-from .models import Driver
+from .models import Driver, DriverWeeklySchedule, FleetVehicle
+
+
+class _RegularCarField(forms.ModelMultipleChoiceField):
+    """Fleet units by number: '#008 · 2022 Chevrolet Suburban', flagged when
+    the unit is out of service."""
+
+    def label_from_instance(self, unit):
+        label = f"#{unit.vehicle_number} · {unit.year} {unit.make} {unit.model}"
+        return label if unit.is_active else f"{label} (inactive)"
 
 
 class DriverProfileForm(forms.ModelForm):
@@ -17,6 +26,10 @@ class DriverProfileForm(forms.ModelForm):
     page so a phone number or a license expiration doesn't require a trip to
     /admin. Deliberately narrower than the full admin form — Gusto payroll
     matching, auto-assign scheduling defaults, and pay rates stay admin-only.
+
+    The Shift facts fields (structured shifts, Stage 1) are the driver's hard
+    limits, days a week, extra-shift days and regular car. A limit that a
+    confirmed regular day breaks is refused, naming the day (clean()).
     """
 
     certified_vehicle_types = forms.ModelMultipleChoiceField(
@@ -26,6 +39,20 @@ class DriverProfileForm(forms.ModelForm):
         label="Cleared to drive",
         help_text="Restricted vehicle types this driver is certified for — e.g. the "
                   "Sprinter / 14-pax van, which also requires a current DOT medical card.",
+    )
+    # Declared here rather than in Meta.widgets: the model field's form field
+    # would put min="0" back on the input over the widget's min="1".
+    max_days_per_week = forms.IntegerField(
+        min_value=1, max_value=7, required=False, label="Days a week",
+        widget=forms.NumberInput(attrs={"min": 1, "max": 7}),
+    )
+    extra_shift_days = forms.TypedMultipleChoiceField(
+        coerce=int, choices=DriverWeeklySchedule.DAY_CHOICES, required=False,
+        widget=forms.CheckboxSelectMultiple, label="Open to extra shifts on",
+    )
+    preferred_vehicles = _RegularCarField(
+        queryset=FleetVehicle.objects.filter(is_active=True).order_by("vehicle_number"),
+        required=False, widget=forms.CheckboxSelectMultiple, label="Regular car",
     )
 
     class Meta:
@@ -41,6 +68,8 @@ class DriverProfileForm(forms.ModelForm):
             "chauffeur_permit_expiration", "chauffeur_permit_scan",
             "dot_medical_card_expiration", "dot_medical_card_scan",
             "certified_vehicle_types",
+            "hard_earliest_start", "hard_latest_finish", "hard_latest_finish_next_day",
+            "max_days_per_week", "extra_shift_days", "preferred_vehicles",
         ]
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
@@ -50,6 +79,14 @@ class DriverProfileForm(forms.ModelForm):
             "dot_medical_card_expiration": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "hired_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "phone_number": forms.TextInput(attrs={"type": "tel", "autocomplete": "tel", "placeholder": "407-555-0134"}),
+            "hard_earliest_start": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
+            "hard_latest_finish": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
+        }
+        # The words dispatcher pages use (the error banner prints these).
+        labels = {
+            "hard_earliest_start": "Never starts before",
+            "hard_latest_finish": "Never finishes after",
+            "hard_latest_finish_next_day": "Next day",
         }
 
     def __init__(self, *args, **kwargs):
@@ -66,6 +103,11 @@ class DriverProfileForm(forms.ModelForm):
             self.fields["certified_vehicle_types"].queryset = Vehicle.objects.filter(
                 Q(requires_certification=True) | Q(certified_drivers=self.instance)
             ).distinct()
+            # Same for the regular car: a unit taken out of service stays on
+            # the list, ticked, for a driver who still has it.
+            self.fields["preferred_vehicles"].queryset = FleetVehicle.objects.filter(
+                Q(is_active=True) | Q(preferring_drivers=self.instance)
+            ).distinct().order_by("vehicle_number")
         # Every visible-typed input gets one shared CSS hook so the template
         # doesn't have to repeat widget attrs field by field. Checkbox lists
         # (certified_vehicle_types) are left alone — their <input>s are styled
@@ -94,6 +136,28 @@ class DriverProfileForm(forms.ModelForm):
 
     def clean_phone_number(self):
         return clean_phone(self.cleaned_data.get("phone_number"), required=False)
+
+    def clean_extra_shift_days(self):
+        return sorted(set(self.cleaned_data.get("extra_shift_days") or []))
+
+    def clean(self):
+        cleaned = super().clean()
+        # "Next day" means nothing without a latest finish; it is not stored alone.
+        if cleaned.get("hard_latest_finish") is None:
+            cleaned["hard_latest_finish_next_day"] = False
+        # Limits edited later must not break a confirmed regular shift (Review
+        # Focus 5): each day they cut, and a days-a-week limit below the
+        # working days, is an error on the form, so nothing saves.
+        if self.instance.pk and self.instance.has_regular_shift:
+            for message in regular_shifts.limit_messages(
+                    regular_shifts.current_days(self.instance),
+                    hard_earliest_start=cleaned.get("hard_earliest_start"),
+                    hard_latest_finish=cleaned.get("hard_latest_finish"),
+                    hard_latest_finish_next_day=cleaned.get("hard_latest_finish_next_day",
+                                                            False),
+                    max_days_per_week=cleaned.get("max_days_per_week")):
+                self.add_error(None, message)
+        return cleaned
 
     def _clean_scan(self, field_name):
         """Route a newly-uploaded scan through the same content-sniffing /

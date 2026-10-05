@@ -1,15 +1,21 @@
 """Driver facts, shift templates and the regular-shift switch (structured shifts, Stage 1).
 
-Covers the model layer only: the seeded Morning / Midday / Evening / Float
+Covers the model layer: the seeded Morning / Midday / Evening / Float
 templates and their 12-hour ceiling, the minute helpers on DriverWeeklySchedule and Driver, and
 the guard that keeps SchedulerSettings.regular_shift_windows out of the generic
 settings endpoint and "Reset to defaults" (only the Regular Shifts page may write it).
+
+And the driver profile (Task 6): the read-only Shift facts card every staff user
+sees, and the manager's Shift facts fields in edit mode — hard limits, days a
+week, extra-shift days and the regular car — which refuse a limit that a
+confirmed regular day breaks, naming the day (Review Focus 5).
 
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_shift_facts
 """
 import importlib
 import json
-from datetime import time
+import re
+from datetime import datetime, time
 from unittest import mock
 
 from django.apps import apps as django_apps
@@ -18,11 +24,14 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from dispatching.models import REGULAR_WINDOWS_CACHE_KEY, SchedulerSettings
-from drivers.models import Driver, DriverWeeklySchedule, ShiftTemplate
+from drivers import regular_shifts as rs
+from drivers.models import Driver, DriverWeeklySchedule, FleetVehicle, ShiftTemplate
+from drivers.regular_shifts import DayShift
 from drivers.test_support import RegularShiftCacheMixin
 
 
@@ -275,3 +284,221 @@ class RegularShiftSwitchGuardTests(RegularShiftCacheMixin, TestCase):
         cache.set(REGULAR_WINDOWS_CACHE_KEY, True, 60)
         SchedulerSettings.clear_cache()
         self.assertIsNone(cache.get(REGULAR_WINDOWS_CACHE_KEY))
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
+    """The profile's read-only Shift facts card (every staff user) and the
+    manager's Shift facts fields in edit mode (Task 6)."""
+
+    def setUp(self):
+        super().setUp()
+        self.manager = User.objects.create_user("boss", password="x", is_staff=True,
+                                                is_superuser=True, first_name="Ada",
+                                                last_name="Boss")
+        self.dispatcher = User.objects.create_user("desk", password="x", is_staff=True)
+        self.driver = _driver()
+        self.unit = FleetVehicle.objects.create(vehicle_number="008", year=2022,
+                                                make="Chevrolet", model="Suburban")
+        self.shapes = {t.kind: t.id for t in ShiftTemplate.objects.all()}
+
+    def _url(self):
+        return reverse("driver_profile", args=[self.driver.id])
+
+    def _confirm(self, days, role="morning"):
+        rs.save_regular_shift(self.driver, days, self.manager,
+                              role_template_id=self.shapes[role])
+        self.driver.refresh_from_db()
+
+    def _post(self, **fields):
+        # The whole edit form, as the browser sends it (DriverProfileEditTests).
+        data = {"phone_number": "", "vehicle": "", "payment_method": "", "night_bonus": "0",
+                "employment_type": "", "is_active": "on", "notes": "",
+                "license_number": "", "license_state": "", "license_class": "",
+                "license_expiration": "", "chauffeur_permit_number": "",
+                "chauffeur_permit_expiration": "", "dot_medical_card_expiration": "",
+                **fields}
+        return self.client.post(self._url(), data)
+
+    @staticmethod
+    def _card(html):
+        """The read-only card: it sits straight above the Weekly Schedule card."""
+        start = html.index('id="shift-facts"')
+        return html[start:html.index("Weekly Schedule", start)]
+
+    @staticmethod
+    def _input(html, name, value=None):
+        """The rendered <input> tag for ``name`` (and ``value``), or None."""
+        value_attr = "" if value is None else rf'[^>]*value="{value}"'
+        found = re.search(rf'<input[^>]*name="{name}"{value_attr}[^>]*>', html)
+        return found.group(0) if found else None
+
+    def test_profile_shows_shift_facts_card_to_dispatcher(self):
+        m, e, f = self.shapes["morning"], self.shapes["evening"], self.shapes["float"]
+        Driver.objects.filter(pk=self.driver.pk).update(
+            hard_earliest_start=time(4), hard_latest_finish=time(1),
+            hard_latest_finish_next_day=True, max_days_per_week=5, extra_shift_days=[5, 6])
+        self.driver.refresh_from_db()
+        self._confirm([DayShift(0, m, time(4, 10), time(15, 30)),
+                       DayShift(3, m, None, None, day_latest=time(15)),
+                       DayShift(4, m, None, None, alt_template_id=e),
+                       DayShift(5, f, None, None)])
+        Driver.objects.filter(pk=self.driver.pk).update(
+            regular_shift_confirmed_at=timezone.make_aware(datetime(2026, 10, 4, 14, 0)))
+        self.driver.preferred_vehicles.add(self.unit)
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["regular_rows"], [
+            ("Monday", "Morning 4:10 AM – 3:30 PM"), ("Tuesday", "Off"), ("Wednesday", "Off"),
+            ("Thursday", "Morning (usual times) · done by 3 PM"),
+            ("Friday", "Morning or Evening"), ("Saturday", "Float"), ("Sunday", "Off")])
+        self.assertEqual(resp.context["regular_summary"],
+                         "Mon Morning 4:10 AM–3:30 PM · Thu Morning (usual times), done by 3 PM"
+                         " · Fri Morning or Evening · Sat Float")
+        card = self._card(resp.content.decode())
+        for text in ("Shift facts", "Morning driver", "Morning 4:10 AM – 3:30 PM",
+                     "Morning (usual times) · done by 3 PM", "Morning or Evening", "Float",
+                     "Confirmed by Ada Boss on Oct 4", "Never starts before", "4 AM",
+                     "Never finishes after", "1 AM (next day)", "Days a week", ">5<",
+                     "Open to extra shifts on", "Sat, Sun", "Regular car", "#008",
+                     "Day Setup offers this car first."):
+            self.assertIn(text, card)
+        self.assertNotIn("No regular shift yet", card)
+        self.assertNotIn("—", card)                          # every fact is filled in
+        self.assertNotContains(resp, 'name="hard_earliest_start"')   # view only
+
+    def test_card_without_a_regular_shift_shows_dashes(self):
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self._url())
+        self.assertEqual((resp.context["regular_rows"], resp.context["regular_summary"]),
+                         ([], ""))
+        card = self._card(resp.content.decode())
+        self.assertIn("No regular shift yet", card)
+        self.assertNotIn("Confirmed by", card)
+        self.assertNotIn("driver</span>", card)              # no usual-shift pill
+        self.assertNotIn("Day Setup offers this car first.", card)
+        self.assertEqual(card.count("—"), 5)                 # each fact, blank
+
+    def test_float_driver_off_every_day(self):
+        self._confirm([], role="float")                      # extra shifts only (S2)
+        self.client.force_login(self.dispatcher)
+        resp = self.client.get(self._url())
+        self.assertEqual([label for _, label in resp.context["regular_rows"]], ["Off"] * 7)
+        self.assertEqual(resp.context["regular_summary"], "Off every day")
+        card = self._card(resp.content.decode())
+        self.assertIn("Float — any shift", card)
+        self.assertIn("Confirmed by Ada Boss on", card)
+
+    def test_manager_saves_facts(self):
+        self.client.force_login(self.manager)
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        for name in ("hard_earliest_start", "hard_latest_finish", "hard_latest_finish_next_day",
+                     "max_days_per_week", "extra_shift_days", "preferred_vehicles"):
+            self.assertIsNotNone(self._input(html, name), name)
+        self.assertIn('id="shift-facts"', html)              # the card shows in edit mode too
+        resp = self._post(hard_earliest_start="05:00", hard_latest_finish="01:00",
+                          hard_latest_finish_next_day="on", max_days_per_week="5",
+                          extra_shift_days=["6", "2"], preferred_vehicles=[str(self.unit.id)])
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual((self.driver.hard_earliest_start, self.driver.hard_latest_finish,
+                          self.driver.hard_latest_finish_next_day,
+                          self.driver.max_days_per_week, self.driver.extra_shift_days),
+                         (time(5), time(1), True, 5, [2, 6]))
+        self.assertEqual(list(self.driver.preferred_vehicles.all()), [self.unit])
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        start = self._input(html, "hard_earliest_start")
+        self.assertIn('type="time"', start)
+        self.assertIn('value="05:00"', start)
+        days = self._input(html, "max_days_per_week")
+        for attr in ('type="number"', 'value="5"', 'min="1"', 'max="7"'):
+            self.assertIn(attr, days)
+        for day in (2, 6):
+            self.assertIn("checked", self._input(html, "extra_shift_days", day))
+        self.assertNotIn("checked", self._input(html, "extra_shift_days", 0))
+        # Blank fields and unticked boxes clear what was there.
+        self._post(preferred_vehicles=[str(self.unit.id)])
+        self.driver.refresh_from_db()
+        self.assertEqual((self.driver.hard_earliest_start, self.driver.hard_latest_finish,
+                          self.driver.hard_latest_finish_next_day,
+                          self.driver.max_days_per_week, self.driver.extra_shift_days),
+                         (None, None, False, None, []))
+
+    def test_saving_other_field_keeps_preferred_vehicles(self):
+        # His regular car was taken out of service. Its box still shows, ticked,
+        # so saving a new phone number can't drop it; nobody else's retired car shows.
+        FleetVehicle.objects.filter(pk=self.unit.pk).update(is_active=False)
+        spare = FleetVehicle.objects.create(vehicle_number="099", year=2019, make="Ford",
+                                            model="Expedition", is_active=False)
+        self.driver.preferred_vehicles.add(self.unit)
+        self.client.force_login(self.manager)
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        box = self._input(html, "preferred_vehicles", self.unit.id)
+        self.assertIsNotNone(box)
+        self.assertIn("checked", box)
+        self.assertIsNone(self._input(html, "preferred_vehicles", spare.id))
+        resp = self._post(phone_number="4075559999", preferred_vehicles=[str(self.unit.id)])
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.phone_number, "+14075559999")
+        self.assertEqual(list(self.driver.preferred_vehicles.all()), [self.unit])
+
+    def test_hard_limit_conflict_names_the_day(self):
+        self._confirm([DayShift(0, self.shapes["morning"], time(4, 10), time(15, 30))])
+        self.client.force_login(self.manager)
+        resp = self._post(phone_number="4075550000", hard_earliest_start="05:00")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["driver_form"].non_field_errors(),
+                         ["Monday: starts at 4:10 AM — before this driver's earliest start "
+                          "(5 AM)."])
+        self.driver.refresh_from_db()
+        self.assertIsNone(self.driver.hard_earliest_start)
+        self.assertIsNone(self.driver.phone_number)              # the rest isn't saved either
+        # The same kind of limit saves once it no longer cuts Monday.
+        resp = self._post(hard_earliest_start="04:10")
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.hard_earliest_start, time(4, 10))
+
+    def test_latest_finish_and_days_a_week_checked_too(self):
+        m = self.shapes["morning"]
+        self._confirm([DayShift(i, m, time(4, 10), time(15, 30)) for i in range(4)])
+        self.client.force_login(self.manager)
+        form = self._post(hard_latest_finish="15:00", max_days_per_week="3").context["driver_form"]
+        self.assertEqual(form.non_field_errors(), [
+            "Monday: ends at 3:30 PM — after this driver's latest finish (3 PM).",
+            "Tuesday: ends at 3:30 PM — after this driver's latest finish (3 PM).",
+            "Wednesday: ends at 3:30 PM — after this driver's latest finish (3 PM).",
+            "Thursday: ends at 3:30 PM — after this driver's latest finish (3 PM).",
+            "4 working days — more than this driver's limit of 3 a week."])
+        # Out of range: the field says so, and the week isn't judged against it.
+        form = self._post(max_days_per_week="8").context["driver_form"]
+        self.assertIn("max_days_per_week", form.errors)
+        self.assertEqual(form.non_field_errors(), [])
+        # A finish flagged next day is after midnight, so it doesn't cut a morning.
+        resp = self._post(hard_latest_finish="01:00", hard_latest_finish_next_day="on")
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertIsNone(self.driver.max_days_per_week)
+        self.assertEqual(self.driver.hard_latest_finish, time(1))
+
+    def test_limits_not_checked_without_a_confirmed_regular_shift(self):
+        DriverWeeklySchedule.objects.create(driver=self.driver, day_of_week=0,
+                                            shift_template_id=self.shapes["morning"],
+                                            shift_start=time(4, 10), shift_end=time(15, 30))
+        self.client.force_login(self.manager)
+        resp = self._post(hard_earliest_start="05:00")
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.hard_earliest_start, time(5))
+
+    def test_dispatcher_post_forbidden(self):
+        self.client.force_login(self.dispatcher)
+        resp = self._post(hard_earliest_start="05:00", max_days_per_week="4",
+                          extra_shift_days=["5"], preferred_vehicles=[str(self.unit.id)])
+        self.assertEqual(resp.status_code, 403)
+        self.driver.refresh_from_db()
+        self.assertEqual((self.driver.hard_earliest_start, self.driver.max_days_per_week,
+                          self.driver.extra_shift_days), (None, None, []))
+        self.assertFalse(self.driver.preferred_vehicles.exists())
