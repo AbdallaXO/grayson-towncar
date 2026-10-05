@@ -3,7 +3,8 @@
   Context from drivers.views._shift_facts_context: regular_rows [(day name,
   label)] and regular_summary from the confirmed regular shift (empty until a
   manager confirms one), and shift_facts {role, confirmed_by, earliest, latest,
-  extra_days, cars, car_hint, can_have_regular}. Styles live in driver_profile.html.
+  extra_days, cars, car_hint, can_have_regular, weekly_not_used}. Styles live in
+  driver_profile.html. An affiliate or operator without one is told why, not "yet".
   Managers edit the limits, days a week, extra days and regular car in the
   profile's edit mode, and get a link to the Regular Shifts editor for the
   week itself (in-house chauffeurs only: nobody else gets a regular shift).
@@ -25,8 +26,10 @@
         {% endfor %}
       </ul>
       <div class="shift-confirmed"><i class="bi bi-patch-check-fill me-1"></i>Confirmed{% if shift_facts.confirmed_by %} by {{ shift_facts.confirmed_by }}{% endif %} on {{ driver.regular_shift_confirmed_at|date:"M j" }}</div>
-    {% else %}
+    {% elif shift_facts.can_have_regular %}
       <div class="shift-none"><i class="bi bi-calendar2-x me-2"></i>No regular shift yet</div>
+    {% else %}
+      <div class="shift-none"><i class="bi bi-calendar2-x me-2"></i>Regular shifts are for in-house chauffeurs only.</div>
     {% endif %}
     {% if can_edit and shift_facts.can_have_regular %}
       <a class="btn btn-sm shift-edit-link" href="{% url 'regular_shift_edit' driver.id %}"><i class="bi bi-calendar2-check me-1"></i>{% if driver.has_regular_shift %}Edit regular shift{% else %}Set regular shift{% endif %}</a>

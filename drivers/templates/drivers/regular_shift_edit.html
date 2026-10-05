@@ -390,7 +390,7 @@
       row.querySelector('[data-hint]').textContent = (row.rsCleared ? 'Times cleared for the new shift. ' : '')
         + (!shape ? 'Leave both blank for the usual times of his shift.'
           : open ? 'This day goes wherever the day needs him, within 12 hours, so times here are only a note.'
-          : 'Leave both blank for the usual times, ' + shape.usual + '.');
+          : 'Leave both blank for the usual times, ' + shape.usual + '.' + (shape.stretch ? ' ' + shape.stretch : ''));
     }
     function refreshAll() {
       rows.forEach(refresh);

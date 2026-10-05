@@ -710,7 +710,7 @@
                 <span><i class="bi bi-clock-history me-2"></i>Shift facts</span>
               </div>
               <div class="card-body">
-                <div class="field-hint mt-0 mb-3">Leave any of these blank for no limit.</div>
+                <div class="field-hint mt-0 mb-3">Leave the times or Days a week blank for no limit.</div>
                 <div class="row g-3">
                   <div class="col-sm-6">
                     <div class="field-group">
@@ -738,13 +738,14 @@
                     <fieldset class="field-group">
                       <legend class="field-label">Open to extra shifts on</legend>
                       <div class="cert-checks day-checks">{{ driver_form.extra_shift_days }}</div>
+                      <div class="field-hint">None ticked means not open to extra shifts.</div>
                     </fieldset>
                   </div>
                   <div class="col-12">
                     <fieldset class="field-group mb-0">
                       <legend class="field-label">Regular car</legend>
                       <div class="cert-checks day-checks">{{ driver_form.preferred_vehicles }}</div>
-                      <div class="field-hint">Day Setup offers this car first.</div>
+                      <div class="field-hint">Day Setup offers this car first. Tick more than one and it offers the lowest-numbered first, or none of them if that one is inactive.</div>
                     </fieldset>
                   </div>
                 </div>
@@ -914,6 +915,9 @@
               <span><i class="bi bi-calendar-week me-2"></i>Weekly Schedule</span>
             </div>
             <div class="card-body">
+              {% if shift_facts.weekly_not_used %}
+                <div class="field-hint mt-0 mb-3" id="weekly-not-used"><i class="bi bi-info-circle me-1"></i>Not used now that auto-assign is on regular shifts: dispatch follows his regular shift in Shift facts. Time off and one-day changes still count.</div>
+              {% endif %}
               {% if weekly_schedule %}
                 <div class="schedule-grid">
                   {% for ws in weekly_schedule %}

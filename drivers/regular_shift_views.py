@@ -72,6 +72,32 @@ def _times(start, end) -> str:
     return f"{fmt_time_long(start)} – {fmt_time_long(end)}"
 
 
+def _hours_words(minutes) -> str:
+    """720 -> '12 hours', 690 -> '11 hours 30 min'."""
+    hours, mins = divmod(int(minutes), 60)
+    words = f"{hours} hour{'' if hours == 1 else 's'}"
+    return f"{words} {mins} min" if mins else words
+
+
+def _stretch_hint(template) -> str:
+    """Under a Morning or Evening day's times: the edge that floats with the
+    switch on (S4, U11, C10). A Morning day holds only when he leaves base and
+    runs to his longest shift after it; an Evening day holds only when he is
+    back. The typed time on the other edge is what the page shows, not a stop
+    (regular_shifts.regular_window), so a hard stop is the day's own limit.
+    "" for any other shift."""
+    longest = _hours_words(template.max_span_minutes)
+    if template.kind == "morning":
+        return (f"Once auto-assign uses regular shifts, it may keep him out up to {longest} "
+                f"after he leaves base, whatever Back at base says. To stop him at a set "
+                f"time, use Done by.")
+    if template.kind == "evening":
+        return (f"Once auto-assign uses regular shifts, it may start him up to {longest} "
+                f"before he's back at base, whatever Leaves base says. To hold his start, "
+                f"use Not before.")
+    return ""
+
+
 def _sentence(text) -> str:
     """'leaves 3 AM–6 AM, …' -> 'Leaves 3 AM–6 AM, …' (str.capitalize would
     lower the AM/PM)."""
@@ -153,13 +179,14 @@ def _evidence(suggestion) -> str:
 
 def _shape_info(templates) -> dict:
     """Per shape, what the page's script needs to relabel a day as it is
-    changed: the name, the kind, and the usual times blank means."""
+    changed: the name, the kind, the usual times blank means, and the line on
+    the edge that floats (_stretch_hint)."""
     out = {}
     for t in templates.values():
         start, end = rs.band_fill(t)
         out[str(t.id)] = {"name": t.name, "kind": t.kind,
                           "start": start.strftime("%H:%M"), "end": end.strftime("%H:%M"),
-                          "usual": _times(start, end)}
+                          "usual": _times(start, end), "stretch": _stretch_hint(t)}
     return out
 
 
@@ -189,7 +216,8 @@ def _rows(formset, days, works_on, role, suggestion, templates):
         else:
             start, end = rs.band_fill(tpl)
             usual = _times(start, end)
-            hint = f"Leave both blank for the usual times, {usual}."
+            hint = " ".join(filter(None, (f"Leave both blank for the usual times, {usual}.",
+                                          _stretch_hint(tpl))))
             form.fields["start"].widget.attrs["placeholder"] = start.strftime("%H:%M")
             form.fields["end"].widget.attrs["placeholder"] = end.strftime("%H:%M")
         rows.append({

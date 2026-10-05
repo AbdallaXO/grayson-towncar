@@ -384,6 +384,66 @@ class DriverProfileShiftFactsTests(RegularShiftCacheMixin, TestCase):
         self.assertNotIn("Day Setup offers this car first.", card)
         self.assertEqual(card.count("—"), 5)                 # each fact, blank
 
+    def test_card_tells_affiliates_and_operators_why_there_is_none(self):
+        # Only in-house chauffeurs get a regular shift: "yet" would promise one.
+        self.client.force_login(self.dispatcher)
+        card = self._card(self.client.get(self._url()).content.decode())
+        self.assertIn("No regular shift yet", card)
+        self.assertNotIn("in-house chauffeurs only", card)
+        affiliate = Driver.objects.create(
+            profile=User.objects.create_user("aff", first_name="Aff"), driver_type="affiliate")
+        operator = _driver("op", portal_role="operator")
+        for other in (affiliate, operator):
+            with self.subTest(other=other.profile.username):
+                html = self.client.get(reverse("driver_profile", args=[other.id])).content.decode()
+                card = self._card(html)
+                self.assertIn("Regular shifts are for in-house chauffeurs only.", card)
+                self.assertNotIn("No regular shift yet", card)
+
+    def test_shift_facts_sits_above_strengths_log_and_weekly_schedule(self):
+        # Where the release note tells the team to look.
+        self.client.force_login(self.dispatcher)
+        html = self.client.get(self._url()).content.decode()
+        order = [html.index(marker) for marker in ('id="shift-facts"', 'id="strengths-habits"',
+                                                   'id="driver-log"', "Weekly Schedule</span>")]
+        self.assertEqual(order, sorted(order))
+
+    def test_weekly_schedule_says_it_is_not_used_once_switched_over(self):
+        # With the switch on, a confirmed driver's weekly days and hours no
+        # longer count (availability._apply_regular); time off still does. His
+        # Weekly Schedule card says so, and only then.
+        note = "Not used now that auto-assign is on regular shifts"
+
+        def weekly_card(driver):
+            html = self.client.get(reverse("driver_profile", args=[driver.id])).content.decode()
+            return html[html.index("Weekly Schedule</span>"):]
+
+        self.client.force_login(self.dispatcher)
+        self.assertNotIn(note, weekly_card(self.driver))            # switch off, none
+        self._confirm([DayShift(0, self.shapes["morning"], time(4, 10), time(15, 30))])
+        self.assertNotIn(note, weekly_card(self.driver))            # switch off, confirmed
+        SchedulerSettings.objects.update_or_create(pk=1, defaults={"regular_shift_windows": True})
+        SchedulerSettings.clear_cache()
+        self.assertTrue(rs.regular_windows_on())
+        self.assertIn(note + ": dispatch follows his regular shift in Shift facts. Time off "
+                      "and one-day changes still count.", weekly_card(self.driver))
+        self.assertNotIn(note, weekly_card(_driver("pat")))         # switch on, none
+
+    def test_edit_mode_hints_say_what_blank_means(self):
+        # Blank times or Days a week mean no limit, but no extra-shift day ticked
+        # means not open to extra shifts (S7). The regular car hint says which
+        # car Day Setup offers when several are ticked (_unit_sort_key, active only).
+        self.client.force_login(self.manager)
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        self.assertNotIn("Leave any of these blank for no limit.", html)
+        self.assertIn("Leave the times or Days a week blank for no limit.", html)
+        extra = html[html.index("Open to extra shifts on</legend>"):html.index("Regular car</legend>")]
+        self.assertIn("None ticked means not open to extra shifts.", extra)
+        car = html[html.index("Regular car</legend>"):]
+        car = car[:car.index("</fieldset>")]
+        self.assertIn("Day Setup offers this car first. Tick more than one and it offers the "
+                      "lowest-numbered first, or none of them if that one is inactive.", car)
+
     def test_card_names_the_car_day_setup_offers(self):
         # Day Setup locks the first unit by number (5 before 008) and offers
         # only units still in service.

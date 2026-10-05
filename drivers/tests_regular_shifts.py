@@ -1537,6 +1537,49 @@ class RegularShiftPageTests(_Fixture):
         profile = self.client.get(reverse("driver_profile", args=[d.id]))
         self.assertEqual(profile.context["regular_rows"][0], ("Monday", "Morning (usual times)"))
 
+    def test_editor_says_which_end_of_a_morning_or_evening_day_floats(self):
+        # With the switch on a Morning day holds only when he leaves base and
+        # runs to its longest shift after it, and an Evening day holds only
+        # when he is back (S4, regular_window): the typed time on the other end
+        # stops nothing. The hint under the times says so, with that shape's
+        # longest shift, and names the day's own limit that does stop him.
+        ShiftTemplate.objects.filter(pk=self.t["morning"].pk).update(max_span_minutes=600)
+        rs.clear_template_cache()
+        d = _driver()
+        self.confirm(d, self.week(mon=("morning", time(6), time(14)),
+                                  tue=("evening", time(16), time(2, 15)),
+                                  thu=("midday", None, None), sat=("float", None, None)))
+        templates = rs.templates_by_id()
+        days = rs.current_days(Driver.objects.get(pk=d.pk))
+        window = lambda day: rs.regular_window(day, templates, hard_lo=None, hard_hi=None)
+        self.assertEqual((window(days[0]).start_min, window(days[0]).end_min),
+                         (6 * 60, 16 * 60))             # 10 hours from 6 AM, past 2 PM
+        self.assertEqual((window(days[1]).start_min, window(days[1]).end_min),
+                         (14 * 60 + 15, 26 * 60 + 15))  # 12 hours before 2:15 AM, before 4 PM
+        self.client.force_login(self.manager)
+        page = self.client.get(self.edit_url(d))
+        hints = [row["hint"] for row in page.context["rows"]]
+        morning = ("Once auto-assign uses regular shifts, it may keep him out up to 10 hours "
+                   "after he leaves base, whatever Back at base says. To stop him at a set "
+                   "time, use Done by.")
+        evening = ("Once auto-assign uses regular shifts, it may start him up to 12 hours "
+                   "before he's back at base, whatever Leaves base says. To hold his start, "
+                   "use Not before.")
+        self.assertEqual(hints[0], "Leave both blank for the usual times, 6 AM – 4 PM. " + morning)
+        self.assertTrue(hints[1].startswith("Leave both blank for the usual times, "))
+        self.assertTrue(hints[1].endswith(". " + evening))
+        self.assertNotIn("auto-assign", hints[3])       # Midday keeps both its times
+        self.assertNotIn("auto-assign", hints[5])       # Float: its times are only a note
+        self.assertIn("only a note", hints[5])
+        # The page's script writes the same line as a day's shift is changed.
+        html = page.content.decode()
+        shapes = json.loads(re.search(r'<script id="rs-shapes" type="application/json">(.*?)'
+                                      r'</script>', html, re.S).group(1))
+        self.assertEqual(shapes[str(self.t["morning"].id)]["stretch"], morning)
+        self.assertEqual(shapes[str(self.t["evening"].id)]["stretch"], evening)
+        self.assertEqual(shapes[str(self.t["midday"].id)]["stretch"], "")
+        self.assertIn("(shape.stretch ? ' ' + shape.stretch : '')", html)
+
     def test_editor_role_and_days(self):
         # A Float driver on Mon/Tue/Wed: every other day is Off, whatever its row says.
         d = _driver()
@@ -1708,19 +1751,34 @@ class RegularShiftPageTests(_Fixture):
     def test_switch_note_says_what_switching_changes(self):
         # The line a manager reads before flipping the switch names everything
         # the switch moves, and claims no more than is true: Day Setup does
-        # follow a regular day off once it is on.
+        # follow a regular day off once it is on, and reads his regular start
+        # (the hour it pairs two drivers on one car by); a Morning or Evening
+        # day holds only one of its times (S4).
         amy = _driver("Amy", "Alpha")          # no weekly rows: the old defaults say available
         self.confirm(amy, self.week(), role="morning")              # Off every day
+        bob = _driver("Bob", "Bravo")          # the old default start is 6 AM
+        self.confirm(bob, self.week(mon=("morning", time(4, 10), time(15, 30))))
         note = re.search(r'<p class="switch-note" id="switch-note">(.*?)</p>',
                          self.list_page().content.decode(), re.S).group(1)
         note = " ".join(note.split())
         for text in ("from today's hours to his regular shift",
                      "auto-assign plans his day around it",
-                     "the schedule board shows his hours and checks moves against them",
-                     "Day Setup follows his regular days on and off",
+                     "the schedule board shows his regular shift and checks moves against it",
+                     "Day Setup follows his regular days on and off, and his regular start "
+                     "time when two drivers share a car",
+                     "A Morning day holds only the time he leaves base, and an Evening day "
+                     "only the time he's back: the other end may stretch to that shift's "
+                     "longest length, within his limits and the day's own Done by or Not before.",
                      "Nothing is sent to drivers, and the driver app stays the same."):
             self.assertIn(text, note)
         self.assertNotIn("Day Setup and the driver app stay the same", note)
+        self.assertNotIn("shows his hours", note)
+
+        def day_setup_start():
+            # The start hour Day Setup orders a shared car's partners by.
+            return Driver.objects.get(pk=bob.pk).get_effective_availability(TODAY)["start_hour"]
+
+        self.assertEqual(day_setup_start(), 6)
 
         def day_setup_group():
             rows = day_setup.suggest_day_setup(TODAY)["rows"]
@@ -1729,6 +1787,7 @@ class RegularShiftPageTests(_Fixture):
         self.assertNotEqual(day_setup_group(), "off")
         self.assertEqual(rs.set_regular_windows(True, self.manager), (True, ""))
         self.assertEqual(day_setup_group(), "off")
+        self.assertEqual(day_setup_start(), 4)
 
     # ── the way in: the navbar and the profile card ──
     def test_navbar_link(self):
