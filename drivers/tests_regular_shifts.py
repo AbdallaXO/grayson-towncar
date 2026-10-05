@@ -8,18 +8,26 @@ anything the legacy availability resolver returns (Review Focus 2), and saving
 either legacy schedule editor must leave a confirmed regular shift alone
 (Review Focus 1).
 
+And the pages (Task 7): Drivers -> Regular Shifts (who still needs a regular
+shift and who has one), the editor a manager confirms a week from, the switch
+that hands regular shifts to auto-assign, the navbar link and the profile
+card's link. Review Focus 3 (a driver added after the switch is on) and 4 (no
+recent trips) are checked on the pages too.
+
 Run with:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_regular_shifts
 """
 import copy
 import json
-from datetime import date, time, timedelta
+import re
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from dispatching import day_setup
 from dispatching.models import REGULAR_WINDOWS_CACHE_KEY, SchedulerSettings
@@ -1198,3 +1206,452 @@ class DayOptionLabelTests(_Fixture):
                          "Sun Midday (usual times)")
         floats = self.week(mon=("float", time(4), time(15)), tue=("float", None, None))
         self.assertEqual(rs.summary_label(floats, tpl), "Mon–Tue Float")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Task 7: Drivers -> Regular Shifts, the editor and the switch
+# ════════════════════════════════════════════════════════════════════════════
+
+_EDITOR_FIELDS = ("template", "alt_template", "start", "end", "day_earliest_start",
+                  "day_latest_finish")
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class RegularShiftPageTests(_Fixture):
+    """The list every staff user sees, the editor only a manager saves from,
+    and the switch only a manager flips."""
+
+    def setUp(self):
+        super().setUp()
+        # The pages read "today" through one helper; pin it to the fixture's Monday.
+        today = mock.patch("drivers.regular_shift_views._today", return_value=TODAY)
+        today.start()
+        self.addCleanup(today.stop)
+        # Day Setup leaves driver id 6 out by id; a test driver may get that id.
+        no_ids = mock.patch.object(day_setup, "DAY_SETUP_EXCLUDE_DRIVER_IDS", set())
+        no_ids.start()
+        self.addCleanup(no_ids.stop)
+
+    # ── helpers ──
+    def list_page(self, user=None):
+        self.client.force_login(user or self.dispatcher)
+        return self.client.get(reverse("regular_shifts"))
+
+    @staticmethod
+    def edit_url(driver):
+        return reverse("regular_shift_edit", args=[driver.id])
+
+    def payload(self, role, works_on=(), **days):
+        """The editor's POST, as the browser sends it: the usual shift (a kind),
+        the working days (0-6), and per day key (mon..sun) that day's overrides —
+        template / alt_template as a kind, times as "HH:MM", and
+        day_latest_finish_next_day=True."""
+        data = {"role": str(self.t[role].id) if role else "",
+                "works_on": [str(i) for i in works_on],
+                "days-TOTAL_FORMS": "7", "days-INITIAL_FORMS": "7",
+                "days-MIN_NUM_FORMS": "0", "days-MAX_NUM_FORMS": "7"}
+        for i, key in enumerate(_DAY_KEYS):
+            spec = dict(days.get(key, {}))
+            for name in ("template", "alt_template"):
+                if spec.get(name):
+                    spec[name] = str(self.t[spec[name]].id)
+            for name in _EDITOR_FIELDS:
+                data[f"days-{i}-{name}"] = spec.get(name, "")
+            if spec.get("day_latest_finish_next_day"):
+                data[f"days-{i}-day_latest_finish_next_day"] = "on"
+        return data
+
+    @staticmethod
+    def messages_of(resp):
+        return [(m.level_tag, str(m)) for m in resp.context["messages"]]
+
+    @staticmethod
+    def switch_button(resp):
+        found = re.search(r'<button[^>]*id="switch-button"[^>]*>.*?</button>',
+                          resp.content.decode(), re.S)
+        return found.group(0) if found else None
+
+    @staticmethod
+    def card(html):
+        """The profile's Shift facts card: it sits straight above Weekly Schedule."""
+        start = html.index('id="shift-facts"')
+        return html[start:html.index("Weekly Schedule", start)]
+
+    def confirm(self, driver, days=None, role="morning"):
+        rs.save_regular_shift(driver, days if days is not None else self.week(), self.manager,
+                              role_template_id=self.t[role].id if role else None)
+
+    # ── the list ──
+    def test_list_splits_needs_and_confirmed(self):
+        amy, bob = _driver("Amy", "Alpha"), _driver("Bob", "Bravo")
+        _driver("Aff", "Iliate", driver_type="affiliate")         # never on the list
+        morning = ("morning", time(4, 10), time(15, 30))
+        self.confirm(amy, self.week(**{k: morning for k in _DAY_KEYS[:5]}))
+        Driver.objects.filter(pk=amy.pk).update(
+            regular_shift_confirmed_at=timezone.make_aware(datetime(2026, 10, 4, 14, 0)))
+        resp = self.list_page()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([r["driver"] for r in resp.context["needs"]], [bob])
+        self.assertEqual([r["driver"] for r in resp.context["confirmed"]], [amy])
+        row = resp.context["confirmed"][0]
+        self.assertEqual((row["summary"], row["role"], row["confirmed_by"]),
+                         ("Mon–Fri Morning 4:10 AM–3:30 PM", "Morning driver", "rs_manager"))
+        html = resp.content.decode()
+        for text in ("Regular Shifts", "Needs a regular shift (1)", "Confirmed (1)",
+                     "Bob Bravo", "Amy Alpha", "Morning driver",
+                     "Mon–Fri Morning 4:10 AM–3:30 PM", "confirmed by rs_manager on Oct 4"):
+            self.assertIn(text, html)
+        self.assertNotIn("Iliate", html)
+        # A dispatcher can open a confirmed week to read it, but has nothing to
+        # confirm and no switch.
+        self.assertIn(self.edit_url(amy), html)
+        self.assertNotIn(self.edit_url(bob), html)
+        self.assertNotIn(reverse("regular_shift_switch"), html)
+        self.assertIsNone(self.switch_button(resp))
+        # A manager confirms Bob from here, and edits Amy.
+        html = self.list_page(self.manager).content.decode()
+        self.assertIn(self.edit_url(bob), html)
+        self.assertIn("Review &amp; confirm", html)
+        self.assertIn(self.edit_url(amy), html)
+
+    def test_list_shows_no_recent_trips(self):
+        # Review Focus 4: nothing in 8 weeks says so, and the week still confirms.
+        quiet, busy = _driver("Nev", "Quiet"), _driver("Bea", "Busy")
+        for day in _lookback(0)[:5]:
+            self.leg(busy, day, 5, 0, MCO, DISNEY)
+            self.leg(busy, day, 9, 0, DISNEY, MCO)
+        resp = self.list_page()
+        rows = {r["driver"].pk: r for r in resp.context["needs"]}
+        self.assertEqual(rows[quiet.pk]["summary"], "no trips in the last 8 weeks")
+        self.assertEqual(rows[busy.pk]["summary"], "Mon Morning 4:35 AM–9:50 AM")
+        self.assertEqual(rows[busy.pk]["role"], "Morning driver")    # what the weeks point to
+        self.assertEqual(rows[quiet.pk]["role"], "")
+        self.assertContains(resp, "no trips in the last 8 weeks")
+        self.client.force_login(self.manager)
+        self.assertContains(self.client.get(self.edit_url(quiet)), "No trips in the last 8 weeks")
+        resp = self.client.post(self.edit_url(quiet), self.payload("float"))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        quiet = Driver.objects.get(pk=quiet.pk)
+        self.assertTrue(quiet.has_regular_shift)
+        self.assertEqual(rs.current_days(quiet), self.week())         # Off every day (S2)
+
+    # ── the editor ──
+    def test_editor_prefills_from_suggestion(self):
+        d = _driver()
+        for day in _lookback(0)[:5] + _lookback(1)[:6]:
+            self.leg(d, day, 5, 0, MCO, DISNEY)
+            self.leg(d, day, 9, 0, DISNEY, MCO)
+        self.client.force_login(self.manager)
+        resp = self.client.get(self.edit_url(d))
+        self.assertEqual(resp.status_code, 200)
+        shift_form, formset = resp.context["shift_form"], resp.context["day_formset"]
+        self.assertEqual(shift_form.initial["role"], self.t["morning"].id)
+        self.assertEqual(shift_form.initial["works_on"], [0, 1])
+        self.assertEqual(len(formset.forms), 7)
+        monday = formset.forms[0].initial
+        # "Same as usual" (the usual shift is Morning) with the suggested times.
+        self.assertEqual((monday["template"], monday["start"], monday["end"]),
+                         (None, time(4, 35), time(9, 50)))
+        rows = resp.context["rows"]
+        self.assertEqual(rows[0]["evidence"],
+                         "Worked 5 of the last 8 Mondays · usual 4:35 AM – 9:50 AM")
+        self.assertEqual(rows[1]["evidence"],
+                         "Worked 6 of the last 8 Tuesdays · usual 4:35 AM – 9:50 AM")
+        self.assertEqual(rows[2]["evidence"], "Not a regular day")
+        self.assertEqual((rows[0]["label"], rows[2]["label"]),
+                         ("Morning 4:35 AM – 9:50 AM", "Off"))
+        html = resp.content.decode()
+        for text in ('value="04:35"', "Suggested from the last 8 weeks", "<details",
+                     'id="confirm-shift"', "Usual shift", "Works on", "Any day different?"):
+            self.assertIn(text, html)
+
+    def test_editor_prefills_from_confirmed_shift(self):
+        d = _driver()
+        days = self.week(mon=("morning", time(4, 10), time(15, 30)),
+                         tue=("evening", time(14, 15), time(2, 15),
+                              {"day_latest": time(2, 30), "day_latest_next_day": True}),
+                         wed=("morning", None, None, {"alt": "evening"}))
+        self.confirm(d, days)
+        self.client.force_login(self.manager)
+        resp = self.client.get(self.edit_url(d))
+        shift_form, forms = resp.context["shift_form"], resp.context["day_formset"].forms
+        self.assertEqual(shift_form.initial["role"], self.t["morning"].id)
+        self.assertEqual(shift_form.initial["works_on"], [0, 1, 2])
+        self.assertIsNone(forms[0].initial["template"])
+        self.assertEqual((forms[1].initial["template"], forms[1].initial["day_latest_finish"],
+                          forms[1].initial["day_latest_finish_next_day"]),
+                         (self.t["evening"].id, time(2, 30), True))
+        self.assertEqual(forms[2].initial["alt_template"], self.t["evening"].id)
+        self.assertContains(resp, "Confirmed by rs_manager on")
+        # Sending the page straight back keeps the week exactly as it was.
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=[0, 1, 2], mon={"start": "04:10", "end": "15:30"},
+            tue={"template": "evening", "start": "14:15", "end": "02:15",
+                 "day_latest_finish": "02:30", "day_latest_finish_next_day": True},
+            wed={"alt_template": "evening"}))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)), days)
+
+    def test_manager_confirms(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        morning = {"start": "04:10", "end": "15:30"}
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=range(5), mon={"start": "02:00", "end": "11:00"},
+            tue=morning, wed=morning, thu=morning, fri=morning), follow=True)
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(self.messages_of(resp), [
+            ("success", "Regular shift confirmed for Sam Driver."),
+            ("warning", "Monday: 2 AM–11 AM is outside the usual Morning shape "
+                        "(leaves 3 AM–6 AM, back 12 PM–4 PM)."),
+        ])
+        d = Driver.objects.get(pk=d.pk)
+        self.assertTrue(d.has_regular_shift)
+        self.assertEqual(d.regular_shift_confirmed_by, self.manager)
+        self.assertEqual(d.shift_role_id, self.t["morning"].id)
+        self.assertEqual(rs.current_days(d), self.week(
+            mon=("morning", time(2), time(11)),
+            **{k: ("morning", time(4, 10), time(15, 30)) for k in _DAY_KEYS[1:5]}))
+        self.assertEqual([r["driver"] for r in resp.context["confirmed"]], [d])
+
+    def test_editor_rejects_13h_day(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=[0], mon={"start": "04:00", "end": "17:00"}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                         ["Monday: a shift longer than 12 hours isn't allowed."])
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+        self.assertIsNone(d.shift_role_id)
+
+    def test_editor_needs_a_usual_shift(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(None, works_on=[0]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("role", resp.context["shift_form"].errors)
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+
+    def test_editor_blank_times_mean_usual(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload("morning", works_on=[0, 2]))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk)),
+                         self.week(mon=("morning", None, None), wed=("morning", None, None)))
+        # The editor says what blank means: the shape's usual times.
+        page = self.client.get(self.edit_url(d))
+        row = page.context["rows"][0]
+        self.assertEqual((row["label"], row["usual"]), ("Morning (usual times)", "6 AM – 4 PM"))
+        self.assertIn('placeholder="06:00"', str(page.context["day_formset"].forms[0]["start"]))
+        self.client.force_login(self.dispatcher)
+        profile = self.client.get(reverse("driver_profile", args=[d.id]))
+        self.assertEqual(profile.context["regular_rows"][0], ("Monday", "Morning (usual times)"))
+
+    def test_editor_role_and_days(self):
+        # A Float driver on Mon/Tue/Wed: every other day is Off, whatever its row says.
+        d = _driver()
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "float", works_on=[0, 1, 2],
+            thu={"template": "evening", "start": "14:15", "end": "02:15"}))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        d = Driver.objects.get(pk=d.pk)
+        self.assertEqual(d.shift_role_id, self.t["float"].id)
+        floats = ("float", None, None)
+        self.assertEqual(rs.current_days(d), self.week(mon=floats, tue=floats, wed=floats))
+        self.assertFalse(DriverWeeklySchedule.objects.filter(
+            driver=d, day_of_week__gte=3, shift_template__isnull=False).exists())
+
+    def test_editor_thursday_done_by_3pm(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        times = {"start": "04:10", "end": "14:30"}
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=range(5), mon=times, tue=times, wed=times,
+            thu={**times, "day_latest_finish": "15:00"}, fri=times))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        m = self.t["morning"].id
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk))[3],
+                         DayShift(3, m, time(4, 10), time(14, 30), day_latest=time(15)))
+        self.client.force_login(self.dispatcher)
+        profile = self.client.get(reverse("driver_profile", args=[d.id]))
+        self.assertEqual(profile.context["regular_rows"][3],
+                         ("Thursday", "Morning 4:10 AM – 2:30 PM · done by 3 PM"))
+        self.assertContains(profile, "· done by 3 PM")
+        # A typed end after that day's own finish-by is refused, naming the day.
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=[3], thu={"start": "04:10", "end": "15:30",
+                                          "day_latest_finish": "15:00"}))
+        self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                         ["Thursday: ends at 3:30 PM — after that day's finish-by (3 PM)."])
+
+    def test_editor_morning_or_evening_day(self):
+        d = _driver()
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=[5], sat={"alt_template": "evening"}))
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(rs.current_days(Driver.objects.get(pk=d.pk))[5],
+                         DayShift(5, self.t["morning"].id, None, None,
+                                  alt_template_id=self.t["evening"].id))
+        row = self.list_page().context["confirmed"][0]
+        self.assertEqual(row["summary"], "Sat Morning or Evening")
+        # "Or also" the same shape as the day's own is refused.
+        self.client.force_login(self.manager)
+        resp = self.client.post(self.edit_url(d), self.payload(
+            "morning", works_on=[5], sat={"alt_template": "morning"}))
+        self.assertEqual(resp.context["day_formset"].non_form_errors(),
+                         ["Saturday: the second shift must be different from the first."])
+
+    def test_dispatcher_cannot_post_editor(self):
+        d = _driver()
+        self.client.force_login(self.dispatcher)
+        page = self.client.get(self.edit_url(d))
+        self.assertEqual(page.status_code, 200)                     # staff may read it
+        self.assertNotContains(page, 'id="confirm-shift"')
+        self.assertContains(page, "<fieldset disabled")
+        resp = self.client.post(self.edit_url(d), self.payload("morning", works_on=[0]))
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(DriverWeeklySchedule.objects.filter(driver=d).exists())
+        d.refresh_from_db()
+        self.assertFalse(d.has_regular_shift)
+
+    def test_editor_only_for_staff_and_in_house_chauffeurs(self):
+        d = _driver()
+        self.client.force_login(User.objects.create_user("rs_guest", password="x"))
+        self.assertEqual(self.client.get(self.edit_url(d)).status_code, 302)
+        self.assertEqual(self.client.get(reverse("regular_shifts")).status_code, 302)
+        self.client.force_login(self.manager)
+        for other in (_driver("Aff", "Iliate", driver_type="affiliate"),
+                      _driver("Op", "Erator", portal_role="operator")):
+            with self.subTest(driver=str(other)):
+                self.assertEqual(self.client.get(self.edit_url(other)).status_code, 404)
+
+    # ── the switch ──
+    def test_switch_button_disabled_until_empty(self):
+        amy = _driver("Amy", "Alpha")
+        resp = self.list_page(self.manager)
+        self.assertFalse(resp.context["switch_on"])
+        button = self.switch_button(resp)
+        self.assertIn("Use regular shifts for auto-assign", button)
+        self.assertIn("disabled", button)
+        self.assertContains(resp, "1 driver still needs a regular shift")
+        self.assertContains(resp, "today's hours")
+        self.confirm(amy)
+        resp = self.list_page(self.manager)
+        button = self.switch_button(resp)
+        self.assertIn("Use regular shifts for auto-assign", button)
+        self.assertNotIn("disabled", button)
+        self.assertNotContains(resp, "still need")
+
+    def test_switch_post_refused_with_message(self):
+        _driver("Abe", "Adams")
+        self.client.force_login(self.manager)
+        resp = self.client.post(reverse("regular_shift_switch"), {"on": "1"}, follow=True)
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(self.messages_of(resp),
+                         [("error", "1 driver still needs a regular shift: Abe Adams")])
+        self.assertFalse(SchedulerSettings.objects.filter(regular_shift_windows=True).exists())
+        self.assertFalse(rs.regular_windows_on())
+
+    def test_switch_post_turns_on(self):
+        self.confirm(_driver("Amy", "Alpha"))
+        self.client.force_login(self.manager)
+        resp = self.client.post(reverse("regular_shift_switch"), {"on": "1"}, follow=True)
+        self.assertRedirects(resp, reverse("regular_shifts"))
+        self.assertEqual(self.messages_of(resp),
+                         [("success", "Auto-assign now uses regular shifts.")])
+        self.assertTrue(SchedulerSettings.objects.get(pk=1).regular_shift_windows)
+        self.assertTrue(rs.regular_windows_on())
+        self.assertTrue(resp.context["switch_on"])
+        self.assertIn("Go back to today's hours", self.switch_button(resp))
+        resp = self.client.post(reverse("regular_shift_switch"), {"on": "0"}, follow=True)
+        self.assertEqual(self.messages_of(resp),
+                         [("success", "Auto-assign is back on today's hours.")])
+        self.assertFalse(SchedulerSettings.objects.get(pk=1).regular_shift_windows)
+        self.assertFalse(rs.regular_windows_on())
+
+    def test_switch_post_dispatcher_forbidden(self):
+        self.confirm(_driver("Amy", "Alpha"))
+        self.client.force_login(self.dispatcher)
+        resp = self.client.post(reverse("regular_shift_switch"), {"on": "1"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(rs.regular_windows_on())
+        self.assertFalse(SchedulerSettings.objects.filter(regular_shift_windows=True).exists())
+        self.client.force_login(self.manager)
+        self.assertEqual(self.client.get(reverse("regular_shift_switch")).status_code, 405)
+
+    def test_new_driver_after_switch_on_listed_switch_stays_on(self):
+        # Review Focus 3: someone added or reactivated after the switch is on is
+        # listed, the switch stays on, and his hours are exactly today's.
+        amy = _driver("Amy", "Alpha")
+        self.confirm(amy, self.week(mon=("morning", time(4, 10), time(15, 30))))
+        self.assertEqual(rs.set_regular_windows(True, self.manager), (True, ""))
+        bob = _driver("Bob", "Bravo")
+        cal = _driver("Cal", "Clark", is_active=False)
+        Driver.objects.filter(pk=cal.pk).update(is_active=True)
+        resp = self.list_page(self.manager)
+        self.assertEqual([r["driver"] for r in resp.context["needs"]], [bob, cal])
+        self.assertTrue(resp.context["switch_on"])
+        self.assertContains(resp, "2 drivers still need a regular shift")
+        button = self.switch_button(resp)
+        self.assertIn("Go back to today's hours", button)
+        self.assertNotIn("disabled", button)
+        self.assertTrue(rs.regular_windows_on())
+        self.assertTrue(SchedulerSettings.objects.get(pk=1).regular_shift_windows)
+        for driver in (bob, cal):
+            fresh = Driver.objects.get(pk=driver.pk)
+            for i in range(7):
+                day = TODAY + timedelta(days=i)
+                eff = resolve_effective_availability(fresh, day)
+                self.assertEqual(eff, resolve_effective_availability(fresh, day,
+                                                                     regular_windows=False))
+                self.assertIsNone(eff["window_start_min"])
+
+    # ── the way in: the navbar and the profile card ──
+    def test_navbar_link(self):
+        link = (r'class="dropdown-item ?(active)?"\s+href="%s"><i class="bi bi-calendar2-check me-2">'
+                r'</i>Regular Shifts</a>' % re.escape(reverse("regular_shifts")))
+        toggle = r'dropdown-toggle text-white active"[^>]*>\s*<i class="bi bi-people-fill me-1">'
+        self.client.force_login(self.dispatcher)
+        html = self.client.get(reverse("drivers_extend")).content.decode()
+        found = re.search(link, html)
+        self.assertIsNotNone(found)                              # every staff user has it
+        self.assertIsNone(found.group(1))
+        self.assertLess(html.index("Edit Schedules"), found.start())   # right after Edit Schedules
+        d = _driver()
+        for url in (reverse("regular_shifts"), self.edit_url(d)):
+            with self.subTest(url=url):
+                html = self.client.get(url).content.decode()
+                self.assertEqual(re.search(link, html).group(1), "active")
+                self.assertRegex(html, toggle)
+
+    def test_profile_card_links_to_editor_for_manager(self):
+        d = _driver()
+        profile = reverse("driver_profile", args=[d.id])
+        self.client.force_login(self.manager)
+        card = self.card(self.client.get(profile).content.decode())
+        self.assertIn(f'href="{self.edit_url(d)}"', card)
+        self.assertIn("Set regular shift", card)
+        self.confirm(d, self.week(mon=("morning", time(4, 10), time(15, 30))))
+        card = self.card(self.client.get(profile).content.decode())
+        self.assertIn(f'href="{self.edit_url(d)}"', card)
+        self.assertIn("Edit regular shift", card)
+        self.assertNotIn("Set regular shift", card)
+        # In edit mode too.
+        card = self.card(self.client.get(profile, {"edit": "1"}).content.decode())
+        self.assertIn("Edit regular shift", card)
+        # A dispatcher reads the card; an affiliate never gets a regular shift.
+        self.client.force_login(self.dispatcher)
+        self.assertNotIn(self.edit_url(d), self.card(self.client.get(profile).content.decode()))
+        aff = _driver("Aff", "Iliate", driver_type="affiliate")
+        self.client.force_login(self.manager)
+        card = self.card(self.client.get(reverse("driver_profile", args=[aff.id])).content.decode())
+        self.assertNotIn(self.edit_url(aff), card)
+        self.assertNotIn("regular shift</a>", card)

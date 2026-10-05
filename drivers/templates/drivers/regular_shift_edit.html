@@ -1,0 +1,377 @@
+{% extends "main.html" %}
+
+{% block title %}{{ driver }} — Regular Shift — Grayson Towncar{% endblock %}
+
+{% block extra_css %}
+<style>
+  {% include "drivers/_regular_shift_styles.html" %}
+
+  /* Hero: name, status, hard limits */
+  .rs-page .hero-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .7rem; margin-top: .25rem; }
+  .rs-page .hero-row h1 { margin: 0; }
+  .rs-page .limits { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; }
+  .rs-page .limit {
+    display: flex; gap: .45rem; align-items: baseline;
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border); border-radius: 8px; padding: .4rem .75rem;
+  }
+  .rs-page .limit dt { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--gt-muted); font-weight: 600; margin: 0; }
+  .rs-page .limit dd { margin: 0; font-size: .85rem; font-weight: 600; color: var(--gt-text); }
+  .rs-page .limit.none dd { color: var(--gt-muted); font-weight: 500; }
+  .rs-page .limits-link { display: inline-block; font-size: .76rem; margin-top: .6rem; }
+
+  /* Steps */
+  .rs-page .editor-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .rs-page .step-no {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 1.55rem; height: 1.55rem; border-radius: 50%; margin-right: .6rem;
+    border: 1px solid rgba(201,162,39,0.5); color: var(--gt-gold); font-size: .74rem; font-weight: 700;
+  }
+  .rs-page .rs-panel-head h2 { display: flex; align-items: center; }
+  .rs-page .step-hint { font-size: .78rem; color: var(--gt-muted); }
+
+  /* Step 1: the usual shift, four large choices */
+  .rs-page .role-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+  .rs-page .role-card {
+    position: relative; display: flex; flex-direction: column; gap: .4rem; margin: 0;
+    padding: 1rem 1rem 1.05rem; border-radius: 12px; cursor: pointer;
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  .rs-page .role-card:hover { border-color: rgba(201,162,39,0.55); transform: translateY(-1px); }
+  .rs-page .role-card input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .rs-page .role-card:has(input:checked) {
+    border-color: var(--gt-gold); background: linear-gradient(160deg, rgba(201,162,39,0.12), rgba(201,162,39,0.02));
+    box-shadow: 0 0 0 1px var(--gt-gold) inset, 0 10px 26px rgba(201,162,39,0.12);
+  }
+  .rs-page .role-card:has(input:focus-visible) { outline: 2px solid var(--gt-gold); outline-offset: 2px; }
+  .rs-page .role-tick { position: absolute; top: .75rem; right: .8rem; color: var(--gt-gold); opacity: 0; transition: opacity .2s ease; }
+  .rs-page .role-card:has(input:checked) .role-tick { opacity: 1; }
+  .rs-page .role-name { font-size: 1.05rem; font-weight: 700; color: var(--gt-text); }
+  .rs-page .role-hint { font-size: .74rem; color: var(--gt-muted); line-height: 1.5; }
+  .rs-page fieldset[disabled] .role-card { cursor: default; transform: none; }
+
+  /* Step 2: the days he works */
+  .rs-page .day-toggles { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .rs-page .day-toggle { position: relative; margin: 0; cursor: pointer; }
+  .rs-page .day-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .rs-page .day-toggle span {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 3.6rem; height: 2.75rem;
+    padding: 0 .9rem; border-radius: 999px; font-size: .84rem; font-weight: 600;
+    background: var(--gt-surface-2); color: var(--gt-muted); border: 1px solid var(--gt-border);
+    transition: background .2s ease, border-color .2s ease, color .2s ease;
+  }
+  .rs-page .day-toggle:hover span { border-color: rgba(201,162,39,0.55); }
+  .rs-page .day-toggle input:checked + span { background: rgba(201,162,39,0.16); color: var(--gt-gold); border-color: var(--gt-gold); }
+  .rs-page .day-toggle input:focus-visible + span { outline: 2px solid var(--gt-gold); outline-offset: 2px; }
+
+  /* Step 3: one row per day */
+  .rs-page .day-row { padding: .9rem 0; border-top: 1px solid var(--gt-border); }
+  .rs-page .day-row:first-child { border-top: 0; padding-top: 0; }
+  .rs-page .day-head { display: flex; gap: .85rem; align-items: flex-start; }
+  .rs-page .day-chip {
+    flex: none; width: 3rem; padding: .3rem 0; text-align: center; border-radius: 6px;
+    font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700;
+    color: var(--gt-gold); background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.35);
+  }
+  .rs-page .day-main { min-width: 0; }
+  .rs-page .day-label { font-weight: 600; font-size: .92rem; color: var(--gt-text); overflow-wrap: anywhere; }
+  .rs-page .day-evidence { font-size: .74rem; color: var(--gt-muted); margin-top: .15rem; }
+  .rs-page .day-row.is-off .day-chip { color: var(--gt-muted); background: var(--gt-surface-2); border-color: var(--gt-border); }
+  .rs-page .day-row.is-off .day-label { color: var(--gt-muted); font-weight: 500; }
+  .rs-js .rs-page .day-row.is-off { display: none; }
+  .rs-page .no-days { font-size: .85rem; color: var(--gt-muted); padding: .2rem 0; }
+  .rs-page .day-change { margin: .55rem 0 0 3.85rem; }
+  .rs-page .day-change summary {
+    display: inline-flex; align-items: center; gap: .35rem; padding: .25rem 0; cursor: pointer;
+    font-size: .8rem; font-weight: 600; color: var(--gt-gold); list-style: none;
+  }
+  .rs-page .day-change summary::-webkit-details-marker { display: none; }
+  .rs-page .day-change summary:focus-visible { outline: 2px solid var(--gt-gold); outline-offset: 2px; border-radius: 4px; }
+  .rs-page .day-change[open] summary { margin-bottom: .55rem; }
+  .rs-page .day-fields {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem .9rem;
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border); border-radius: 10px; padding: .95rem;
+  }
+  .rs-page .fg label { display: block; margin-bottom: .3rem; font-size: .66rem; letter-spacing: .05em; text-transform: uppercase; color: var(--gt-muted); font-weight: 600; }
+  .rs-page .fg .next-day { display: inline-flex; align-items: center; gap: .4rem; margin: .5rem 0 0; font-size: .8rem; letter-spacing: 0; text-transform: none; color: var(--gt-text); font-weight: 500; cursor: pointer; }
+  .rs-page .fg-hint { grid-column: 1 / -1; margin-top: -.3rem; font-size: .74rem; color: var(--gt-muted); line-height: 1.5; }
+  .rs-page .gt-field {
+    width: 100%; min-height: 2.6rem; padding: .5rem .6rem; border-radius: 7px; font-size: .88rem;
+    background: var(--gt-bg); color: var(--gt-text); border: 1px solid var(--gt-border); color-scheme: dark;
+  }
+  .rs-page .gt-field:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px rgba(201,162,39,0.15); }
+  .rs-page select.gt-field { appearance: auto; }
+  .rs-page .gt-checkbox { width: 1.05rem; height: 1.05rem; accent-color: var(--gt-gold); }
+  .rs-page .field-error { color: #f87171; font-size: .76rem; margin-top: .4rem; }
+
+  .rs-page .editor-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+  .rs-page .read-only { color: var(--gt-muted); font-size: .85rem; margin: 0; }
+  .rs-page .problems { margin: .4rem 0 0; padding-left: 1.1rem; }
+
+  @media (max-width: 767px) {
+    .rs-page .role-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 575px) {
+    .rs-page .day-change { margin-left: 0; }
+    .rs-page .day-fields { grid-template-columns: 1fr; }
+    .rs-page .editor-actions .rs-btn { flex: 1 1 100%; }
+    .rs-page .day-toggle span { min-width: 3.1rem; padding: 0 .7rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rs-page .role-card, .rs-page .day-toggle span { transition: none; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% include "dispatching/dispatcher_navbar.html" %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block content %}
+<div class="rs-page">
+  <div class="rs-wrap">
+
+    <header class="rs-hero">
+      <div class="rs-eyebrow"><a href="{% url 'regular_shifts' %}"><i class="bi bi-arrow-left me-1"></i>Regular Shifts</a></div>
+      <div class="hero-row">
+        <h1>{{ driver }}</h1>
+        {% if driver.has_regular_shift %}
+          <span class="rs-pill ok"><i class="bi bi-patch-check-fill"></i>Confirmed</span>
+        {% else %}
+          <span class="rs-pill muted">Not confirmed yet</span>
+        {% endif %}
+      </div>
+      <p class="rs-lede">
+        {% if driver.has_regular_shift %}
+          Confirmed{% if confirmed_by %} by {{ confirmed_by }}{% endif %} on {{ driver.regular_shift_confirmed_at|date:"M j" }}.
+          Change anything below and confirm again.
+        {% elif worked_recently %}
+          Suggested from the last {{ weeks }} weeks of trips. Check each day, change what's
+          different, and confirm.
+        {% else %}
+          No trips in the last {{ weeks }} weeks, so there is nothing to suggest. Pick his usual
+          shift and the days he works — or no days at all, for a driver who only takes extra shifts.
+        {% endif %}
+      </p>
+      <dl class="limits" aria-label="Hard limits">
+        {% for words, value in limits %}
+          <div class="limit"><dt>{{ words }}</dt><dd>{{ value }}</dd></div>
+        {% empty %}
+          <div class="limit none"><dt>Hard limits</dt><dd>None set</dd></div>
+        {% endfor %}
+      </dl>
+      <a class="limits-link" href="{% url 'driver_profile' driver.id %}{% if can_manage %}?edit=1{% endif %}">
+        {% if can_manage %}Change his limits on the profile{% else %}Open his profile{% endif %} <i class="bi bi-arrow-right"></i>
+      </a>
+    </header>
+
+    {% if messages or shift_form.errors or day_formset.non_form_errors %}
+      <ul class="rs-notices">
+        {% for message in messages %}
+          <li class="rs-notice {{ message.level_tag }}"><i class="bi bi-exclamation-circle-fill"></i><span>{{ message }}</span></li>
+        {% endfor %}
+        {% if shift_form.errors or day_formset.non_form_errors %}
+          <li class="rs-notice error">
+            <i class="bi bi-x-octagon-fill"></i>
+            <div>
+              <strong>Not confirmed yet — please fix:</strong>
+              <ul class="problems">
+                {% for field in shift_form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+                {% for error in day_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+              </ul>
+            </div>
+          </li>
+        {% endif %}
+      </ul>
+    {% endif %}
+
+    <form method="post" action="{% url 'regular_shift_edit' driver.id %}" class="rs-editor">
+      {% csrf_token %}
+      {{ day_formset.management_form }}
+      <fieldset{% if not can_manage %} disabled{% endif %} class="editor-fields">
+
+        {# ── Step 1 ── #}
+        <section class="rs-panel">
+          <div class="rs-panel-head">
+            <h2><span class="step-no">1</span>Usual shift</h2>
+            <span class="step-hint">Every day he works starts out as this.</span>
+          </div>
+          <div class="rs-panel-body">
+            <div class="role-cards" role="radiogroup" aria-label="Usual shift">
+              {% for card in cards %}
+                <label class="role-card">
+                  <input type="radio" name="{{ shift_form.role.html_name }}" value="{{ card.id }}"{% if card.checked %} checked{% endif %} required>
+                  <span class="role-tick" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                  <span class="role-name">{{ card.name }}</span>
+                  <span class="role-hint">{{ card.hint }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            {% for error in shift_form.role.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+          </div>
+        </section>
+
+        {# ── Step 2 ── #}
+        <section class="rs-panel">
+          <div class="rs-panel-head">
+            <h2><span class="step-no">2</span>Works on</h2>
+            <span class="step-hint">The days left unticked are Off.</span>
+          </div>
+          <div class="rs-panel-body">
+            <div class="day-toggles" role="group" aria-label="Works on">
+              {% for box in shift_form.works_on %}
+                <label class="day-toggle" for="{{ box.id_for_label }}">{{ box.tag }}<span title="{{ box.choice_label }}">{{ box.choice_label|slice:":3" }}</span></label>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        {# ── Step 3 ── #}
+        <section class="rs-panel">
+          <div class="rs-panel-head">
+            <h2><span class="step-no">3</span>Any day different?</h2>
+            <span class="step-hint">Open a day to give it another shift, a second shift it may be instead, its own times or its own limits.</span>
+          </div>
+          <div class="rs-panel-body">
+            {% for row in rows %}
+              {% with form=row.form %}
+              <div class="day-row{% if not row.worked %} is-off{% endif %}" data-day="{{ forloop.counter0 }}">
+                <div class="day-head">
+                  <span class="day-chip" title="{{ row.name }}">{{ row.short }}</span>
+                  <div class="day-main">
+                    <div class="day-label" data-label>{{ row.label }}</div>
+                    <div class="day-evidence" title="From his last {{ weeks }} weeks of trips"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>{{ row.evidence }}</div>
+                  </div>
+                </div>
+                <details class="day-change"{% if row.open %} open{% endif %}>
+                  <summary><i class="bi bi-sliders"></i>Change {{ row.name }}</summary>
+                  {% for field in form %}{% for error in field.errors %}<div class="field-error">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+                  <div class="day-fields">
+                    <div class="fg">
+                      <label for="{{ form.template.id_for_label }}">Shift</label>
+                      {{ form.template }}
+                    </div>
+                    <div class="fg">
+                      <label for="{{ form.alt_template.id_for_label }}">Or also</label>
+                      {{ form.alt_template }}
+                    </div>
+                    <div class="fg">
+                      <label for="{{ form.start.id_for_label }}">Leaves base</label>
+                      {{ form.start }}
+                    </div>
+                    <div class="fg">
+                      <label for="{{ form.end.id_for_label }}">Back at base</label>
+                      {{ form.end }}
+                    </div>
+                    <div class="fg-hint" data-hint>{{ row.hint }}</div>
+                    <div class="fg">
+                      <label for="{{ form.day_earliest_start.id_for_label }}">Not before</label>
+                      {{ form.day_earliest_start }}
+                    </div>
+                    <div class="fg">
+                      <label for="{{ form.day_latest_finish.id_for_label }}">Done by</label>
+                      {{ form.day_latest_finish }}
+                      <label class="next-day" for="{{ form.day_latest_finish_next_day.id_for_label }}">{{ form.day_latest_finish_next_day }} Next day (after midnight)</label>
+                    </div>
+                  </div>
+                </details>
+              </div>
+              {% endwith %}
+            {% endfor %}
+            <div class="no-days" data-no-days hidden>
+              <i class="bi bi-moon-stars me-2"></i>No working days: he is Off every day. That's fine for a driver who only takes extra shifts.
+            </div>
+          </div>
+        </section>
+
+      </fieldset>
+
+      <div class="editor-actions">
+        {% if can_manage %}
+          <button type="submit" id="confirm-shift" class="rs-btn rs-btn-gold"><i class="bi bi-patch-check"></i>Confirm regular shift</button>
+          <a class="rs-btn" href="{% url 'regular_shifts' %}">Cancel</a>
+        {% else %}
+          <p class="read-only"><i class="bi bi-lock me-1"></i>Only a manager can change a regular shift.</p>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+</div>
+{{ shapes|json_script:"rs-shapes" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  {% comment %}
+    Progressive enhancement only: the page works without it. It hides the
+    days he doesn't work, and re-reads each day as it is changed — the same
+    words the page prints (regular_shifts.day_label) and the usual times blank
+    means for the day's shift.
+  {% endcomment %}
+  (function () {
+    var form = document.querySelector('.rs-editor');
+    var dataEl = document.getElementById('rs-shapes');
+    if (!form || !dataEl) return;
+    var shapes = JSON.parse(dataEl.textContent);
+    var rows = Array.prototype.slice.call(form.querySelectorAll('.day-row'));
+    var noDays = form.querySelector('[data-no-days]');
+    document.documentElement.classList.add('rs-js');
+
+    function fmt(value) {                       // "16:30" -> "4:30 PM", "16:00" -> "4 PM"
+      var parts = value.split(':'), h = +parts[0], m = +parts[1];
+      var hour = (h % 12) || 12, half = h < 12 ? 'AM' : 'PM';
+      return m ? hour + ':' + (m < 10 ? '0' : '') + m + ' ' + half : hour + ' ' + half;
+    }
+    function role() {
+      var picked = form.querySelector('input[name="role"]:checked');
+      return picked ? picked.value : '';
+    }
+    function works(row) {
+      var box = form.querySelector('input[name="works_on"][value="' + row.getAttribute('data-day') + '"]');
+      return !!(box && box.checked);
+    }
+    function field(row, name) { return row.querySelector('[name$="-' + name + '"]'); }
+
+    function refresh(row) {
+      var on = works(row);
+      var shape = shapes[field(row, 'template').value || role()];
+      var altId = field(row, 'alt_template').value;
+      var alt = altId && shapes[altId] && shapes[altId] !== shape ? shapes[altId] : null;
+      var start = field(row, 'start'), end = field(row, 'end');
+      var earliest = field(row, 'day_earliest_start').value, latest = field(row, 'day_latest_finish').value;
+      var open = shape && (alt || shape.kind === 'float');
+      var text;
+      if (!on) text = 'Off';
+      else if (!shape) text = 'Same as usual';
+      else if (alt) text = shape.name + ' or ' + alt.name;
+      else if (shape.kind === 'float') text = shape.name;
+      else if (start.value && end.value) text = shape.name + ' ' + fmt(start.value) + ' – ' + fmt(end.value);
+      else if (!start.value && !end.value) text = shape.name + ' (usual times)';
+      else text = shape.name;
+      if (on && shape) {
+        if (earliest) text += ' · not before ' + fmt(earliest);
+        if (latest) text += ' · done by ' + fmt(latest) + (field(row, 'day_latest_finish_next_day').checked ? ' (next day)' : '');
+      }
+      row.querySelector('[data-label]').textContent = text;
+      row.classList.toggle('is-off', !on);
+      start.placeholder = shape && !open ? shape.start : '';
+      end.placeholder = shape && !open ? shape.end : '';
+      row.querySelector('[data-hint]').textContent = !shape ? 'Leave both blank for the usual times of his shift.'
+        : open ? 'This day goes wherever the day needs him, within 12 hours, so times here are only a note.'
+        : 'Leave both blank for the usual times, ' + shape.usual + '.';
+    }
+    function refreshAll() {
+      rows.forEach(refresh);
+      if (noDays) noDays.hidden = rows.some(works);
+    }
+    form.addEventListener('change', refreshAll);
+    form.addEventListener('input', function (event) {
+      var row = event.target.closest('.day-row');
+      if (row) refresh(row);
+    });
+    refreshAll();
+  })();
+</script>
+{% endblock %}

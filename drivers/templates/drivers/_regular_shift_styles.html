@@ -1,0 +1,92 @@
+{% comment %}
+  Shared look for the Regular Shifts pages (structured shifts, Stage 1): the
+  dark/gold staff palette, the page shell, panels, pills, buttons and the
+  in-page notices. Included inside each page's own <style> block, the way
+  _comms_admin_palette.html is. Everything sits under .rs-page so Bootstrap
+  (loaded after extra_css) can't out-rank it.
+{% endcomment %}
+{% include "drivers/_comms_admin_palette.html" %}
+/* The dispatcher navbar's bottom margin would read as a white strip on a dark page. */
+body { background: var(--gt-bg) !important; }
+.rs-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3.5rem; }
+.rs-page .rs-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.rs-page a { color: var(--gt-gold); text-decoration: none; }
+.rs-page a:hover { color: #E8D5B7; }
+
+/* Hero */
+.rs-page .rs-hero {
+  background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+  border: 1px solid var(--gt-border); border-radius: 14px;
+  padding: 1.35rem 1.5rem; margin-bottom: 1.25rem;
+  animation: rs-rise .45s ease both;
+}
+.rs-page .rs-eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--gt-muted); }
+.rs-page .rs-eyebrow a { color: var(--gt-muted); }
+.rs-page .rs-eyebrow a:hover { color: var(--gt-gold); }
+.rs-page h1 { font-size: 1.6rem; font-weight: 700; margin: .25rem 0 0; color: var(--gt-text); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.rs-page .rs-lede { color: var(--gt-muted); font-size: .88rem; line-height: 1.6; margin: .45rem 0 0; max-width: 46rem; }
+
+/* Panels */
+.rs-page .rs-panel {
+  background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 12px;
+  margin-bottom: 1.1rem; animation: rs-rise .45s ease both;
+}
+.rs-page .rs-panel:nth-of-type(2) { animation-delay: .05s; }
+.rs-page .rs-panel:nth-of-type(3) { animation-delay: .1s; }
+.rs-page .rs-panel:nth-of-type(4) { animation-delay: .15s; }
+.rs-page .rs-panel-head {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+  padding: .85rem 1.15rem; border-bottom: 1px solid var(--gt-border);
+}
+.rs-page .rs-panel-head h2 { font-size: .95rem; font-weight: 600; margin: 0; color: var(--gt-text); }
+.rs-page .rs-panel-body { padding: 1.1rem 1.15rem; }
+.rs-page .rs-empty { padding: 1.6rem 1.15rem; text-align: center; color: var(--gt-muted); font-size: .86rem; }
+
+/* Pills */
+.rs-page .rs-pill {
+  display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap;
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em; padding: 3px 10px; border-radius: 999px;
+  background: rgba(201,162,39,0.14); color: var(--gt-gold); border: 1px solid rgba(201,162,39,0.4);
+}
+.rs-page .rs-pill.muted { background: var(--gt-surface-2); color: var(--gt-muted); border-color: var(--gt-border); }
+.rs-page .rs-pill.ok { background: rgba(34,197,94,0.14); color: #4ade80; border-color: rgba(34,197,94,0.35); }
+
+/* Buttons */
+.rs-page .rs-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  min-height: 2.6rem; padding: .5rem 1rem; border-radius: 8px; cursor: pointer;
+  background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
+  font-size: .86rem; font-weight: 600; line-height: 1.2; text-decoration: none;
+  transition: background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.rs-page .rs-btn:hover { border-color: var(--gt-gold); color: var(--gt-gold); }
+.rs-page .rs-btn:focus-visible { outline: 2px solid var(--gt-gold); outline-offset: 2px; }
+.rs-page .rs-btn-gold { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); box-shadow: 0 6px 18px rgba(201,162,39,0.18); }
+.rs-page .rs-btn-gold:hover { background: #d8b33c; border-color: #d8b33c; color: #0d1117; transform: translateY(-1px); }
+.rs-page .rs-btn[disabled] { opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; }
+.rs-page .rs-btn-gold[disabled]:hover { background: var(--gt-gold); border-color: var(--gt-gold); }
+.rs-page .rs-btn-sm { min-height: 2.25rem; padding: .35rem .8rem; font-size: .8rem; }
+
+/* In-page notices (the site's own toast fades in a second; these stay put) */
+.rs-page .rs-notices { list-style: none; margin: 0 0 1.1rem; padding: 0; display: grid; gap: .5rem; }
+.rs-page .rs-notice {
+  display: flex; gap: .6rem; align-items: flex-start; font-size: .85rem; line-height: 1.5;
+  padding: .7rem .95rem; border-radius: 9px; border: 1px solid var(--gt-border); background: var(--gt-surface);
+  border-left-width: 3px;
+}
+.rs-page .rs-notice i { flex: none; margin-top: .1rem; }
+.rs-page .rs-notice.success { border-left-color: #4ade80; } .rs-page .rs-notice.success i { color: #4ade80; }
+.rs-page .rs-notice.warning { border-left-color: #fbbf24; } .rs-page .rs-notice.warning i { color: #fbbf24; }
+.rs-page .rs-notice.error { border-left-color: #f87171; } .rs-page .rs-notice.error i { color: #f87171; }
+
+@keyframes rs-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rs-page .rs-hero, .rs-page .rs-panel { animation: none; }
+  .rs-page .rs-btn { transition: none; }
+}
+@media (max-width: 575px) {
+  .rs-page { padding-top: 1rem; }
+  .rs-page .rs-hero { padding: 1.1rem 1rem; border-radius: 12px; }
+  .rs-page h1 { font-size: 1.35rem; }
+  .rs-page .rs-panel-head, .rs-page .rs-panel-body { padding-left: .95rem; padding-right: .95rem; }
+}

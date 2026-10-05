@@ -1432,7 +1432,9 @@ def _shift_facts_context(driver):
     manager confirms one. shift_facts holds the rest, as words: the usual shift,
     who confirmed it, the hard limits, the extra-shift days and the regular
     car(s) — blank where nothing is set (the card prints "—") — plus car_hint,
-    which car Day Setup offers first ("" when it offers none of them)."""
+    which car Day Setup offers first ("" when it offers none of them), and
+    can_have_regular: only in-house chauffeurs get a regular shift, so only
+    they get the card's link to the Regular Shifts editor."""
     from dispatching.day_setup import _unit_sort_key
     from drivers import regular_shifts as rs
     from drivers.availability import fmt_time_long
@@ -1469,6 +1471,7 @@ def _shift_facts_context(driver):
             "extra_days": ", ".join(rs.DAY_NAMES[d][:3] for d in extra),
             "cars": cars,
             "car_hint": offered,
+            "can_have_regular": driver.driver_type == "inhouse" and driver.portal_role == "driver",
         },
     }
 

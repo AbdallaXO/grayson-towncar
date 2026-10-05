@@ -1,0 +1,177 @@
+{% extends "main.html" %}
+
+{% block title %}Regular Shifts — Grayson Towncar{% endblock %}
+
+{% block extra_css %}
+<style>
+  {% include "drivers/_regular_shift_styles.html" %}
+
+  /* The switch */
+  .rs-page .switch-panel { display: grid; grid-template-columns: 1fr auto; gap: 1rem 1.5rem; align-items: center; padding: 1.15rem; }
+  .rs-page .switch-state { display: flex; align-items: center; gap: .85rem; }
+  .rs-page .switch-dot {
+    flex: none; width: .75rem; height: .75rem; border-radius: 50%;
+    background: var(--gt-muted); box-shadow: 0 0 0 4px rgba(139,148,158,0.15);
+  }
+  .rs-page .switch-dot.on { background: var(--gt-gold); box-shadow: 0 0 0 4px rgba(201,162,39,0.18); }
+  .rs-page .switch-cap { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--gt-muted); font-weight: 600; }
+  .rs-page .switch-value { font-size: 1.2rem; font-weight: 700; color: var(--gt-text); line-height: 1.25; }
+  .rs-page .switch-panel.on .switch-value { color: var(--gt-gold); }
+  .rs-page .switch-count { font-size: .82rem; color: #fbbf24; margin-top: .2rem; }
+  .rs-page .switch-count.done { color: #4ade80; }
+  .rs-page .switch-note { grid-column: 1 / -1; font-size: .76rem; color: var(--gt-muted); line-height: 1.6; border-top: 1px solid var(--gt-border); padding-top: .8rem; margin: 0; }
+  .rs-page .switch-form { margin: 0; }
+
+  /* Driver rows */
+  .rs-page .rs-list { list-style: none; margin: 0; padding: 0; }
+  .rs-page .rs-row {
+    display: grid; grid-template-columns: minmax(10rem, 14rem) 1fr auto; gap: .35rem 1.1rem; align-items: center;
+    padding: .9rem 1.15rem; border-top: 1px solid var(--gt-border); transition: background .2s ease;
+  }
+  .rs-page .rs-row:first-child { border-top: 0; }
+  .rs-page .rs-row:hover { background: rgba(255,255,255,0.015); }
+  .rs-page .rs-name { font-weight: 600; color: var(--gt-text); }
+  .rs-page .rs-name:hover { color: var(--gt-gold); }
+  .rs-page .rs-who { display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; min-width: 0; }
+  .rs-page .rs-summary { font-size: .84rem; color: var(--gt-text); line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
+  .rs-page .rs-summary.none { color: var(--gt-muted); font-style: italic; }
+  .rs-page .rs-meta { display: block; font-size: .72rem; color: var(--gt-muted); margin-top: .15rem; }
+  .rs-page .rs-meta i { color: #4ade80; }
+  .rs-page .rs-suggested { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--gt-muted); font-weight: 600; margin-right: .35rem; }
+
+  @media (max-width: 767px) {
+    .rs-page .switch-panel { grid-template-columns: 1fr; }
+    .rs-page .switch-form .rs-btn { width: 100%; }
+    .rs-page .rs-row { grid-template-columns: 1fr; padding: .95rem; }
+    .rs-page .rs-row .rs-btn { width: 100%; margin-top: .25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% include "dispatching/dispatcher_navbar.html" %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block content %}
+<div class="rs-page">
+  <div class="rs-wrap">
+
+    <header class="rs-hero">
+      <div class="rs-eyebrow"><a href="{% url 'drivers_extend' %}"><i class="bi bi-arrow-left me-1"></i>Drivers</a></div>
+      <h1>Regular Shifts</h1>
+      <p class="rs-lede">
+        Each chauffeur's regular week, to the minute: his usual shift — Morning, Midday,
+        Evening, or Float for any shift — and the days he works. The suggestion comes from
+        his last 8 weeks of trips; a manager checks it and confirms.
+      </p>
+    </header>
+
+    {% if messages %}
+      <ul class="rs-notices">
+        {% for message in messages %}
+          <li class="rs-notice {{ message.level_tag }}">
+            {% if message.level_tag == "success" %}<i class="bi bi-check-circle-fill"></i>{% elif message.level_tag == "warning" %}<i class="bi bi-exclamation-triangle-fill"></i>{% else %}<i class="bi bi-x-octagon-fill"></i>{% endif %}
+            <span>{{ message }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {# ── What auto-assign reads, and the switch ── #}
+    <section class="rs-panel switch-panel{% if switch_on %} on{% endif %}" aria-label="What auto-assign uses">
+      <div class="switch-state">
+        <span class="switch-dot{% if switch_on %} on{% endif %}" aria-hidden="true"></span>
+        <div>
+          <div class="switch-cap">Auto-assign uses</div>
+          <div class="switch-value">{% if switch_on %}Regular shifts{% else %}Today's hours{% endif %}</div>
+          {% if still_need %}
+            <div class="switch-count" id="switch-why">{{ still_need }}{% if switch_on %} — auto-assign uses today's hours for them until one is confirmed.{% endif %}</div>
+          {% else %}
+            <div class="switch-count done"><i class="bi bi-check2-circle me-1"></i>Every driver has a regular shift.</div>
+          {% endif %}
+        </div>
+      </div>
+      {% if can_manage %}
+        <form method="post" action="{% url 'regular_shift_switch' %}" class="switch-form">
+          {% csrf_token %}
+          {% if switch_on %}
+            <input type="hidden" name="on" value="0">
+            <button type="submit" id="switch-button" class="rs-btn">
+              <i class="bi bi-arrow-counterclockwise"></i>Go back to today's hours
+            </button>
+          {% else %}
+            <input type="hidden" name="on" value="1">
+            <button type="submit" id="switch-button" class="rs-btn rs-btn-gold"{% if still_need %} disabled aria-describedby="switch-why"{% endif %}>
+              <i class="bi bi-calendar2-check"></i>Use regular shifts for auto-assign
+            </button>
+          {% endif %}
+        </form>
+      {% endif %}
+      <p class="switch-note">
+        Switching changes only the hours auto-assign plans each driver's day around:
+        today's hours, or his regular shift, held to 12 hours from leaving base to getting
+        back. It can be switched over once every driver has a regular shift, and back at any
+        time. Nothing is sent to drivers, and the board, Day Setup and the driver app stay
+        the same.
+      </p>
+    </section>
+
+    {# ── Who still needs one ── #}
+    <section class="rs-panel">
+      <div class="rs-panel-head">
+        <h2>Needs a regular shift ({{ needs|length }})</h2>
+      </div>
+      {% if needs %}
+        <ul class="rs-list">
+          {% for row in needs %}
+            <li class="rs-row">
+              <div class="rs-who">
+                <a class="rs-name" href="{% url 'driver_profile' row.driver.id %}">{{ row.driver }}</a>
+                {% if row.role %}<span class="rs-pill muted">{{ row.role }}</span>{% endif %}
+              </div>
+              <div class="rs-summary{% if not row.role %} none{% endif %}">
+                {% if row.role %}<span class="rs-suggested">Suggested</span>{% endif %}{{ row.summary }}
+              </div>
+              {% if can_manage %}
+                <a class="rs-btn rs-btn-gold rs-btn-sm" href="{% url 'regular_shift_edit' row.driver.id %}">Review &amp; confirm<i class="bi bi-arrow-right"></i></a>
+              {% else %}
+                <span></span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="rs-empty"><i class="bi bi-patch-check me-2"></i>Every driver has a regular shift.</div>
+      {% endif %}
+    </section>
+
+    {# ── Who has one ── #}
+    <section class="rs-panel">
+      <div class="rs-panel-head">
+        <h2>Confirmed ({{ confirmed|length }})</h2>
+      </div>
+      {% if confirmed %}
+        <ul class="rs-list">
+          {% for row in confirmed %}
+            <li class="rs-row">
+              <div class="rs-who">
+                <a class="rs-name" href="{% url 'driver_profile' row.driver.id %}">{{ row.driver }}</a>
+                {% if row.role %}<span class="rs-pill">{{ row.role }}</span>{% endif %}
+              </div>
+              <div class="rs-summary">
+                {{ row.summary }}
+                <span class="rs-meta"><i class="bi bi-patch-check-fill me-1"></i>confirmed{% if row.confirmed_by %} by {{ row.confirmed_by }}{% endif %} on {{ row.confirmed_at|date:"M j" }}</span>
+              </div>
+              <a class="rs-btn rs-btn-sm" href="{% url 'regular_shift_edit' row.driver.id %}">{% if can_manage %}<i class="bi bi-pencil"></i>Edit{% else %}<i class="bi bi-eye"></i>View{% endif %}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="rs-empty">No regular shifts confirmed yet.</div>
+      {% endif %}
+    </section>
+
+  </div>
+</div>
+{% endblock %}

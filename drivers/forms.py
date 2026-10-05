@@ -193,6 +193,127 @@ class DriverProfileForm(forms.ModelForm):
         return self._clean_scan("dot_medical_card_scan")
 
 
+# ── Regular shifts (structured shifts, Stage 1) ─────────────────────────────
+
+def _shape_choices(templates):
+    """[(id, name)] of the shapes in their order: Morning, Midday, Evening, Float."""
+    return [(t.id, t.name) for t in sorted(templates.values(), key=lambda t: (t.sort_order, t.id))]
+
+
+def _time_field(label):
+    return forms.TimeField(
+        required=False, label=label,
+        widget=forms.TimeInput(attrs={"type": "time", "class": "gt-field"}, format="%H:%M"),
+    )
+
+
+class RegularShiftForm(forms.Form):
+    """The Regular Shifts editor's first two steps: the driver's usual shift
+    (S15) and the days he works. A day missing from works_on is Off, whatever
+    its row in RegularDayFormSet says."""
+
+    role = forms.TypedChoiceField(
+        coerce=int, label="Usual shift", widget=forms.RadioSelect,
+        error_messages={"required": "Pick the driver's usual shift."},
+    )
+    works_on = forms.TypedMultipleChoiceField(
+        coerce=int, choices=DriverWeeklySchedule.DAY_CHOICES, required=False,
+        widget=forms.CheckboxSelectMultiple, label="Works on",
+    )
+
+    def __init__(self, *args, templates, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = _shape_choices(templates)
+
+    def clean_works_on(self):
+        return sorted(set(self.cleaned_data.get("works_on") or []))
+
+
+class RegularDayForm(forms.Form):
+    """One weekday of the editor (S17): a different shape ("" = same as the
+    usual shift), a second shape it may be instead, its times (both blank =
+    the shape's usual times) and its own limits."""
+
+    template = forms.TypedChoiceField(coerce=int, empty_value=None, required=False, label="Shift")
+    alt_template = forms.TypedChoiceField(coerce=int, empty_value=None, required=False,
+                                          label="or also")
+    start = _time_field("Leaves base")
+    end = _time_field("Back at base")
+    day_earliest_start = _time_field("Not before")
+    day_latest_finish = _time_field("Done by")
+    day_latest_finish_next_day = forms.BooleanField(
+        required=False, label="Next day",
+        widget=forms.CheckboxInput(attrs={"class": "gt-checkbox"}),
+    )
+
+    def __init__(self, *args, shapes=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["template"].choices = [("", "Same as usual"), *shapes]
+        self.fields["alt_template"].choices = [("", "—"), *shapes]
+        for name in ("template", "alt_template"):
+            self.fields[name].widget.attrs["class"] = "gt-field"
+
+
+def regular_week(week, rows):
+    """The editor's two steps put together as seven regular_shifts.DayShift,
+    Monday..Sunday: a day not in works_on is Off, "Same as usual" takes the
+    usual shift, and blank times stay blank (the shape's usual times, S17).
+    ``week`` and each of ``rows`` are cleaned_data; a missing value reads as
+    blank, so a half-valid page can still be labelled."""
+    role = week.get("role")
+    works_on = set(week.get("works_on") or [])
+    days = []
+    for i, row in enumerate(rows):
+        if i not in works_on:
+            days.append(regular_shifts.DayShift(i, None, None, None))
+            continue
+        days.append(regular_shifts.DayShift(
+            i, row.get("template") or role, row.get("start"), row.get("end"),
+            alt_template_id=row.get("alt_template"),
+            day_earliest=row.get("day_earliest_start"),
+            day_latest=row.get("day_latest_finish"),
+            day_latest_next_day=bool(row.get("day_latest_finish_next_day"))))
+    return days
+
+
+class BaseRegularDayFormSet(forms.BaseFormSet):
+    """The editor's seven days, Monday..Sunday. clean() puts them together
+    with the usual shift and the working days (``week_form``) via
+    regular_week() and refuses the week with every message
+    regular_shifts.validate_regular_shift has, in day order. A week that
+    passes is left on ``.days`` for the view to save."""
+
+    def __init__(self, *args, week_form, driver, templates, rest_min, **kwargs):
+        self.week_form, self.driver = week_form, driver
+        self.templates, self.rest_min = templates, rest_min
+        self.days = None
+        kwargs.setdefault("prefix", "days")
+        kwargs["form_kwargs"] = {**kwargs.get("form_kwargs", {}),
+                                 "shapes": _shape_choices(templates)}
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        if any(self.errors) or not self.week_form.is_valid():
+            return
+        if self.total_form_count() != 7:
+            raise forms.ValidationError("The page lost a day — reload it and try again.")
+        week = regular_week(self.week_form.cleaned_data, [f.cleaned_data for f in self.forms])
+        problems = regular_shifts.validate_regular_shift(
+            week, templates=self.templates,
+            hard_earliest_start=self.driver.hard_earliest_start,
+            hard_latest_finish=self.driver.hard_latest_finish,
+            hard_latest_finish_next_day=self.driver.hard_latest_finish_next_day,
+            max_days_per_week=self.driver.max_days_per_week,
+            rest_min=self.rest_min)
+        if problems:
+            raise forms.ValidationError(problems)
+        self.days = week
+
+
+RegularDayFormSet = forms.formset_factory(
+    RegularDayForm, formset=BaseRegularDayFormSet, extra=0, max_num=7, validate_max=True)
+
+
 class DriverLicenseDetailsForm(forms.ModelForm):
     """Driver self-service: the license fields, shown pre-filled after a scan
     (see drivers.license_ocr) or filled by hand. Deliberately excludes the

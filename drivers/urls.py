@@ -1,5 +1,5 @@
 from django.urls import path
-from . import comms_views, onboarding_views, operator_views, views
+from . import comms_views, onboarding_views, operator_views, regular_shift_views, views
 
 
 urlpatterns = [
@@ -34,6 +34,18 @@ urlpatterns = [
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),
     path("<int:driver_id>/profile/", views.driver_profile, name="driver_profile"),
+    # Regular shifts (structured shifts, Stage 1): the list, the editor, the switch
+    path("regular-shifts/", regular_shift_views.regular_shifts, name="regular_shifts"),
+    path(
+        "<int:driver_id>/regular-shift/",
+        regular_shift_views.regular_shift_edit,
+        name="regular_shift_edit",
+    ),
+    path(
+        "regular-shifts/switch/",
+        regular_shift_views.regular_shift_switch,
+        name="regular_shift_switch",
+    ),
     path(
         "statement/<int:driver_id>/",
         views.driver_statement_list,
