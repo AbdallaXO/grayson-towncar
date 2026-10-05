@@ -32,14 +32,24 @@ def _back(driver):
     return redirect(reverse("driver_profile", args=[driver.id]) + "#strengths-habits")
 
 
+def _picked_tag(raw):
+    """The tag a POST names, or None for anything that isn't a tag's id. The
+    page only ever sends plain ids, but a hand-made request can send '²' (which
+    str.isdigit() passes and int() refuses) or a number too big for the
+    database; those get "Pick a tag to add.", never a server error."""
+    try:
+        return DriverTag.objects.filter(id=int(raw)).first()
+    except (ValueError, OverflowError):
+        return None
+
+
 @login_required(login_url="login")
 @require_POST
 def driver_tag_add(request, driver_id):
     if not request.user.is_staff:
         return HttpResponseForbidden("Only the office can tag a driver.")
     driver = get_object_or_404(Driver, id=driver_id)
-    tag_id = request.POST.get("tag", "")
-    tag = DriverTag.objects.filter(id=tag_id).first() if tag_id.isdigit() else None
+    tag = _picked_tag(request.POST.get("tag", ""))
     note = request.POST.get("note", "").strip()
     if tag is None:
         messages.error(request, "Pick a tag to add.")

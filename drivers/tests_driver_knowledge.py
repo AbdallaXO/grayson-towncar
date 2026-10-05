@@ -155,6 +155,18 @@ class TagEditingTests(_Base):
         resp = self.client.post(url, {"tag": self.tag("Disney").id, "note": "x" * 200})
         self.assertEqual(self.last_message(resp), "Disney added.")       # 200 exactly is fine
 
+    def test_add_refuses_a_hand_made_tag_id_without_a_server_error(self):
+        # '²' passes str.isdigit() but int() refuses it; the last is too big
+        # for the database. Each is "Pick a tag to add.", never a 500.
+        self.client.force_login(self.dispatcher)
+        url = reverse("driver_tag_add", args=[self.driver.id])
+        for raw in ("²", f"{self.tag('Disney').id}²", "abc", "-1", "9" * 30):
+            with self.subTest(tag=raw):
+                resp = self.client.post(url, {"tag": raw, "note": ""})
+                self.assertRedirects(resp, self.back_url(), fetch_redirect_response=False)
+                self.assertEqual(self.last_message(resp), "Pick a tag to add.")
+        self.assertFalse(DriverTagAssignment.objects.exists())
+
     def test_dispatcher_cannot_remove(self):
         self.assign("Runs late")
         self.client.force_login(self.dispatcher)
